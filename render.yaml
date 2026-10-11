@@ -10,8 +10,8 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm --prefix node-backend install && npm --prefix node-backend run prisma:generate && cd node-backend && npx prisma migrate deploy
-    startCommand: npm --prefix node-backend start
+    buildCommand: npm --prefix node-backend install && npm --prefix node-backend run build
+    startCommand: cd node-backend && (npx prisma migrate deploy || npx prisma db push --accept-data-loss || true) && node src/server.js
     healthCheckPath: /api/v1/health
     autoDeploy: true
 

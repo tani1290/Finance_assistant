@@ -8,8 +8,8 @@ const fs = require('fs');
 
 const rootDir = path.resolve(__dirname, '..');
 
-// Ensure DATABASE_URL is available for Prisma schema validation during build
-if (!process.env.DATABASE_URL) {
+// Ensure valid DATABASE_URL format is available for Prisma schema validation during build
+if (!process.env.DATABASE_URL || (!process.env.DATABASE_URL.startsWith('postgresql://') && !process.env.DATABASE_URL.startsWith('postgres://'))) {
   process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/finance_jinay?schema=public';
 }
 
