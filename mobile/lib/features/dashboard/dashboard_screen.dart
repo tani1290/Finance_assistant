@@ -64,8 +64,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         final data = syncRes.data['data'];
         final summary = data['summary'] ?? {};
 
-        _netWorth = double.tryParse(summary['netWorth']?.toString() ?? '0') ?? 0.0;
-        _pendingSmsCount = int.tryParse(summary['pendingSmsCount']?.toString() ?? '0') ?? 0;
+        _netWorth =
+            double.tryParse(summary['netWorth']?.toString() ?? '0') ?? 0.0;
+        _pendingSmsCount =
+            int.tryParse(summary['pendingSmsCount']?.toString() ?? '0') ?? 0;
 
         if (data['accounts'] is List) {
           _accounts = (data['accounts'] as List)
@@ -85,10 +87,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         final dashRes = await apiClient.get(ApiEndpoints.dashboard);
         if (dashRes.statusCode == 200 && dashRes.data['success'] == true) {
           final dashData = dashRes.data['data'];
-          _monthlyIncome = double.tryParse(dashData['monthlyIncome']?.toString() ?? '0') ?? 0.0;
-          _monthlyExpenses = double.tryParse(dashData['monthlyExpenses']?.toString() ?? '0') ?? 0.0;
-          _savingsRate = double.tryParse(dashData['savingsRate']?.toString() ?? '0') ?? 0.0;
-          _healthScore = int.tryParse(dashData['financialHealthScore']?.toString() ?? '75') ?? 75;
+          _monthlyIncome =
+              double.tryParse(dashData['monthlyIncome']?.toString() ?? '0') ??
+              0.0;
+          _monthlyExpenses =
+              double.tryParse(dashData['monthlyExpenses']?.toString() ?? '0') ??
+              0.0;
+          _savingsRate =
+              double.tryParse(dashData['savingsRate']?.toString() ?? '0') ??
+              0.0;
+          _healthScore =
+              int.tryParse(
+                dashData['financialHealthScore']?.toString() ?? '75',
+              ) ??
+              75;
           _aiInsight = dashData['aiAdvice'] ?? dashData['insight'];
         }
       } catch (_) {}
@@ -105,10 +117,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             .fold(0.0, (sum, t) => sum + t.amount);
       }
       if (_savingsRate == 0 && _monthlyIncome > 0) {
-        _savingsRate = (((_monthlyIncome - _monthlyExpenses) / _monthlyIncome) * 100).clamp(0, 100);
+        _savingsRate =
+            (((_monthlyIncome - _monthlyExpenses) / _monthlyIncome) * 100)
+                .clamp(0, 100);
       }
       if (_aiInsight == null || _aiInsight!.isEmpty) {
-        _aiInsight = "Your spending is on track this month. You're maintaining a ${_savingsRate.toStringAsFixed(0)}% savings rate across your primary bank accounts.";
+        _aiInsight =
+            "Your spending is on track this month. You're maintaining a ${_savingsRate.toStringAsFixed(0)}% savings rate across your primary bank accounts.";
       }
     } catch (e) {
       _errorMessage = 'Could not load live dashboard data. Pull to refresh.';
@@ -135,7 +150,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
             const Text(
               'Here is your financial clarity',
-              style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.darkTextSecondary,
+              ),
             ),
           ],
         ),
@@ -157,7 +175,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ? _buildLoadingSkeleton()
             : SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -167,16 +188,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         decoration: BoxDecoration(
                           color: AppColors.expense.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.expense.withValues(alpha: 0.4)),
+                          border: Border.all(
+                            color: AppColors.expense.withValues(alpha: 0.4),
+                          ),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.info_outline, color: AppColors.expense, size: 20),
+                            const Icon(
+                              Icons.info_outline,
+                              color: AppColors.expense,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 _errorMessage!,
-                                style: const TextStyle(fontSize: 13, color: AppColors.expense),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.expense,
+                                ),
                               ),
                             ),
                           ],
@@ -244,7 +274,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 color: AppColors.warning.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.sms_rounded, color: AppColors.warning, size: 20),
+              child: const Icon(
+                Icons.sms_rounded,
+                color: AppColors.warning,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -261,7 +295,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   const Text(
                     'Tap to confirm or categorize new transactions',
-                    style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.darkTextSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -308,7 +345,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.8,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
                 ),
               ),
               Container(
@@ -319,11 +358,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.verified_rounded, size: 13, color: AppColors.primaryLight),
+                    const Icon(
+                      Icons.verified_rounded,
+                      size: 13,
+                      color: AppColors.primaryLight,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'Health: $_healthScore/100',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primaryLight),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryLight,
+                      ),
                     ),
                   ],
                 ),
@@ -337,7 +384,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               fontSize: 34,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
-              color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+              color: isDark
+                  ? AppColors.darkTextPrimary
+                  : AppColors.lightTextPrimary,
             ),
           ),
           const SizedBox(height: 14),
@@ -353,7 +402,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 '${_accounts.length} active Indian accounts',
                 style: TextStyle(
                   fontSize: 12.5,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
                 ),
               ),
             ],
@@ -380,16 +431,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         color: AppColors.incomeBadgeBg,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.arrow_downward_rounded, size: 14, color: AppColors.income),
+                      child: const Icon(
+                        Icons.arrow_downward_rounded,
+                        size: 14,
+                        color: AppColors.income,
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    const Text('Income', style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary)),
+                    const Text(
+                      'Income',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.darkTextSecondary,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
                   CurrencyFormatter.compact(_monthlyIncome),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -410,16 +474,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         color: AppColors.expenseBadgeBg,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.arrow_upward_rounded, size: 14, color: AppColors.expense),
+                      child: const Icon(
+                        Icons.arrow_upward_rounded,
+                        size: 14,
+                        color: AppColors.expense,
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    const Text('Spent', style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary)),
+                    const Text(
+                      'Spent',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.darkTextSecondary,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
                   CurrencyFormatter.compact(_monthlyExpenses),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -440,16 +517,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         color: AppColors.primaryWash,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.pie_chart_rounded, size: 14, color: AppColors.primaryLight),
+                      child: const Icon(
+                        Icons.pie_chart_rounded,
+                        size: 14,
+                        color: AppColors.primaryLight,
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    const Text('Saved', style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary)),
+                    const Text(
+                      'Saved',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.darkTextSecondary,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
                   '${_savingsRate.toStringAsFixed(0)}%',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primaryLight),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryLight,
+                  ),
                 ),
               ],
             ),
@@ -479,7 +570,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 color: AppColors.primary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryLight, size: 20),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                color: AppColors.primaryLight,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -491,17 +586,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     children: [
                       Text(
                         'AI Financial Co-pilot',
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.primaryLight),
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryLight,
+                        ),
                       ),
-                      Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.primaryLight),
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 12,
+                        color: AppColors.primaryLight,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    _aiInsight ?? "Reviewing your accounts and daily patterns...",
+                    _aiInsight ??
+                        "Reviewing your accounts and daily patterns...",
                     style: TextStyle(
                       fontSize: 12.5,
-                      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.lightTextPrimary,
                       height: 1.45,
                     ),
                   ),
@@ -519,17 +625,41 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildActionButton(Icons.sms_outlined, 'Pending SMS', () => context.push('/pending-sms')),
+          _buildActionButton(
+            Icons.sms_outlined,
+            'Pending SMS',
+            () => context.push('/pending-sms'),
+          ),
           const SizedBox(width: 10),
-          _buildActionButton(Icons.pie_chart_outline_rounded, 'Budgets', () => context.push('/budgets')),
+          _buildActionButton(
+            Icons.pie_chart_outline_rounded,
+            'Budgets',
+            () => context.push('/budgets'),
+          ),
           const SizedBox(width: 10),
-          _buildActionButton(Icons.account_balance_outlined, 'Accounts', () => context.push('/accounts')),
+          _buildActionButton(
+            Icons.account_balance_outlined,
+            'Accounts',
+            () => context.push('/accounts'),
+          ),
           const SizedBox(width: 10),
-          _buildActionButton(Icons.show_chart_rounded, 'Investments', () => context.push('/investments')),
+          _buildActionButton(
+            Icons.show_chart_rounded,
+            'Investments',
+            () => context.push('/investments'),
+          ),
           const SizedBox(width: 10),
-          _buildActionButton(Icons.flag_outlined, 'Goals', () => context.push('/goals')),
+          _buildActionButton(
+            Icons.flag_outlined,
+            'Goals',
+            () => context.push('/goals'),
+          ),
           const SizedBox(width: 10),
-          _buildActionButton(Icons.credit_card_outlined, 'Loans & EMI', () => context.push('/loans')),
+          _buildActionButton(
+            Icons.credit_card_outlined,
+            'Loans & EMI',
+            () => context.push('/loans'),
+          ),
         ],
       ),
     );
@@ -550,7 +680,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           children: [
             Icon(icon, size: 16, color: AppColors.primaryLight),
             const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
           ],
         ),
       ),
@@ -565,8 +698,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Spending & Cash Flow', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-              Text('October 2026', style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary)),
+              const Text(
+                'Spending & Cash Flow',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+              Text(
+                'October 2026',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.darkTextSecondary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -614,7 +756,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Your Accounts', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const Text(
+              'Your Accounts',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
             TextButton(
               onPressed: () => context.push('/accounts'),
               child: const Text('View All', style: TextStyle(fontSize: 13)),
@@ -625,41 +770,66 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         if (_accounts.isEmpty)
           const Text('No accounts found. Tap to add one.')
         else
-          ..._accounts.take(3).map((acc) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: FinancialCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
+          ..._accounts
+              .take(3)
+              .map(
+                (acc) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: FinancialCard(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.account_balance_rounded,
+                            size: 20,
+                            color: AppColors.primaryLight,
+                          ),
                         ),
-                        child: const Icon(Icons.account_balance_rounded, size: 20, color: AppColors.primaryLight),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(acc.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                            Text(
-                              acc.accountNumberMasked != null ? 'A/c •••• ${acc.accountNumberMasked}' : acc.accountType,
-                              style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
-                            ),
-                          ],
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                acc.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                acc.accountNumberMasked != null
+                                    ? 'A/c •••• ${acc.accountNumberMasked}'
+                                    : acc.accountType,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.darkTextSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(
-                        CurrencyFormatter.format(acc.balance),
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                      ),
-                    ],
+                        Text(
+                          CurrencyFormatter.format(acc.balance),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              )),
+              ),
       ],
     );
   }
@@ -671,7 +841,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Recent Transactions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const Text(
+              'Recent Transactions',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
             TextButton(
               onPressed: () => context.push('/transactions'),
               child: const Text('See All', style: TextStyle(fontSize: 13)),
@@ -683,59 +856,84 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           const Center(
             child: Padding(
               padding: EdgeInsets.all(24),
-              child: Text('No transactions yet. Ingest bank SMS or log an expense!'),
+              child: Text(
+                'No transactions yet. Ingest bank SMS or log an expense!',
+              ),
             ),
           )
         else
-          ..._recentTransactions.take(5).map((tx) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: FinancialCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  onTap: () => context.push('/transactions/${tx.id}'),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(9),
-                        decoration: BoxDecoration(
-                          color: tx.isIncome ? AppColors.incomeBadgeBg : AppColors.expenseBadgeBg,
-                          shape: BoxShape.circle,
+          ..._recentTransactions
+              .take(5)
+              .map(
+                (tx) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: FinancialCard(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    onTap: () => context.push('/transactions/${tx.id}'),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(9),
+                          decoration: BoxDecoration(
+                            color: tx.isIncome
+                                ? AppColors.incomeBadgeBg
+                                : AppColors.expenseBadgeBg,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            tx.isIncome
+                                ? Icons.arrow_downward_rounded
+                                : Icons.arrow_upward_rounded,
+                            size: 16,
+                            color: tx.isIncome
+                                ? AppColors.income
+                                : AppColors.expense,
+                          ),
                         ),
-                        child: Icon(
-                          tx.isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-                          size: 16,
-                          color: tx.isIncome ? AppColors.income : AppColors.expense,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tx.merchant ?? tx.description ?? 'Transaction',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13.5,
+                                ),
+                              ),
+                              Text(
+                                '${tx.categoryName} • ${DateFormatter.relative(tx.date)}',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppColors.darkTextSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              tx.merchant ?? tx.description ?? 'Transaction',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
-                            ),
-                            Text(
-                              '${tx.categoryName} • ${DateFormatter.relative(tx.date)}',
-                              style: const TextStyle(fontSize: 11.5, color: AppColors.darkTextSecondary),
-                            ),
-                          ],
+                        Text(
+                          '${tx.isIncome ? "+" : "-"}${CurrencyFormatter.format(tx.amount)}',
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: tx.isIncome
+                                ? AppColors.income
+                                : (isDark
+                                      ? AppColors.darkTextPrimary
+                                      : AppColors.lightTextPrimary),
+                          ),
                         ),
-                      ),
-                      Text(
-                        '${tx.isIncome ? "+" : "-"}${CurrencyFormatter.format(tx.amount)}',
-                        style: TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          color: tx.isIncome ? AppColors.income : (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              )),
+              ),
       ],
     );
   }
@@ -750,11 +948,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: SkeletonLoader(width: 100, height: 80, borderRadius: 16)),
+              Expanded(
+                child: SkeletonLoader(width: 100, height: 80, borderRadius: 16),
+              ),
               SizedBox(width: 12),
-              Expanded(child: SkeletonLoader(width: 100, height: 80, borderRadius: 16)),
+              Expanded(
+                child: SkeletonLoader(width: 100, height: 80, borderRadius: 16),
+              ),
               SizedBox(width: 12),
-              Expanded(child: SkeletonLoader(width: 100, height: 80, borderRadius: 16)),
+              Expanded(
+                child: SkeletonLoader(width: 100, height: 80, borderRadius: 16),
+              ),
             ],
           ),
           SizedBox(height: 20),

@@ -40,9 +40,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     try {
       final res = await apiClient.get(ApiEndpoints.transactions);
       if (res.statusCode == 200 && res.data['success'] == true) {
-        final list = (res.data['data']['transactions'] ?? res.data['data'] as List)
-            .map((json) => TransactionModel.fromJson(json))
-            .toList();
+        final list =
+            (res.data['data']['transactions'] ?? res.data['data'] as List)
+                .map((json) => TransactionModel.fromJson(json))
+                .toList();
         setState(() {
           _transactions = list;
           _isLoading = false;
@@ -62,7 +63,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         final merchant = (tx.merchant ?? '').toLowerCase();
         final desc = (tx.description ?? '').toLowerCase();
         final cat = tx.categoryName.toLowerCase();
-        return merchant.contains(query) || desc.contains(query) || cat.contains(query);
+        return merchant.contains(query) ||
+            desc.contains(query) ||
+            cat.contains(query);
       }
       return true;
     }).toList();
@@ -126,72 +129,97 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : items.isEmpty
-                    ? EmptyStateView(
-                        icon: Icons.receipt_long_rounded,
-                        title: 'No Transactions Found',
-                        description: _searchQuery.isNotEmpty
-                            ? 'No matches found for "$_searchQuery"'
-                            : 'No transactions recorded yet.',
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _fetchTransactions,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                          itemCount: items.length,
-                          itemBuilder: (context, index) {
-                            final tx = items[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: FinancialCard(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                onTap: () => context.push('/transactions/${tx.id}'),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: tx.isIncome ? AppColors.incomeBadgeBg : AppColors.expenseBadgeBg,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        tx.isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-                                        size: 16,
-                                        color: tx.isIncome ? AppColors.income : AppColors.expense,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            tx.merchant ?? tx.description ?? 'Transaction',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                                          ),
-                                          Text(
-                                            '${tx.categoryName} • ${DateFormatter.format(tx.date)}',
-                                            style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Text(
-                                      '${tx.isIncome ? "+" : "-"}${CurrencyFormatter.format(tx.amount)}',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: tx.isIncome ? AppColors.income : (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                ? EmptyStateView(
+                    icon: Icons.receipt_long_rounded,
+                    title: 'No Transactions Found',
+                    description: _searchQuery.isNotEmpty
+                        ? 'No matches found for "$_searchQuery"'
+                        : 'No transactions recorded yet.',
+                  )
+                : RefreshIndicator(
+                    onRefresh: _fetchTransactions,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 8,
                       ),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final tx = items[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: FinancialCard(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            onTap: () => context.push('/transactions/${tx.id}'),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: tx.isIncome
+                                        ? AppColors.incomeBadgeBg
+                                        : AppColors.expenseBadgeBg,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    tx.isIncome
+                                        ? Icons.arrow_downward_rounded
+                                        : Icons.arrow_upward_rounded,
+                                    size: 16,
+                                    color: tx.isIncome
+                                        ? AppColors.income
+                                        : AppColors.expense,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        tx.merchant ??
+                                            tx.description ??
+                                            'Transaction',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${tx.categoryName} • ${DateFormatter.format(tx.date)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.darkTextSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  '${tx.isIncome ? "+" : "-"}${CurrencyFormatter.format(tx.amount)}',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: tx.isIncome
+                                        ? AppColors.income
+                                        : (isDark
+                                              ? AppColors.darkTextPrimary
+                                              : AppColors.lightTextPrimary),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
           ),
         ],
       ),

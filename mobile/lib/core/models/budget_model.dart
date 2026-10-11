@@ -17,7 +17,8 @@ class BudgetModel {
     required this.year,
   });
 
-  double get percentage => monthlyLimit > 0 ? (spent / monthlyLimit).clamp(0.0, 1.0) : 0.0;
+  double get percentage =>
+      monthlyLimit > 0 ? (spent / monthlyLimit).clamp(0.0, 1.0) : 0.0;
   double get remaining => monthlyLimit - spent;
   bool get isOverBudget => spent > monthlyLimit;
 
@@ -26,8 +27,12 @@ class BudgetModel {
       id: json['id'] ?? '',
       categoryId: json['categoryId'],
       categoryName: json['categoryName'] ?? 'General',
-      monthlyLimit: (json['monthlyLimit'] != null) ? double.tryParse(json['monthlyLimit'].toString()) ?? 0.0 : 0.0,
-      spent: (json['spent'] != null) ? double.tryParse(json['spent'].toString()) ?? 0.0 : 0.0,
+      monthlyLimit: (json['monthlyLimit'] != null)
+          ? double.tryParse(json['monthlyLimit'].toString()) ?? 0.0
+          : 0.0,
+      spent: (json['spent'] != null)
+          ? double.tryParse(json['spent'].toString()) ?? 0.0
+          : 0.0,
       month: json['month'] ?? DateTime.now().month,
       year: json['year'] ?? DateTime.now().year,
     );

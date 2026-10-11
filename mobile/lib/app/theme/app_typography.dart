@@ -4,8 +4,12 @@ import 'app_colors.dart';
 
 class AppTypography {
   static TextTheme textTheme(bool isDark) {
-    final textColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final secondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final textColor = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return TextTheme(
       displayLarge: GoogleFonts.outfit(

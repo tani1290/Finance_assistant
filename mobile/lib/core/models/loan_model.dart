@@ -24,10 +24,18 @@ class LoanModel {
       id: json['id'] ?? '',
       lender: json['lender'] ?? 'Bank',
       loanType: json['loanType'] ?? 'PERSONAL',
-      principalAmount: (json['principalAmount'] != null) ? double.tryParse(json['principalAmount'].toString()) ?? 0.0 : 0.0,
-      outstandingAmount: (json['outstandingAmount'] != null) ? double.tryParse(json['outstandingAmount'].toString()) ?? 0.0 : 0.0,
-      interestRate: (json['interestRate'] != null) ? double.tryParse(json['interestRate'].toString()) ?? 0.0 : 0.0,
-      emiAmount: (json['emiAmount'] != null) ? double.tryParse(json['emiAmount'].toString()) ?? 0.0 : 0.0,
+      principalAmount: (json['principalAmount'] != null)
+          ? double.tryParse(json['principalAmount'].toString()) ?? 0.0
+          : 0.0,
+      outstandingAmount: (json['outstandingAmount'] != null)
+          ? double.tryParse(json['outstandingAmount'].toString()) ?? 0.0
+          : 0.0,
+      interestRate: (json['interestRate'] != null)
+          ? double.tryParse(json['interestRate'].toString()) ?? 0.0
+          : 0.0,
+      emiAmount: (json['emiAmount'] != null)
+          ? double.tryParse(json['emiAmount'].toString()) ?? 0.0
+          : 0.0,
       tenureMonths: json['tenureMonths'] ?? 12,
     );
   }

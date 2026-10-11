@@ -58,79 +58,97 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _budgets.isEmpty
-              ? EmptyStateView(
-                  icon: Icons.pie_chart_outline_rounded,
-                  title: 'No Budgets Configured',
-                  description: 'Set monthly limits on your dining, groceries, and shopping to stay on track.',
-                )
-              : RefreshIndicator(
-                  onRefresh: _fetchBudgets,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(18),
-                    itemCount: _budgets.length,
-                    itemBuilder: (context, index) {
-                      final b = _budgets[index];
-                      final pct = b.percentage;
-                      final isOver = b.isOverBudget;
+          ? EmptyStateView(
+              icon: Icons.pie_chart_outline_rounded,
+              title: 'No Budgets Configured',
+              description:
+                  'Set monthly limits on your dining, groceries, and shopping to stay on track.',
+            )
+          : RefreshIndicator(
+              onRefresh: _fetchBudgets,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(18),
+                itemCount: _budgets.length,
+                itemBuilder: (context, index) {
+                  final b = _budgets[index];
+                  final pct = b.percentage;
+                  final isOver = b.isOverBudget;
 
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: FinancialCard(
-                          padding: const EdgeInsets.all(18),
-                          onTap: () => context.push('/budgets/${b.id}?category=${Uri.encodeComponent(b.categoryName)}'),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: FinancialCard(
+                      padding: const EdgeInsets.all(18),
+                      onTap: () => context.push(
+                        '/budgets/${b.id}?category=${Uri.encodeComponent(b.categoryName)}',
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    b.categoryName,
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                  ),
-                                  Text(
-                                    '${(pct * 100).toStringAsFixed(0)}%',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: isOver ? AppColors.expense : AppColors.primaryLight,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: LinearProgressIndicator(
-                                  value: pct,
-                                  minHeight: 8,
-                                  backgroundColor: AppColors.darkBorderSubtle,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    isOver ? AppColors.expense : (pct > 0.8 ? AppColors.warning : AppColors.primaryLight),
-                                  ),
+                              Text(
+                                b.categoryName,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Spent: ${CurrencyFormatter.format(b.spent)}',
-                                    style: const TextStyle(fontSize: 12.5, color: AppColors.darkTextSecondary),
-                                  ),
-                                  Text(
-                                    'Limit: ${CurrencyFormatter.format(b.monthlyLimit)}',
-                                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-                                  ),
-                                ],
+                              Text(
+                                '${(pct * 100).toStringAsFixed(0)}%',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: isOver
+                                      ? AppColors.expense
+                                      : AppColors.primaryLight,
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                          const SizedBox(height: 10),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: pct,
+                              minHeight: 8,
+                              backgroundColor: AppColors.darkBorderSubtle,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                isOver
+                                    ? AppColors.expense
+                                    : (pct > 0.8
+                                          ? AppColors.warning
+                                          : AppColors.primaryLight),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Spent: ${CurrencyFormatter.format(b.spent)}',
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  color: AppColors.darkTextSecondary,
+                                ),
+                              ),
+                              Text(
+                                'Limit: ${CurrencyFormatter.format(b.monthlyLimit)}',
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
 }

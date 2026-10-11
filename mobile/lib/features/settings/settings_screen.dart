@@ -13,9 +13,7 @@ class SettingsScreen extends ConsumerWidget {
     final user = ref.watch(authProvider).user;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile & Settings'),
-      ),
+      appBar: AppBar(title: const Text('Profile & Settings')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -29,8 +27,14 @@ class SettingsScreen extends ConsumerWidget {
                     radius: 28,
                     backgroundColor: AppColors.primary,
                     child: Text(
-                      user?.firstName.isNotEmpty == true ? user!.firstName[0].toUpperCase() : 'R',
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white),
+                      user?.firstName.isNotEmpty == true
+                          ? user!.firstName[0].toUpperCase()
+                          : 'R',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -40,12 +44,18 @@ class SettingsScreen extends ConsumerWidget {
                       children: [
                         Text(
                           user?.fullName ?? 'Rahul Sharma',
-                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           user?.email ?? 'rahul@example.com',
-                          style: const TextStyle(fontSize: 13, color: AppColors.darkTextSecondary),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.darkTextSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -103,8 +113,18 @@ class SettingsScreen extends ConsumerWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.logout_rounded, color: AppColors.expense, size: 18),
-                label: const Text('Log Out of FinPro', style: TextStyle(color: AppColors.expense, fontWeight: FontWeight.w600)),
+                icon: const Icon(
+                  Icons.logout_rounded,
+                  color: AppColors.expense,
+                  size: 18,
+                ),
+                label: const Text(
+                  'Log Out of FinPro',
+                  style: TextStyle(
+                    color: AppColors.expense,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 onPressed: () async {
                   await ref.read(authProvider.notifier).logout();
                   if (context.mounted) {
@@ -113,8 +133,12 @@ class SettingsScreen extends ConsumerWidget {
                 },
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: BorderSide(color: AppColors.expense.withValues(alpha: 0.3)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  side: BorderSide(
+                    color: AppColors.expense.withValues(alpha: 0.3),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
@@ -123,7 +147,11 @@ class SettingsScreen extends ConsumerWidget {
             const Text(
               'FinPro Mobile v1.0.0 • Final Year Engineering Project\nCreated for Indian Personal Finance & Decision Support',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: AppColors.darkTextMuted, height: 1.5),
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.darkTextMuted,
+                height: 1.5,
+              ),
             ),
           ],
         ),
@@ -146,8 +174,17 @@ class SettingsScreen extends ConsumerWidget {
         ),
         child: Icon(icon, color: AppColors.primaryLight, size: 20),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary)),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(
+          fontSize: 12,
+          color: AppColors.darkTextSecondary,
+        ),
+      ),
       trailing: const Icon(Icons.chevron_right_rounded, size: 20),
       onTap: onTap,
     );

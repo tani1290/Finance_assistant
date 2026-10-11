@@ -99,7 +99,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final data = await FirebaseService.instance.signInWithGoogle();
       if (data == null) {
-        state = AuthState.unauthenticated(error: 'Google Sign-In was cancelled.');
+        state = AuthState.unauthenticated(
+          error: 'Google Sign-In was cancelled.',
+        );
         return false;
       }
 
@@ -124,7 +126,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       return true;
     } catch (e) {
-      state = AuthState.unauthenticated(error: 'Google Sign-In failed. Please try again.');
+      state = AuthState.unauthenticated(
+        error: 'Google Sign-In failed. Please try again.',
+      );
       return false;
     }
   }
@@ -179,7 +183,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
     } catch (e) {
       state = AuthState.unauthenticated(
-        error: 'Registration failed. Username or email may already be registered.',
+        error:
+            'Registration failed. Username or email may already be registered.',
       );
       return false;
     }
@@ -189,7 +194,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final refreshToken = await TokenStorage.getRefreshToken();
       if (refreshToken != null) {
-        await apiClient.post(ApiEndpoints.logout, data: {'refreshToken': refreshToken});
+        await apiClient.post(
+          ApiEndpoints.logout,
+          data: {'refreshToken': refreshToken},
+        );
       }
     } catch (_) {}
     // Sign out of Firebase + Google

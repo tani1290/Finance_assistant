@@ -4,7 +4,9 @@ import '../api/api_endpoints.dart';
 import 'sms_parser.dart';
 
 class SmsPlatformChannel {
-  static const MethodChannel _channel = MethodChannel('com.finpro.app/sms_channel');
+  static const MethodChannel _channel = MethodChannel(
+    'com.finpro.app/sms_channel',
+  );
 
   static Future<bool> checkPermission() async {
     try {
@@ -28,7 +30,9 @@ class SmsPlatformChannel {
     try {
       final res = await _channel.invokeListMethod<dynamic>('getBufferedSms');
       if (res != null) {
-        return res.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+        return res
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
       }
     } catch (_) {}
     return [];
@@ -42,9 +46,13 @@ class SmsPlatformChannel {
 
   static Future<List<Map<String, dynamic>>> readRecentInboxSms() async {
     try {
-      final res = await _channel.invokeListMethod<dynamic>('readRecentInboxSms');
+      final res = await _channel.invokeListMethod<dynamic>(
+        'readRecentInboxSms',
+      );
       if (res != null) {
-        return res.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+        return res
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
       }
     } catch (_) {}
     return [];

@@ -62,7 +62,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                     color: AppColors.primary.withValues(alpha: 0.4),
                     blurRadius: 24,
                     offset: const Offset(0, 8),
-                  )
+                  ),
                 ],
               ),
               child: const Icon(

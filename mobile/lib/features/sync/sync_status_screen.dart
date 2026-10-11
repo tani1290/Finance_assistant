@@ -40,7 +40,8 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
         setState(() {
           _serverStatus = 'Online (Connected)';
           _lastSyncTime = DateTime.now();
-          _pendingSmsCount = res.data['data']['summary']['pendingSmsCount'] ?? 0;
+          _pendingSmsCount =
+              res.data['data']['summary']['pendingSmsCount'] ?? 0;
         });
       }
     } catch (_) {
@@ -62,7 +63,8 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
         setState(() {
           _lastSyncTime = DateTime.now();
           _serverStatus = 'Online (Connected)';
-          _pendingSmsCount = res.data['data']['summary']['pendingSmsCount'] ?? 0;
+          _pendingSmsCount =
+              res.data['data']['summary']['pendingSmsCount'] ?? 0;
         });
       }
 
@@ -77,7 +79,9 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Synchronization failed. Check connection.')),
+          const SnackBar(
+            content: Text('Synchronization failed. Check connection.'),
+          ),
         );
       }
     } finally {
@@ -90,9 +94,7 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Synchronization Status'),
-      ),
+      appBar: AppBar(title: const Text('Synchronization Status')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -105,14 +107,19 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Backend API Status', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text(
+                        'Backend API Status',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
                       Row(
                         children: [
                           Container(
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: _serverStatus.contains('Online') ? AppColors.primaryLight : AppColors.warning,
+                              color: _serverStatus.contains('Online')
+                                  ? AppColors.primaryLight
+                                  : AppColors.warning,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -122,7 +129,9 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: _serverStatus.contains('Online') ? AppColors.primaryLight : AppColors.warning,
+                              color: _serverStatus.contains('Online')
+                                  ? AppColors.primaryLight
+                                  : AppColors.warning,
                             ),
                           ),
                         ],
@@ -133,16 +142,34 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Last Synchronized', style: TextStyle(fontSize: 13, color: AppColors.darkTextSecondary)),
-                      Text(DateFormatter.relative(_lastSyncTime), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const Text(
+                        'Last Synchronized',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.darkTextSecondary,
+                        ),
+                      ),
+                      Text(
+                        DateFormatter.relative(_lastSyncTime),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ],
                   ),
                   const Divider(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Pending SMS for Review', style: TextStyle(fontSize: 13, color: AppColors.darkTextSecondary)),
-                      Text('$_pendingSmsCount items', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const Text(
+                        'Pending SMS for Review',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.darkTextSecondary,
+                        ),
+                      ),
+                      Text(
+                        '$_pendingSmsCount items',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ],
                   ),
                 ],
@@ -155,11 +182,18 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('API Host Configuration', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'API Host Configuration',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
                   const SizedBox(height: 6),
                   const Text(
                     'Default for Android Emulator is 10.0.2.2:5001. If testing on a physical phone, enter your computer LAN IP (e.g. http://192.168.1.5:5001/api/v1):',
-                    style: TextStyle(fontSize: 12.5, color: AppColors.darkTextSecondary, height: 1.4),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.darkTextSecondary,
+                      height: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -178,7 +212,9 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
                       );
                       _checkSyncState();
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.darkSurfaceSubtle),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.darkSurfaceSubtle,
+                    ),
                     child: const Text('Update Host URL'),
                   ),
                 ],

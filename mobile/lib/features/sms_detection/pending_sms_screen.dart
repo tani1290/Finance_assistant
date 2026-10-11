@@ -53,7 +53,11 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
     }
   }
 
-  Future<void> _handleConfirm(PendingSmsModel item, {String? newCategory, String? newMerchant}) async {
+  Future<void> _handleConfirm(
+    PendingSmsModel item, {
+    String? newCategory,
+    String? newMerchant,
+  }) async {
     try {
       final payload = <String, dynamic>{};
       if (newCategory != null) payload['categoryName'] = newCategory;
@@ -67,7 +71,9 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
       if (res.statusCode == 200 && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Confirmed ₹${item.amount.toStringAsFixed(0)} to ledger!'),
+            content: Text(
+              'Confirmed ₹${item.amount.toStringAsFixed(0)} to ledger!',
+            ),
             backgroundColor: AppColors.primary,
           ),
         );
@@ -86,16 +92,18 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
     try {
       final res = await apiClient.post(ApiEndpoints.smsPendingReject(item.id));
       if (res.statusCode == 200 && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Candidate rejected.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Candidate rejected.')));
         _loadPendingSms();
       }
     } catch (_) {}
   }
 
   void _showConfirmDialog(PendingSmsModel item) {
-    final catController = TextEditingController(text: item.suggestedCategory ?? 'General');
+    final catController = TextEditingController(
+      text: item.suggestedCategory ?? 'General',
+    );
     final merchantController = TextEditingController(text: item.merchant ?? '');
 
     showModalBottomSheet(
@@ -140,27 +148,41 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
             const SizedBox(height: 6),
             Text(
               'Detected from ${item.rawSender ?? "Bank SMS"} • ${DateFormatter.formatWithTime(item.transactionDate)}',
-              style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.darkTextSecondary,
+              ),
             ),
             const SizedBox(height: 18),
-            const Text('Merchant / Payee', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            const Text(
+              'Merchant / Payee',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
             const SizedBox(height: 6),
             TextField(
               controller: merchantController,
               decoration: const InputDecoration(hintText: 'Merchant name'),
             ),
             const SizedBox(height: 14),
-            const Text('Category', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            const Text(
+              'Category',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
             const SizedBox(height: 6),
             TextField(
               controller: catController,
-              decoration: const InputDecoration(hintText: 'e.g. Food & Dining, Shopping, Utilities'),
+              decoration: const InputDecoration(
+                hintText: 'e.g. Food & Dining, Shopping, Utilities',
+              ),
             ),
             const SizedBox(height: 8),
             if (item.categoryReason != null)
               Text(
                 '💡 AI Reason: ${item.categoryReason}',
-                style: const TextStyle(fontSize: 11.5, color: AppColors.primaryLight),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.primaryLight,
+                ),
               ),
             const SizedBox(height: 24),
             GradientButton(
@@ -182,23 +204,32 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
 
   void _showSimulateSmsDialog() {
     final textController = TextEditingController(
-      text: 'Rs. 450.00 debited from A/c XX1234 on 10-Oct-2026 at SWIGGY. Avl Bal Rs 15,200.',
+      text:
+          'Rs. 450.00 debited from A/c XX1234 on 10-Oct-2026 at SWIGGY. Avl Bal Rs 15,200.',
     );
     final senderController = TextEditingController(text: 'HDFCBK');
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Simulate Bank SMS Ingestion', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Simulate Bank SMS Ingestion',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Test the SMS detection and categorization engine directly:', style: TextStyle(fontSize: 13)),
+            const Text(
+              'Test the SMS detection and categorization engine directly:',
+              style: TextStyle(fontSize: 13),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: senderController,
-              decoration: const InputDecoration(labelText: 'Sender Tag (e.g. HDFCBK, SBIBNK)'),
+              decoration: const InputDecoration(
+                labelText: 'Sender Tag (e.g. HDFCBK, SBIBNK)',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -227,7 +258,9 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
 
                 if (res.statusCode == 201 && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('SMS ingested into pending review!')),
+                    const SnackBar(
+                      content: Text('SMS ingested into pending review!'),
+                    ),
                   );
                   _loadPendingSms();
                 }
@@ -240,7 +273,10 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('Ingest SMS', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Ingest SMS',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -269,142 +305,172 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(_errorMessage!),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: _loadPendingSms,
-                        child: const Text('Retry'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(_errorMessage!),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _loadPendingSms,
+                    child: const Text('Retry'),
                   ),
-                )
-              : _pendingItems.isEmpty
-                  ? EmptyStateView(
-                      icon: Icons.mark_email_read_rounded,
-                      title: 'All Caught Up!',
-                      description: 'No pending SMS transactions awaiting review. Incoming banking alerts will appear here.',
-                      actionLabel: 'Simulate a Bank SMS',
-                      onAction: _showSimulateSmsDialog,
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(18),
-                      itemCount: _pendingItems.length,
-                      itemBuilder: (context, index) {
-                        final item = _pendingItems[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: FinancialCard(
-                            padding: const EdgeInsets.all(18),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                ],
+              ),
+            )
+          : _pendingItems.isEmpty
+          ? EmptyStateView(
+              icon: Icons.mark_email_read_rounded,
+              title: 'All Caught Up!',
+              description:
+                  'No pending SMS transactions awaiting review. Incoming banking alerts will appear here.',
+              actionLabel: 'Simulate a Bank SMS',
+              onAction: _showSimulateSmsDialog,
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(18),
+              itemCount: _pendingItems.length,
+              itemBuilder: (context, index) {
+                final item = _pendingItems[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: FinancialCard(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        StatusBadge(
-                                          label: item.isIncome ? 'Credit' : 'Debit',
-                                          color: item.isIncome ? AppColors.income : AppColors.expense,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        if (item.isDuplicate)
-                                          StatusBadge.duplicate(),
-                                      ],
-                                    ),
-                                    Text(
-                                      DateFormatter.relative(item.transactionDate),
-                                      style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
-                                    ),
-                                  ],
+                                StatusBadge(
+                                  label: item.isIncome ? 'Credit' : 'Debit',
+                                  color: item.isIncome
+                                      ? AppColors.income
+                                      : AppColors.expense,
                                 ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            item.merchant ?? 'Merchant',
-                                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Category: ${item.suggestedCategory ?? "General"}',
-                                            style: const TextStyle(fontSize: 12.5, color: AppColors.darkTextSecondary),
-                                          ),
-                                          if (item.accountHint != null)
-                                            Text(
-                                              'Account Ending: •••• ${item.accountHint}',
-                                              style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    Text(
-                                      '${item.isIncome ? "+" : "-"}${CurrencyFormatter.format(item.amount)}',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        color: item.isIncome ? AppColors.income : (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                if (item.duplicateReason != null) ...[
-                                  const SizedBox(height: 10),
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.purple.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      '⚠️ ${item.duplicateReason}',
-                                      style: const TextStyle(fontSize: 11.5, color: AppColors.purple),
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(height: 16),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () => _handleReject(item),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: AppColors.expense,
-                                          side: const BorderSide(color: AppColors.darkBorder),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                        ),
-                                        child: const Text('Reject'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        onPressed: () => _showConfirmDialog(item),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppColors.primary,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                        ),
-                                        child: const Text('Confirm', style: TextStyle(fontWeight: FontWeight.w600)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                const SizedBox(width: 8),
+                                if (item.isDuplicate) StatusBadge.duplicate(),
                               ],
                             ),
+                            Text(
+                              DateFormatter.relative(item.transactionDate),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.darkTextSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.merchant ?? 'Merchant',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Category: ${item.suggestedCategory ?? "General"}',
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      color: AppColors.darkTextSecondary,
+                                    ),
+                                  ),
+                                  if (item.accountHint != null)
+                                    Text(
+                                      'Account Ending: •••• ${item.accountHint}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.darkTextSecondary,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              '${item.isIncome ? "+" : "-"}${CurrencyFormatter.format(item.amount)}',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: item.isIncome
+                                    ? AppColors.income
+                                    : (isDark
+                                          ? AppColors.darkTextPrimary
+                                          : AppColors.lightTextPrimary),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (item.duplicateReason != null) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.purple.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '⚠️ ${item.duplicateReason}',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.purple,
+                              ),
+                            ),
                           ),
-                        );
-                      },
+                        ],
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => _handleReject(item),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.expense,
+                                  side: const BorderSide(
+                                    color: AppColors.darkBorder,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: const Text('Reject'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () => _showConfirmDialog(item),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Confirm',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

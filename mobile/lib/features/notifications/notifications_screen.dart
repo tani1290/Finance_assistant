@@ -41,19 +41,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _notifications = [
           {
             'title': 'Salary Credit Detected',
-            'message': 'Your account ending in 1234 was credited with monthly salary. ₹15,000 auto-transferred to active SIPs.',
+            'message':
+                'Your account ending in 1234 was credited with monthly salary. ₹15,000 auto-transferred to active SIPs.',
             'type': 'CREDIT',
             'time': 'Today, 10:15 AM',
           },
           {
             'title': 'Budget Alert: Dining (69%)',
-            'message': 'You have spent ₹38,200 of your ₹55,000 monthly limit. Safe to spend ₹16,800 remaining.',
+            'message':
+                'You have spent ₹38,200 of your ₹55,000 monthly limit. Safe to spend ₹16,800 remaining.',
             'type': 'WARNING',
             'time': 'Yesterday',
           },
           {
             'title': 'EMI Payment Due in 3 Days',
-            'message': 'Home loan EMI of ₹28,500 due on 15th October via auto-debit.',
+            'message':
+                'Home loan EMI of ₹28,500 due on 15th October via auto-debit.',
             'type': 'REMINDER',
             'time': '2 days ago',
           },
@@ -78,54 +81,69 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _notifications.isEmpty
-              ? EmptyStateView(
-                  icon: Icons.notifications_none_rounded,
-                  title: 'No New Notifications',
-                  description: 'All your alerts, budget warnings, and payment reminders are up to date.',
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(18),
-                  itemCount: _notifications.length,
-                  itemBuilder: (context, index) {
-                    final item = _notifications[index];
-                    final title = item['title'] ?? item['subject'] ?? 'Notice';
-                    final message = item['message'] ?? item['body'] ?? '';
+          ? EmptyStateView(
+              icon: Icons.notifications_none_rounded,
+              title: 'No New Notifications',
+              description:
+                  'All your alerts, budget warnings, and payment reminders are up to date.',
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(18),
+              itemCount: _notifications.length,
+              itemBuilder: (context, index) {
+                final item = _notifications[index];
+                final title = item['title'] ?? item['subject'] ?? 'Notice';
+                final message = item['message'] ?? item['body'] ?? '';
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: FinancialCard(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.12),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.notifications_active_rounded, color: AppColors.primaryLight, size: 18),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    message,
-                                    style: const TextStyle(fontSize: 12.5, color: AppColors.darkTextSecondary, height: 1.4),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: FinancialCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.notifications_active_rounded,
+                            color: AppColors.primaryLight,
+                            size: 18,
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                message,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  color: AppColors.darkTextSecondary,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

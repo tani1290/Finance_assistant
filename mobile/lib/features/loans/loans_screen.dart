@@ -51,7 +51,9 @@ class _LoansScreenState extends State<LoansScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) => Padding(
           padding: EdgeInsets.only(
@@ -64,14 +66,28 @@ class _LoansScreenState extends State<LoansScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Prepayment Simulator: ${loan.lender}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              Text(
+                'Prepayment Simulator: ${loan.lender}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 6),
-              const Text('Calculate interest & tenure reduction from a lump-sum payment:', style: TextStyle(fontSize: 13, color: AppColors.darkTextSecondary)),
+              const Text(
+                'Calculate interest & tenure reduction from a lump-sum payment:',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.darkTextSecondary,
+                ),
+              ),
               const SizedBox(height: 16),
               TextField(
                 controller: amountController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Prepayment Amount (₹)'),
+                decoration: const InputDecoration(
+                  labelText: 'Prepayment Amount (₹)',
+                ),
               ),
               const SizedBox(height: 16),
               GradientButton(
@@ -86,7 +102,8 @@ class _LoansScreenState extends State<LoansScreen> {
                         'principal': loan.outstandingAmount,
                         'interestRate': loan.interestRate,
                         'tenureMonths': loan.tenureMonths,
-                        'prepaymentAmount': double.tryParse(amountController.text) ?? 50000,
+                        'prepaymentAmount':
+                            double.tryParse(amountController.text) ?? 50000,
                       },
                     );
                     if (res.statusCode == 200) {
@@ -110,10 +127,19 @@ class _LoansScreenState extends State<LoansScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Estimated Interest Saved:', style: TextStyle(fontWeight: FontWeight.w600)),
+                          const Text(
+                            'Estimated Interest Saved:',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
                           Text(
-                            CurrencyFormatter.format(simResult!['interestSaved'] ?? 24500),
-                            style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryLight, fontSize: 16),
+                            CurrencyFormatter.format(
+                              simResult!['interestSaved'] ?? 24500,
+                            ),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryLight,
+                              fontSize: 16,
+                            ),
                           ),
                         ],
                       ),
@@ -121,8 +147,14 @@ class _LoansScreenState extends State<LoansScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Tenure Reduction:', style: TextStyle(fontSize: 13)),
-                          Text('${simResult!['monthsSaved'] ?? 14} Months earlier', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          const Text(
+                            'Tenure Reduction:',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          Text(
+                            '${simResult!['monthsSaved'] ?? 14} Months earlier',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
                         ],
                       ),
                     ],
@@ -142,87 +174,128 @@ class _LoansScreenState extends State<LoansScreen> {
       appBar: AppBar(
         title: const Text('Loans & EMIs'),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _fetchLoans),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _fetchLoans,
+          ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _loans.isEmpty
-              ? EmptyStateView(
-                  icon: Icons.credit_card_outlined,
-                  title: 'No Active Loans',
-                  description: 'Track home loans, vehicle EMIs, and personal loans with interest payoff schedules.',
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(18),
-                  itemCount: _loans.length,
-                  itemBuilder: (context, index) {
-                    final loan = _loans[index];
+          ? EmptyStateView(
+              icon: Icons.credit_card_outlined,
+              title: 'No Active Loans',
+              description:
+                  'Track home loans, vehicle EMIs, and personal loans with interest payoff schedules.',
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(18),
+              itemCount: _loans.length,
+              itemBuilder: (context, index) {
+                final loan = _loans[index];
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: FinancialCard(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: FinancialCard(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(loan.lender, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                                Text(
-                                  loan.loanType,
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryLight),
-                                ),
-                              ],
+                            Text(
+                              loan.lender,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Monthly EMI', style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary)),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      CurrencyFormatter.format(loan.emiAmount),
-                                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-                                    ),
-                                  ],
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    const Text('Outstanding Balance', style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary)),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      CurrencyFormatter.format(loan.outstandingAmount),
-                                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                icon: const Icon(Icons.calculate_outlined, size: 16),
-                                label: const Text('Simulate Prepayment Savings'),
-                                onPressed: () => _showPrepaymentSimulator(loan),
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: AppColors.darkBorder),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
+                            Text(
+                              loan.loanType,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryLight,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    );
-                  },
-                ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Monthly EMI',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.darkTextSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  CurrencyFormatter.format(loan.emiAmount),
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Text(
+                                  'Outstanding Balance',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.darkTextSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  CurrencyFormatter.format(
+                                    loan.outstandingAmount,
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            icon: const Icon(
+                              Icons.calculate_outlined,
+                              size: 16,
+                            ),
+                            label: const Text('Simulate Prepayment Savings'),
+                            onPressed: () => _showPrepaymentSimulator(loan),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                color: AppColors.darkBorder,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

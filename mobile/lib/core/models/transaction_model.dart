@@ -32,7 +32,9 @@ class TransactionModel {
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
     DateTime parsedDate;
     try {
-      parsedDate = json['date'] != null ? DateTime.parse(json['date'].toString()) : DateTime.now();
+      parsedDate = json['date'] != null
+          ? DateTime.parse(json['date'].toString())
+          : DateTime.now();
     } catch (_) {
       parsedDate = DateTime.now();
     }
@@ -55,7 +57,9 @@ class TransactionModel {
       accountName: accName,
       categoryId: json['categoryId'],
       categoryName: catName,
-      amount: (json['amount'] != null) ? double.tryParse(json['amount'].toString()) ?? 0.0 : 0.0,
+      amount: (json['amount'] != null)
+          ? double.tryParse(json['amount'].toString()) ?? 0.0
+          : 0.0,
       transactionType: json['transactionType'] ?? 'EXPENSE',
       description: json['description'],
       merchant: json['merchant'],

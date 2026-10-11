@@ -59,7 +59,9 @@ class PendingSmsModel {
 
     return PendingSmsModel(
       id: json['id'] ?? '',
-      amount: (json['amount'] != null) ? double.tryParse(json['amount'].toString()) ?? 0.0 : 0.0,
+      amount: (json['amount'] != null)
+          ? double.tryParse(json['amount'].toString()) ?? 0.0
+          : 0.0,
       currency: json['currency'] ?? 'INR',
       transactionType: json['transactionType'] ?? 'EXPENSE',
       merchant: json['merchant'],
@@ -67,7 +69,9 @@ class PendingSmsModel {
       matchedAccountId: json['matchedAccountId'],
       matchedAccountName: accName,
       suggestedCategory: json['suggestedCategory'] ?? 'General',
-      confidence: (json['confidence'] != null) ? double.tryParse(json['confidence'].toString()) : null,
+      confidence: (json['confidence'] != null)
+          ? double.tryParse(json['confidence'].toString())
+          : null,
       categoryReason: json['categoryReason'],
       status: json['status'] ?? 'PENDING',
       rawSender: json['rawSender'],

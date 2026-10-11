@@ -20,11 +20,15 @@ class FinancialCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = backgroundColor ?? (isDark ? AppColors.darkSurface : AppColors.lightSurface);
-    final b = border ?? Border.all(
-      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-      width: 1,
-    );
+    final bg =
+        backgroundColor ??
+        (isDark ? AppColors.darkSurface : AppColors.lightSurface);
+    final b =
+        border ??
+        Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          width: 1,
+        );
 
     final card = Container(
       padding: padding,
@@ -38,14 +42,14 @@ class FinancialCard extends StatelessWidget {
                   color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
-                )
+                ),
               ]
             : [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
-                )
+                ),
               ],
       ),
       child: child,

@@ -74,7 +74,8 @@
 
   <script src="/assets/js/sidebar.js"></script>
   <script>
-    const API_BASE = window.location.origin.includes(':5001') ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const API_BASE = (!isLocal || window.location.origin.includes(':5001')) ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
     const token = localStorage.getItem('jf_access_token');
     if (!token) window.location.href = '/login.html';
     const fmt = (v) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(v||0);

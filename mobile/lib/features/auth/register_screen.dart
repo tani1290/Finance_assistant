@@ -43,12 +43,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
 
-    final success = await ref.read(authProvider.notifier).register(
-      username: username,
-      email: email,
-      firstName: firstName,
-      password: password,
-    );
+    final success = await ref
+        .read(authProvider.notifier)
+        .register(
+          username: username,
+          email: email,
+          firstName: firstName,
+          password: password,
+        );
 
     if (success && mounted) {
       context.go('/onboarding');
@@ -86,7 +88,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     'Start your calm personal finance journey',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
                       fontSize: 14,
                     ),
                   ),
@@ -102,36 +106,65 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             decoration: BoxDecoration(
                               color: AppColors.expense.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.expense.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: AppColors.expense.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Text(
                               authState.errorMessage!,
-                              style: const TextStyle(color: AppColors.expense, fontSize: 13),
+                              style: const TextStyle(
+                                color: AppColors.expense,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
                         ],
-                        const Text('Your Name', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        const Text(
+                          'Your Name',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _firstNameController,
                           decoration: const InputDecoration(
                             hintText: 'Rahul Sharma',
-                            prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
+                            prefixIcon: Icon(
+                              Icons.person_outline_rounded,
+                              size: 20,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
-                        const Text('Username', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        const Text(
+                          'Username',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _usernameController,
                           decoration: const InputDecoration(
                             hintText: 'rahul_finance',
-                            prefixIcon: Icon(Icons.alternate_email_rounded, size: 20),
+                            prefixIcon: Icon(
+                              Icons.alternate_email_rounded,
+                              size: 20,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
-                        const Text('Email Address', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        const Text(
+                          'Email Address',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _emailController,
@@ -142,20 +175,33 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        const Text('Password', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        const Text(
+                          'Password',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
                           decoration: InputDecoration(
                             hintText: 'Minimum 8 characters',
-                            prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                            prefixIcon: const Icon(
+                              Icons.lock_outline_rounded,
+                              size: 20,
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
                                 size: 20,
                               ),
-                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
                             ),
                           ),
                         ),

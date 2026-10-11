@@ -4,7 +4,8 @@
  * All API calls go to Node.js/Express backend
  */
 
-const API_BASE = window.location.origin.includes(':5001') 
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE = (!isLocal || window.location.origin.includes(':5001'))
   ? '/api/v1' 
   : 'http://127.0.0.1:5001/api/v1';
 

@@ -38,7 +38,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
         setState(() {
           _accounts = list;
-          _totalBalance = double.tryParse(data['totalBalance']?.toString() ?? '0') ?? 0.0;
+          _totalBalance =
+              double.tryParse(data['totalBalance']?.toString() ?? '0') ?? 0.0;
           _isLoading = false;
         });
       }
@@ -72,27 +73,38 @@ class _AccountsScreenState extends State<AccountsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Add Financial Account', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const Text(
+                'Add Financial Account',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 16),
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(labelText: 'Account Nickname (e.g. Salary A/c)'),
+                decoration: const InputDecoration(
+                  labelText: 'Account Nickname (e.g. Salary A/c)',
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: instController,
-                decoration: const InputDecoration(labelText: 'Bank / Institution (e.g. SBI, ICICI, HDFC)'),
+                decoration: const InputDecoration(
+                  labelText: 'Bank / Institution (e.g. SBI, ICICI, HDFC)',
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: maskedController,
-                decoration: const InputDecoration(labelText: 'Last 4 Digits of Account Number'),
+                decoration: const InputDecoration(
+                  labelText: 'Last 4 Digits of Account Number',
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: balanceController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Initial Balance (₹)'),
+                decoration: const InputDecoration(
+                  labelText: 'Initial Balance (₹)',
+                ),
               ),
               const SizedBox(height: 24),
               GradientButton(
@@ -153,17 +165,28 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       children: [
                         const Text(
                           'TOTAL LIQUID ASSETS',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: AppColors.darkTextSecondary),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                            color: AppColors.darkTextSecondary,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           CurrencyFormatter.format(_totalBalance),
-                          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+                          style: const TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'Across ${_accounts.length} active Indian accounts',
-                          style: const TextStyle(fontSize: 12.5, color: AppColors.darkTextSecondary),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.darkTextSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -173,7 +196,13 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Your Accounts', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                      const Text(
+                        'Your Accounts',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       TextButton.icon(
                         icon: const Icon(Icons.add_rounded, size: 16),
                         label: const Text('Add Account'),
@@ -187,47 +216,68 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     EmptyStateView(
                       icon: Icons.account_balance_rounded,
                       title: 'No Accounts Connected',
-                      description: 'Add your bank account or wallet to track balances.',
+                      description:
+                          'Add your bank account or wallet to track balances.',
                       actionLabel: 'Add First Account',
                       onAction: _showAddAccountDialog,
                     )
                   else
-                    ..._accounts.map((acc) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: FinancialCard(
-                            padding: const EdgeInsets.all(18),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(12),
+                    ..._accounts.map(
+                      (acc) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: FinancialCard(
+                          padding: const EdgeInsets.all(18),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(
+                                    alpha: 0.12,
                                   ),
-                                  child: const Icon(Icons.account_balance_rounded, color: AppColors.primaryLight, size: 22),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(acc.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        '${acc.institution ?? "Bank"} • ${acc.accountNumberMasked != null ? "•••• ${acc.accountNumberMasked!}" : acc.accountType}',
-                                        style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
+                                child: const Icon(
+                                  Icons.account_balance_rounded,
+                                  color: AppColors.primaryLight,
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      acc.name,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${acc.institution ?? "Bank"} • ${acc.accountNumberMasked != null ? "•••• ${acc.accountNumberMasked!}" : acc.accountType}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.darkTextSecondary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  CurrencyFormatter.format(acc.balance),
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                              ),
+                              Text(
+                                CurrencyFormatter.format(acc.balance),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        )),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

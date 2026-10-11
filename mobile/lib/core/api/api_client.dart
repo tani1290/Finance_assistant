@@ -28,7 +28,8 @@ class ApiClient {
         },
         onError: (DioException error, handler) async {
           // Transparent 401 token refresh loop
-          if (error.response?.statusCode == 401 && !error.requestOptions.path.contains('/auth/refresh')) {
+          if (error.response?.statusCode == 401 &&
+              !error.requestOptions.path.contains('/auth/refresh')) {
             final refreshToken = await TokenStorage.getRefreshToken();
             if (refreshToken != null) {
               try {
@@ -37,9 +38,12 @@ class ApiClient {
                   data: {'refreshToken': refreshToken},
                 );
 
-                if (refreshResponse.statusCode == 200 && refreshResponse.data['success'] == true) {
-                  final newAccessToken = refreshResponse.data['data']['accessToken'];
-                  final newRefreshToken = refreshResponse.data['data']['refreshToken'];
+                if (refreshResponse.statusCode == 200 &&
+                    refreshResponse.data['success'] == true) {
+                  final newAccessToken =
+                      refreshResponse.data['data']['accessToken'];
+                  final newRefreshToken =
+                      refreshResponse.data['data']['refreshToken'];
 
                   await TokenStorage.saveTokens(
                     accessToken: newAccessToken,
@@ -47,7 +51,8 @@ class ApiClient {
                   );
 
                   // Retry the original request with new token
-                  error.requestOptions.headers['Authorization'] = 'Bearer $newAccessToken';
+                  error.requestOptions.headers['Authorization'] =
+                      'Bearer $newAccessToken';
                   final clonedRequest = await dio.fetch(error.requestOptions);
                   return handler.resolve(clonedRequest);
                 }
@@ -66,15 +71,26 @@ class ApiClient {
     return dio.get(path, queryParameters: queryParameters);
   }
 
-  Future<Response> post(String path, {dynamic data, Map<String, dynamic>? queryParameters}) {
+  Future<Response> post(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) {
     return dio.post(path, data: data, queryParameters: queryParameters);
   }
 
-  Future<Response> patch(String path, {dynamic data, Map<String, dynamic>? queryParameters}) {
+  Future<Response> patch(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) {
     return dio.patch(path, data: data, queryParameters: queryParameters);
   }
 
-  Future<Response> delete(String path, {Map<String, dynamic>? queryParameters}) {
+  Future<Response> delete(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) {
     return dio.delete(path, queryParameters: queryParameters);
   }
 }

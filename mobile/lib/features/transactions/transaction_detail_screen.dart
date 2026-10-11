@@ -15,7 +15,8 @@ class TransactionDetailScreen extends StatefulWidget {
   const TransactionDetailScreen({super.key, required this.transactionId});
 
   @override
-  State<TransactionDetailScreen> createState() => _TransactionDetailScreenState();
+  State<TransactionDetailScreen> createState() =>
+      _TransactionDetailScreenState();
 }
 
 class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
@@ -30,7 +31,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   Future<void> _fetchDetail() async {
     try {
-      final res = await apiClient.get('${ApiEndpoints.transactions}/${widget.transactionId}');
+      final res = await apiClient.get(
+        '${ApiEndpoints.transactions}/${widget.transactionId}',
+      );
       if (res.statusCode == 200 && res.data['success'] == true) {
         setState(() {
           _transaction = TransactionModel.fromJson(res.data['data']);
@@ -47,9 +50,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Transaction?'),
-        content: const Text('This will atomically reverse the amount from your account balance.'),
+        content: const Text(
+          'This will atomically reverse the amount from your account balance.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.expense),
@@ -61,7 +69,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
     if (confirmed == true) {
       try {
-        await apiClient.delete('${ApiEndpoints.transactions}/${widget.transactionId}');
+        await apiClient.delete(
+          '${ApiEndpoints.transactions}/${widget.transactionId}',
+        );
         if (mounted) {
           context.pop();
         }
@@ -88,7 +98,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         title: const Text('Transaction Details'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.expense),
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: AppColors.expense,
+            ),
             onPressed: _handleDelete,
           ),
         ],
@@ -104,11 +117,15 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      color: tx.isIncome ? AppColors.incomeBadgeBg : AppColors.expenseBadgeBg,
+                      color: tx.isIncome
+                          ? AppColors.incomeBadgeBg
+                          : AppColors.expenseBadgeBg,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      tx.isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                      tx.isIncome
+                          ? Icons.arrow_downward_rounded
+                          : Icons.arrow_upward_rounded,
                       size: 30,
                       color: tx.isIncome ? AppColors.income : AppColors.expense,
                     ),
@@ -119,13 +136,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
-                      color: tx.isIncome ? AppColors.income : AppColors.darkTextPrimary,
+                      color: tx.isIncome
+                          ? AppColors.income
+                          : AppColors.darkTextPrimary,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     tx.merchant ?? tx.description ?? 'Merchant',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   StatusBadge(
@@ -141,11 +163,20 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 children: [
                   _buildDetailRow('Category', tx.categoryName),
                   const Divider(height: 24),
-                  _buildDetailRow('Date & Time', DateFormatter.formatWithTime(tx.date)),
+                  _buildDetailRow(
+                    'Date & Time',
+                    DateFormatter.formatWithTime(tx.date),
+                  ),
                   const Divider(height: 24),
-                  _buildDetailRow('Account', tx.accountName ?? 'Primary Account'),
+                  _buildDetailRow(
+                    'Account',
+                    tx.accountName ?? 'Primary Account',
+                  ),
                   const Divider(height: 24),
-                  _buildDetailRow('Payment Mode', tx.paymentMethod ?? 'UPI / Bank Transfer'),
+                  _buildDetailRow(
+                    'Payment Mode',
+                    tx.paymentMethod ?? 'UPI / Bank Transfer',
+                  ),
                   if (tx.description != null && tx.description!.isNotEmpty) ...[
                     const Divider(height: 24),
                     _buildDetailRow('Description', tx.description!),
@@ -163,8 +194,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13.5, color: AppColors.darkTextSecondary)),
-        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13.5,
+            color: AppColors.darkTextSecondary,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
       ],
     );
   }

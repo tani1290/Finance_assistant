@@ -36,27 +36,42 @@ class MainShellScreen extends StatelessWidget {
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded, color: AppColors.primaryLight),
+              selectedIcon: Icon(
+                Icons.home_rounded,
+                color: AppColors.primaryLight,
+              ),
               label: 'Home',
             ),
             NavigationDestination(
               icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long_rounded, color: AppColors.primaryLight),
+              selectedIcon: Icon(
+                Icons.receipt_long_rounded,
+                color: AppColors.primaryLight,
+              ),
               label: 'Transactions',
             ),
             NavigationDestination(
               icon: Icon(Icons.pie_chart_outline_rounded),
-              selectedIcon: Icon(Icons.pie_chart_rounded, color: AppColors.primaryLight),
+              selectedIcon: Icon(
+                Icons.pie_chart_rounded,
+                color: AppColors.primaryLight,
+              ),
               label: 'Budgets',
             ),
             NavigationDestination(
               icon: Icon(Icons.auto_awesome_outlined),
-              selectedIcon: Icon(Icons.auto_awesome_rounded, color: AppColors.primaryLight),
+              selectedIcon: Icon(
+                Icons.auto_awesome_rounded,
+                color: AppColors.primaryLight,
+              ),
               label: 'AI Advisor',
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded, color: AppColors.primaryLight),
+              selectedIcon: Icon(
+                Icons.person_rounded,
+                color: AppColors.primaryLight,
+              ),
               label: 'Profile',
             ),
           ],

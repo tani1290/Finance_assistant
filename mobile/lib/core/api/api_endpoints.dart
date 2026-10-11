@@ -18,7 +18,8 @@ class ApiEndpoints {
   static String get refresh => '$baseUrl/auth/refresh';
   static String get me => '$baseUrl/auth/me';
   static String get logout => '$baseUrl/auth/logout';
-  static String get googleToken => '$baseUrl/auth/google/token'; // Firebase ID token exchange
+  static String get googleToken =>
+      '$baseUrl/auth/google/token'; // Firebase ID token exchange
 
   // Notifications / FCM
   static String get fcmToken => '$baseUrl/notifications/fcm-token';
@@ -44,7 +45,9 @@ class ApiEndpoints {
   static String get smsIngest => '$baseUrl/sms/ingest';
   static String get smsBatchIngest => '$baseUrl/sms/batch-ingest';
   static String get smsPending => '$baseUrl/sms/pending';
-  static String smsPendingConfirm(String id) => '$baseUrl/sms/pending/$id/confirm';
-  static String smsPendingReject(String id) => '$baseUrl/sms/pending/$id/reject';
+  static String smsPendingConfirm(String id) =>
+      '$baseUrl/sms/pending/$id/confirm';
+  static String smsPendingReject(String id) =>
+      '$baseUrl/sms/pending/$id/reject';
   static String get smsParsePreview => '$baseUrl/sms/parse';
 }

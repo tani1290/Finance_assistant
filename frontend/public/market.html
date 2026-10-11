@@ -302,7 +302,8 @@
     document.getElementById('sidebarRoot').innerHTML = getSidebar('market');
     initSidebarUser();
 
-    const API_BASE = window.location.origin.includes(':5001') ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const API_BASE = (!isLocal || window.location.origin.includes(':5001')) ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
     const token = localStorage.getItem('jf_access_token');
     const hdr = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 

@@ -8,7 +8,8 @@ class PrivacyPermissionsScreen extends StatefulWidget {
   const PrivacyPermissionsScreen({super.key});
 
   @override
-  State<PrivacyPermissionsScreen> createState() => _PrivacyPermissionsScreenState();
+  State<PrivacyPermissionsScreen> createState() =>
+      _PrivacyPermissionsScreenState();
 }
 
 class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
@@ -37,7 +38,9 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
     setState(() => _hasSmsPermission = granted);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(granted ? 'SMS permissions enabled!' : 'Permission denied by user'),
+        content: Text(
+          granted ? 'SMS permissions enabled!' : 'Permission denied by user',
+        ),
         backgroundColor: granted ? AppColors.primary : AppColors.expense,
       ),
     );
@@ -46,9 +49,7 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Privacy & Permissions'),
-      ),
+      appBar: AppBar(title: const Text('Privacy & Permissions')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -65,7 +66,11 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
                       color: AppColors.primary.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.shield_outlined, size: 28, color: AppColors.primaryLight),
+                    child: const Icon(
+                      Icons.shield_outlined,
+                      size: 28,
+                      color: AppColors.primaryLight,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   const Text(
@@ -77,7 +82,11 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
                   const Text(
                     'FinPro processes your bank messages with strict on-device filters. Here is our architectural privacy guarantee:',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: AppColors.darkTextSecondary, height: 1.5),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.darkTextSecondary,
+                      height: 1.5,
+                    ),
                   ),
                 ],
               ),
@@ -94,11 +103,16 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
                     children: [
                       const Text(
                         'Android SMS Detection',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       Switch(
                         value: _hasSmsPermission,
-                        onChanged: _isLoading ? null : (_) => _requestPermissions(),
+                        onChanged: _isLoading
+                            ? null
+                            : (_) => _requestPermissions(),
                         activeThumbColor: AppColors.primaryLight,
                       ),
                     ],
@@ -110,7 +124,9 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
                         : 'Disabled: Manual expense entry will be used.',
                     style: TextStyle(
                       fontSize: 13,
-                      color: _hasSmsPermission ? AppColors.primaryLight : AppColors.darkTextSecondary,
+                      color: _hasSmsPermission
+                          ? AppColors.primaryLight
+                          : AppColors.darkTextSecondary,
                     ),
                   ),
                 ],
@@ -118,7 +134,10 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
             ),
             const SizedBox(height: 20),
 
-            const Text('Security Architecture Highlights', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            const Text(
+              'Security Architecture Highlights',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 12),
             _buildSecurityPoint(
               Icons.lock_rounded,
@@ -170,9 +189,22 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(desc, style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary, height: 1.4)),
+                Text(
+                  desc,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.darkTextSecondary,
+                    height: 1.4,
+                  ),
+                ),
               ],
             ),
           ),

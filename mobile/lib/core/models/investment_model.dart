@@ -26,12 +26,24 @@ class InvestmentModel {
   bool get isProfit => returnsPercent >= 0;
 
   factory InvestmentModel.fromJson(Map<String, dynamic> json) {
-    final qty = (json['quantity'] != null) ? double.tryParse(json['quantity'].toString()) ?? 0.0 : 0.0;
-    final bPrice = (json['buyPrice'] != null) ? double.tryParse(json['buyPrice'].toString()) ?? 0.0 : 0.0;
-    final cPrice = (json['currentPrice'] != null) ? double.tryParse(json['currentPrice'].toString()) ?? bPrice : bPrice;
-    final invVal = (json['investedValue'] != null) ? double.tryParse(json['investedValue'].toString()) ?? (qty * bPrice) : (qty * bPrice);
-    final curVal = (json['currentValue'] != null) ? double.tryParse(json['currentValue'].toString()) ?? (qty * cPrice) : (qty * cPrice);
-    final retPct = (json['returnsPercent'] != null) ? double.tryParse(json['returnsPercent'].toString()) ?? 0.0 : (invVal > 0 ? ((curVal - invVal) / invVal) * 100 : 0.0);
+    final qty = (json['quantity'] != null)
+        ? double.tryParse(json['quantity'].toString()) ?? 0.0
+        : 0.0;
+    final bPrice = (json['buyPrice'] != null)
+        ? double.tryParse(json['buyPrice'].toString()) ?? 0.0
+        : 0.0;
+    final cPrice = (json['currentPrice'] != null)
+        ? double.tryParse(json['currentPrice'].toString()) ?? bPrice
+        : bPrice;
+    final invVal = (json['investedValue'] != null)
+        ? double.tryParse(json['investedValue'].toString()) ?? (qty * bPrice)
+        : (qty * bPrice);
+    final curVal = (json['currentValue'] != null)
+        ? double.tryParse(json['currentValue'].toString()) ?? (qty * cPrice)
+        : (qty * cPrice);
+    final retPct = (json['returnsPercent'] != null)
+        ? double.tryParse(json['returnsPercent'].toString()) ?? 0.0
+        : (invVal > 0 ? ((curVal - invVal) / invVal) * 100 : 0.0);
 
     return InvestmentModel(
       id: json['id'] ?? '',

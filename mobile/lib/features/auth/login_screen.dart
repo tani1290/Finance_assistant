@@ -38,7 +38,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    final success = await ref.read(authProvider.notifier).login(email, password);
+    final success = await ref
+        .read(authProvider.notifier)
+        .login(email, password);
     if (success && mounted) {
       context.go('/dashboard');
     }
@@ -100,7 +102,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     'Sign in to manage your money with clarity',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
                       fontSize: 14,
                     ),
                   ),
@@ -116,16 +120,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             decoration: BoxDecoration(
                               color: AppColors.expense.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.expense.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: AppColors.expense.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Text(
                               authState.errorMessage!,
-                              style: const TextStyle(color: AppColors.expense, fontSize: 13),
+                              style: const TextStyle(
+                                color: AppColors.expense,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
                         ],
-                        const Text('Email Address', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        const Text(
+                          'Email Address',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _emailController,
@@ -136,51 +151,80 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        const Text('Password', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        const Text(
+                          'Password',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
                           decoration: InputDecoration(
                             hintText: '••••••••',
-                            prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                            prefixIcon: const Icon(
+                              Icons.lock_outline_rounded,
+                              size: 20,
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
                                 size: 20,
                               ),
-                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(height: 24),
                         GradientButton(
                           text: 'Sign In',
-                          isLoading: authState.status == AuthStatus.loading && !_googleLoading,
+                          isLoading:
+                              authState.status == AuthStatus.loading &&
+                              !_googleLoading,
                           onPressed: _handleLogin,
                         ),
                         const SizedBox(height: 20),
                         // ── Divider ──
                         Row(
                           children: [
-                            Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.black12)),
+                            Expanded(
+                              child: Divider(
+                                color: isDark ? Colors.white12 : Colors.black12,
+                              ),
+                            ),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               child: Text(
                                 'or continue with',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.lightTextSecondary,
                                 ),
                               ),
                             ),
-                            Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.black12)),
+                            Expanded(
+                              child: Divider(
+                                color: isDark ? Colors.white12 : Colors.black12,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 16),
                         // ── Google Sign-In Button ──
                         OutlinedButton(
-                          onPressed: _googleLoading ? null : _handleGoogleSignIn,
+                          onPressed: _googleLoading
+                              ? null
+                              : _handleGoogleSignIn,
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             side: BorderSide(
@@ -194,7 +238,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ? const SizedBox(
                                   width: 20,
                                   height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -205,7 +251,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       decoration: const BoxDecoration(
                                         shape: BoxShape.circle,
                                         gradient: LinearGradient(
-                                          colors: [Color(0xFF4285F4), Color(0xFF34A853)],
+                                          colors: [
+                                            Color(0xFF4285F4),
+                                            Color(0xFF34A853),
+                                          ],
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
                                         ),
@@ -224,7 +273,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     const SizedBox(width: 10),
                                     const Text(
                                       'Sign in with Google',
-                                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -239,13 +291,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       Text(
                         "Don't have an account? ",
                         style: TextStyle(
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
                           fontSize: 14,
                         ),
                       ),
                       TextButton(
                         onPressed: () => context.go('/register'),
-                        child: const Text('Sign Up', style: TextStyle(fontWeight: FontWeight.w600)),
+                        child: const Text(
+                          'Sign Up',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ],
                   ),

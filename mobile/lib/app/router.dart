@@ -23,14 +23,8 @@ import '../features/transactions/transactions_screen.dart';
 final appRouter = GoRouter(
   initialLocation: '/',
   routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const SplashScreen(),
-    ),
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => const LoginScreen(),
-    ),
+    GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
+    GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(
       path: '/register',
       builder: (context, state) => const RegisterScreen(),
@@ -117,14 +111,8 @@ final appRouter = GoRouter(
       path: '/investments',
       builder: (context, state) => const InvestmentsScreen(),
     ),
-    GoRoute(
-      path: '/goals',
-      builder: (context, state) => const GoalsScreen(),
-    ),
-    GoRoute(
-      path: '/loans',
-      builder: (context, state) => const LoansScreen(),
-    ),
+    GoRoute(path: '/goals', builder: (context, state) => const GoalsScreen()),
+    GoRoute(path: '/loans', builder: (context, state) => const LoansScreen()),
     GoRoute(
       path: '/notifications',
       builder: (context, state) => const NotificationsScreen(),

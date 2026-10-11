@@ -29,9 +29,5 @@ void main() async {
     ),
   );
 
-  runApp(
-    const ProviderScope(
-      child: FinProMobileApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: FinProMobileApp()));
 }

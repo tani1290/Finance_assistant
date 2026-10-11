@@ -81,7 +81,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 'Help FinPro calculate your financial baseline and custom 50/30/20 budget allocations.',
                 style: TextStyle(
                   fontSize: 14,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
                   height: 1.5,
                 ),
               ),
@@ -91,18 +93,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Monthly Net Income (₹)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    const Text(
+                      'Monthly Net Income (₹)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _salaryController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         hintText: 'e.g. 75,000',
-                        prefixIcon: Icon(Icons.currency_rupee_rounded, size: 20),
+                        prefixIcon: Icon(
+                          Icons.currency_rupee_rounded,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 18),
-                    const Text('City in India', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    const Text(
+                      'City in India',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _cityController,
@@ -112,18 +129,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    const Text('Your Age', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    const Text(
+                      'Your Age',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _ageController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         hintText: 'e.g. 26',
-                        prefixIcon: Icon(Icons.calendar_today_rounded, size: 20),
+                        prefixIcon: Icon(
+                          Icons.calendar_today_rounded,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 18),
-                    const Text('Investment Risk Style', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    const Text(
+                      'Investment Risk Style',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     Row(
                       children: [

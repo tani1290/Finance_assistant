@@ -20,8 +20,12 @@ class EmptyStateView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final mutedColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final textColor = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final mutedColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return Center(
       child: Padding(
@@ -52,11 +56,7 @@ class EmptyStateView extends StatelessWidget {
             Text(
               description,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.5,
-                color: mutedColor,
-                height: 1.5,
-              ),
+              style: TextStyle(fontSize: 13.5, color: mutedColor, height: 1.5),
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 24),
@@ -65,10 +65,18 @@ class EmptyStateView extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                 ),
-                child: Text(actionLabel!, style: const TextStyle(fontWeight: FontWeight.w600)),
+                child: Text(
+                  actionLabel!,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ],

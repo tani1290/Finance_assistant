@@ -36,10 +36,15 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     try {
       final res = await apiClient.get(ApiEndpoints.transactions);
       if (res.statusCode == 200 && res.data['success'] == true) {
-        final list = (res.data['data']['transactions'] ?? res.data['data'] as List)
-            .map((json) => TransactionModel.fromJson(json))
-            .where((t) => t.categoryName.toLowerCase() == widget.categoryName.toLowerCase())
-            .toList();
+        final list =
+            (res.data['data']['transactions'] ?? res.data['data'] as List)
+                .map((json) => TransactionModel.fromJson(json))
+                .where(
+                  (t) =>
+                      t.categoryName.toLowerCase() ==
+                      widget.categoryName.toLowerCase(),
+                )
+                .toList();
 
         setState(() {
           _categoryTransactions = list;
@@ -54,62 +59,74 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.categoryName),
-      ),
+      appBar: AppBar(title: Text(widget.categoryName)),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _categoryTransactions.isEmpty
-              ? EmptyStateView(
-                  icon: Icons.receipt_long_rounded,
-                  title: 'No Transactions',
-                  description: 'No expenses recorded in ${widget.categoryName} this month.',
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(18),
-                  itemCount: _categoryTransactions.length,
-                  itemBuilder: (context, index) {
-                    final tx = _categoryTransactions[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: FinancialCard(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: AppColors.expenseBadgeBg,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.arrow_upward_rounded, size: 16, color: AppColors.expense),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    tx.merchant ?? tx.description ?? 'Expense',
-                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                                  ),
-                                  Text(
-                                    DateFormatter.format(tx.date),
-                                    style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              '-${CurrencyFormatter.format(tx.amount)}',
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                            ),
-                          ],
+          ? EmptyStateView(
+              icon: Icons.receipt_long_rounded,
+              title: 'No Transactions',
+              description:
+                  'No expenses recorded in ${widget.categoryName} this month.',
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(18),
+              itemCount: _categoryTransactions.length,
+              itemBuilder: (context, index) {
+                final tx = _categoryTransactions[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: FinancialCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: AppColors.expenseBadgeBg,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.arrow_upward_rounded,
+                            size: 16,
+                            color: AppColors.expense,
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tx.merchant ?? tx.description ?? 'Expense',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                DateFormatter.format(tx.date),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.darkTextSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '-${CurrencyFormatter.format(tx.amount)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

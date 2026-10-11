@@ -26,7 +26,9 @@ class AccountModel {
       institution: json['institution'],
       accountType: json['accountType'] ?? 'BANK',
       accountNumberMasked: json['accountNumberMasked'],
-      balance: (json['balance'] != null) ? double.tryParse(json['balance'].toString()) ?? 0.0 : 0.0,
+      balance: (json['balance'] != null)
+          ? double.tryParse(json['balance'].toString()) ?? 0.0
+          : 0.0,
       currency: json['currency'] ?? 'INR',
       isActive: json['isActive'] ?? true,
     );

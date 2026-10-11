@@ -18,7 +18,8 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
   final List<Map<String, String>> _messages = [
     {
       'role': 'assistant',
-      'content': 'Namaste! I am your FinPro AI Financial Co-pilot. I have access to your financial context — your cash flow, loans, active SIPs, and budgets. How can I help you make a sound money decision today?',
+      'content':
+          'Namaste! I am your FinPro AI Financial Co-pilot. I have access to your financial context — your cash flow, loans, active SIPs, and budgets. How can I help you make a sound money decision today?',
     },
   ];
 
@@ -55,7 +56,10 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
       );
 
       if (res.statusCode == 200 && res.data['success'] == true) {
-        final reply = res.data['data']['reply'] ?? res.data['data']['message'] ?? 'I have reviewed your financial parameters. Your plan remains balanced.';
+        final reply =
+            res.data['data']['reply'] ??
+            res.data['data']['message'] ??
+            'I have reviewed your financial parameters. Your plan remains balanced.';
         setState(() {
           _messages.add({'role': 'assistant', 'content': reply});
         });
@@ -63,7 +67,8 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
         setState(() {
           _messages.add({
             'role': 'assistant',
-            'content': 'I am currently operating in deterministic fallback mode. Based on standard financial rules, allocate 50% to needs, 30% to wants, and 20% to savings.',
+            'content':
+                'I am currently operating in deterministic fallback mode. Based on standard financial rules, allocate 50% to needs, 30% to wants, and 20% to savings.',
           });
         });
       }
@@ -71,7 +76,8 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
       setState(() {
         _messages.add({
           'role': 'assistant',
-          'content': 'Offline Guidance: Keep 6 months of basic living expenses in liquid FDs or savings before deploying funds to high-risk equity.',
+          'content':
+              'Offline Guidance: Keep 6 months of basic living expenses in liquid FDs or savings before deploying funds to high-risk equity.',
         });
       });
     } finally {
@@ -108,14 +114,27 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
                 color: AppColors.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryLight, size: 18),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                color: AppColors.primaryLight,
+                size: 18,
+              ),
             ),
             const SizedBox(width: 10),
             const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('AI Financial Co-pilot', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                Text('Powered by Google Gemini Context', style: TextStyle(fontSize: 11, color: AppColors.darkTextSecondary)),
+                Text(
+                  'AI Financial Co-pilot',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  'Powered by Google Gemini Context',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.darkTextSecondary,
+                  ),
+                ),
               ],
             ),
           ],
@@ -136,7 +155,9 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 14),
                   child: Row(
-                    mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+                    mainAxisAlignment: isUser
+                        ? MainAxisAlignment.end
+                        : MainAxisAlignment.start,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (!isUser) ...[
@@ -147,7 +168,11 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
                             color: AppColors.primary,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 16),
+                          child: const Icon(
+                            Icons.auto_awesome_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         ),
                         const SizedBox(width: 10),
                       ],
@@ -157,10 +182,16 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
                           decoration: BoxDecoration(
                             color: isUser
                                 ? AppColors.primary
-                                : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
+                                : (isDark
+                                      ? AppColors.darkSurface
+                                      : AppColors.lightSurface),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isUser ? Colors.transparent : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                              color: isUser
+                                  ? Colors.transparent
+                                  : (isDark
+                                        ? AppColors.darkBorder
+                                        : AppColors.lightBorder),
                             ),
                           ),
                           child: Text(
@@ -170,7 +201,9 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
                               height: 1.5,
                               color: isUser
                                   ? Colors.white
-                                  : (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary),
+                                  : (isDark
+                                        ? AppColors.darkTextPrimary
+                                        : AppColors.lightTextPrimary),
                             ),
                           ),
                         ),
@@ -188,9 +221,19 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Row(
                 children: [
-                  SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                   SizedBox(width: 10),
-                  Text('Analyzing your financial context...', style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary)),
+                  Text(
+                    'Analyzing your financial context...',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.darkTextSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -210,8 +253,14 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
                   return ActionChip(
                     label: Text(prompt, style: const TextStyle(fontSize: 12)),
                     onPressed: () => _sendMessage(prompt),
-                    backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-                    side: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                    backgroundColor: isDark
+                        ? AppColors.darkSurface
+                        : AppColors.lightSurface,
+                    side: BorderSide(
+                      color: isDark
+                          ? AppColors.darkBorder
+                          : AppColors.lightBorder,
+                    ),
                   );
                 },
               ),
@@ -222,7 +271,11 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-              border: Border(top: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder)),
+              border: Border(
+                top: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+              ),
             ),
             child: Row(
               children: [
@@ -235,12 +288,18 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send_rounded, color: AppColors.primaryLight),
+                  icon: const Icon(
+                    Icons.send_rounded,
+                    color: AppColors.primaryLight,
+                  ),
                   onPressed: _sendMessage,
                 ),
               ],
