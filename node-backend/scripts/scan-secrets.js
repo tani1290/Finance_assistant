@@ -72,7 +72,8 @@ try {
       relFile.endsWith('.webp') || 
       relFile.endsWith('.jpg') || 
       relFile.endsWith('.md') ||
-      relFile.endsWith('.env.example')
+      relFile.endsWith('.env.example') ||
+      relFile.endsWith('google-services.json')
     ) {
       continue;
     }

@@ -223,4 +223,4 @@ The backend exposes authenticated and unauthenticated diagnostic endpoints:
 - **Academic Year:** 2025–2026
 
 For contributing guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).  
-For detailed architectural audits, see [docs/system-audit.md](docs/system-audit.md) and [docs/final-qa-report.md](docs/final-qa-report.md).
+For detailed architectural audits and documentation, see [docs/PROJECT_AUDIT.md](docs/PROJECT_AUDIT.md), [docs/FINAL_QA_REPORT.md](docs/FINAL_QA_REPORT.md), [docs/MARKET_DATA.md](docs/MARKET_DATA.md), and [docs/CLOUD_COMPUTING.md](docs/CLOUD_COMPUTING.md).

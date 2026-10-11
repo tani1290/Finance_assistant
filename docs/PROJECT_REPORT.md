@@ -139,7 +139,7 @@ Four automated harnesses underpin the release:
 | `test-market-live.js` | 6 subsystems — live external APIs |
 | `src/__tests__/api.test.js` (Jest) | integration tests |
 
-Together they cover health/diagnostics, authentication, onboarding, atomic deposits and balance sync, dashboard KPIs, transaction CRUD and reversals, budgets and the AI optimizer, goals and forecasting, live stock/gold/silver quotes, portfolio valuation, and EMI math. QA sign-off is documented in `docs/FINAL_QA_REPORT.md`, `docs/system-audit.md`, `docs/MARKET_DATA_AUDIT.md`, and `docs/MARKET_DATA_VERIFICATION.md`.
+Together they cover health/diagnostics, authentication, onboarding, atomic deposits and balance sync, dashboard KPIs, transaction CRUD and reversals, budgets and the AI optimizer, goals and forecasting, live stock/gold/silver quotes, portfolio valuation, and EMI math. QA sign-off is documented in `docs/FINAL_QA_REPORT.md`, `docs/PROJECT_AUDIT.md`, `docs/MARKET_DATA.md`, and `docs/CLOUD_COMPUTING.md`.
 
 ### 4.7 Development lifecycle and release
 
@@ -202,4 +202,4 @@ The release (`fba6652`) demonstrates the full engineering lifecycle: a canonical
 
 ---
 
-*Report compiled from repository documentation (`README.md`, `TECH_STACK.md`, `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/DATABASE.md`, `docs/DEPLOYMENT.md`, `docs/TESTING.md`, `docs/KNOWN_LIMITATIONS.md`, `docs/PROJECT_AUDIT.md`) and the audited codebase at the `fba6652` release baseline.*
+*Report compiled from repository documentation (`README.md`, `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/DATABASE.md`, `docs/DEPLOYMENT.md`, `docs/TESTING.md`, `docs/KNOWN_LIMITATIONS.md`, `docs/PROJECT_AUDIT.md`, `docs/MARKET_DATA.md`, `docs/CLOUD_COMPUTING.md`) and the audited codebase at the `fba6652` release baseline.*

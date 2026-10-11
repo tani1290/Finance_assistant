@@ -1,71 +1,81 @@
-# Jinay Finance AI — System Architecture
+# FinPro / Jinay Finance AI — System Architecture & Technology Stack
 **Owner:** Jinay Golecha (`jinay_golecha`)  
-**Project:** AI-Powered Personal Finance & Investment Advisor (Final Year Engineering Project)
+**Project:** AI-Powered Personal Finance & Investment Decision Support Platform (Final Year Project)  
+**Branding:** Created by Students of VU
 
 ---
 
 ## 1. System Overview
 
-Jinay Finance AI is a full-stack, enterprise-grade personal finance management and advisory platform built specifically for the Indian financial ecosystem (INR, Lakhs/Crores, NSE/BSE, MCX Gold/Silver, 50/30/20 & Zero-Based budgeting).
+FinPro is a full-stack, enterprise-grade personal finance management and advisory platform engineered specifically for the Indian financial ecosystem (INR `₹`, `en-IN` formatting, `Asia/Kolkata` timezone semantics, NSE/BSE equities, MCX/COMEX precious metals, and dynamic 50/30/20 & Zero-Based budgeting).
 
 ```
-┌────────────────────────────────────────────────────────┐
-│                   Client Layer (SPA)                   │
-│   Vanilla JS + HTML5 + CSS3 + ECharts + RemixIcons     │
-└───────────────────────────┬────────────────────────────┘
-                            │ (HTTPS / Bearer JWT)
-┌───────────────────────────▼────────────────────────────┐
-│                  API & Gateway Layer                   │
-│   Node.js v20+ / Express v4.21                         │
-│   Helmet, CORS, Rate Limiters, Compression, Morgan     │
-└─────────────┬───────────────────────────┬──────────────┘
-              │                           │
-┌─────────────▼─────────────┐ ┌───────────▼──────────────┐
-│     Business Services     │ │      External Providers  │
-│  - Financial Twin Engine  │ │  - Alpha Vantage API     │
-│  - Auth & Security Engine │ │  - Finnhub API           │
-│  - Market Aggregator      │ │  - Google Gemini AI      │
-│  - AI Prompt & Rules Eng. │ │  - Google OAuth2         │
-│  - OCR & Voice Parsers    │ │  - MCX Spot Rates        │
-└─────────────┬─────────────┘ └──────────────────────────┘
-              │
-┌─────────────▼─────────────┐
-│    Data Layer (ORM/DB)    │
-│  - Prisma Client ORM      │
-│  - PostgreSQL 17 Engine   │
-└───────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                        CLIENT LAYER (WEB & MOBILE)                     │
+│  - Web SPA: Vanilla JS (ES6+) + CSS3 Custom Design System + ECharts    │
+│  - Mobile: Flutter 3.x (Dart) + Riverpod 2.x + Native Android SMS Ch.  │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ (HTTPS / Bearer JWT)
+┌───────────────────────────────────▼────────────────────────────────────┐
+│                         API GATEWAY & SECURITY                         │
+│  - Node.js v20+ LTS / Express.js 4.21                                  │
+│  - Helmet, CORS Origin Whitelist, Express-Rate-Limit, Compression      │
+│  - JWT (HMAC-SHA256) & Google OAuth 2.0 / Firebase Auth Validator     │
+└───────────────────────┬────────────────────────────┬───────────────────┘
+                        │                            │
+┌───────────────────────▼───────────┐ ┌──────────────▼───────────────────┐
+│        BUSINESS SERVICES          │ │        EXTERNAL CLOUD SERVICES   │
+│  - Financial Twin & Health Score  │ │  - Google Gemini 1.5/2.5 AI      │
+│  - Cash Flow Predictor (30/90d)   │ │  - Firebase Admin SDK (FCM)      │
+│  - Market Aggregator (Zero Fake)  │ │  - Alpha Vantage (Technicals)    │
+│  - SMS Detection & Reconciliation │ │  - Finnhub API (Equities/Crypto) │
+│  - Receipt OCR & Voice Intent     │ │  - Live Interbank FX Feed        │
+└───────────────────────┬───────────┘ └──────────────────────────────────┘
+                        │
+┌───────────────────────▼───────────┐
+│        DATA & PERSISTENCE         │
+│  - Prisma ORM 5.22 (Type-safe)    │
+│  - PostgreSQL 17 (ACID Relational)│
+│  - Multi-tenant tenant isolation  │
+└───────────────────────────────────┘
 ```
 
 ---
 
-## 2. Component Specifications
+## 2. Complete Technology Stack
 
-### 2.1 Backend (`node-backend/`)
-- **Runtime:** Node.js (v20+ LTS recommended)
-- **Framework:** Express.js 4.21
-- **ORM:** Prisma 5.22
-- **Database:** PostgreSQL 17 (`finance_jinay`)
-- **Port:** `5001` (configurable via `PORT` environment variable)
+### 2.1 Backend Infrastructure
+- **Runtime:** Node.js (v20+ LTS) — Event-driven, non-blocking I/O model for concurrent financial transactions.
+- **Framework:** Express.js (v4.21) — Clean RESTful routing architecture with centralized error handling.
+- **Security Middleware:**
+  - `helmet`: Enforces HTTP security headers (CSP, HSTS, X-Frame-Options).
+  - `cors`: Strict origin validation with credential support.
+  - `express-rate-limit`: Tiered throttling (200 req/15min general, 20 req/15min auth endpoints).
+  - `compression`: Gzip response compression for optimized low-latency payloads.
 
-### 2.2 Security & Authentication
-- **Token Format:** JSON Web Token (JWT) with HMAC-SHA256 (`HS256`).
-- **Token Expiry:** Access Token: 60 minutes (`JWT_EXPIRES_IN=60m`), Refresh Token: 7 days (`JWT_REFRESH_EXPIRES_IN=7d`).
-- **Password Hashing:** `bcryptjs` with salt rounds = 10.
-- **Tenant Isolation:** All database reads and writes enforce user ownership checks: `where: { id: entityId, userId: req.user.id }`.
-- **Cross-Origin Resource Sharing (CORS):** Supports `http://127.0.0.1:3000`, `http://localhost:3000`, `http://127.0.0.1:5500`, and `null` (file:// protocol development).
+### 2.2 Database & Data Access Layer
+- **Database Engine:** PostgreSQL 17 — Strict ACID guarantees, foreign key cascade rules, and compound index performance.
+- **ORM:** Prisma 5.22 — Type-safe query builder, declarative schema modeling (`schema.prisma`), and versioned schema migrations.
+- **Tenant Isolation:** Enforced on every database read/write query through required `{ userId: req.user.id }` constraints.
 
-### 2.3 Financial Intelligence Engine (`financialTwinService.js`)
-- **10-Factor AI Health Score:** Evaluates savings rate, emergency runway, debt-to-income, investment allocation, goal milestones, insurance coverage, cash flow stability, subscription burden, credit utilization, and anomaly frequency (0–100 score).
-- **Cash Flow Predictor:** Mathematical projection engine simulating daily account balance over 7, 30, and 90-day timeframes accounting for known recurring loans (EMIs), subscriptions, and historic daily expenditure velocity.
-- **Budget Optimizer:** Real-time 50/30/20 and Zero-Based budget calculation from actual recorded monthly transactions.
-- **Retirement Planning Engine:** Compound interest projection modeling conservative (8%), base (12%), and aggressive (15%) portfolio growth against desired retirement age, current corpus, and monthly SIP.
+### 2.3 Frontend Web Architecture
+- **Language & Paradigms:** Vanilla JavaScript (ES6+ Modules, Async/Await, Fetch API) — Zero heavy runtime frameworks (React/Angular) for ultra-fast, zero-overhead page loading.
+- **Styling:** Bespoke CSS3 Design System with CSS Custom Properties, Glassmorphism backdrop-filters, CSS Grid & Flexbox.
+- **Data Visualization:** Apache ECharts & Chart.js for high-performance financial charting.
+- **Icons & Typography:** Remix Icon library & Google Fonts (Inter, Plus Jakarta Sans).
 
-### 2.4 Real-Time Market Feed Architecture (`marketService.js`)
-- **Primary Source:** Alpha Vantage REST API using dedicated access key (`ALPHA_VANTAGE_API_KEY`).
-- **Secondary Source:** Finnhub REST API (`FINNHUB_API_KEY`).
-- **Commodity & Metals Engine:** Real-time extraction of 24K and 22K Gold (converted from USD/troy oz to INR/gram), Silver, WTI Crude Oil, Natural Gas, Copper, and Brent.
-- **Caching Layer:** In-memory `Map` cache with dynamic TTLs (3 min for live quotes, 15 min for charts, 1 hr for fundamentals) ensuring zero rate-limit exhaustion.
-- **Reference Fallback:** In the event of network disconnection or external API downtime, transparent reference rates based on latest verified NSE/BSE closing prices are served with explicit source attribution.
+### 2.4 Mobile Application
+- **Framework:** Flutter 3.x / Dart 3.x — Single cross-platform codebase compiling to native ARM64 Android binaries.
+- **State Management:** Riverpod 2.x — Compile-safe, declarative reactivity without global mutable singletons.
+- **Native Android Integration:** Kotlin platform channel (`FinProSmsReceiver`) for background transaction SMS parsing and notification triggers.
+- **Offline Resilience:** SharedPreferences secure token caching and local sync states.
+
+### 2.5 Cloud, Authentication & Notifications
+- **Authentication:** Dual-token JWT (60m access token, 7d refresh token) + Bcrypt (10 salt rounds) + Google OAuth 2.0 / Firebase Auth token validation.
+- **Push Notifications:** Firebase Cloud Messaging (FCM) via Firebase Admin SDK with graceful offline degradation.
+- **AI Core:** Google Gemini (`@google/generative-ai`) grounded in real user records; deterministic rule fallbacks when offline.
+- **OCR & Voice:** Tesseract.js receipt scanner & Web Speech API intent parser.
+- **Containerization & Deployment:** Docker (Node.js Alpine non-root), Docker Compose, Render Blueprint, and Vercel edge deployment.
 
 ---
 
@@ -73,42 +83,30 @@ Jinay Finance AI is a full-stack, enterprise-grade personal finance management a
 
 ```
 Final-Year-Project/
-├── docs/                     # Production architectural & QA documentation
+├── docs/                     # Canonical architectural, QA, and deployment docs
+│   ├── API.md                # Complete REST API Specification
+│   ├── ARCHITECTURE.md       # Architecture & Tech Stack (This document)
+│   ├── CLOUD_COMPUTING.md    # Cloud Computing, Resiliency & Telemetry Guide
+│   ├── DATABASE.md           # Database Schema & Relational Specifications
+│   ├── DEPLOYMENT.md         # Deployment Handbook (Local, Docker, Render, Vercel, Firebase)
+│   ├── DESIGN_SYSTEM.md      # UI/UX Design System Tokens & Guidelines
+│   ├── FINAL_QA_REPORT.md    # Master QA Test Results & Verification
+│   ├── KNOWN_LIMITATIONS.md  # Limitations & Roadmap
+│   ├── MARKET_DATA.md        # Live Market Pipeline & Zero-Fake Provenance
+│   ├── MOBILE.md             # Flutter Mobile Architecture & SMS Engine
+│   ├── PROJECT_AUDIT.md      # System Audit & Diagnostic Reports
+│   ├── PROJECT_REPORT.md     # Academic Project Report
+│   ├── PROJECT_SYNOPSIS.md   # Academic Synopsis
+│   └── TESTING.md            # Testing Guide & Suite Directory
 ├── frontend/
-│   └── public/               # Single Page Application HTML, CSS & JS files
-│       ├── assets/
-│       │   ├── css/app.css   # Unified dark-mode UI theme
-│       │   └── js/
-│       │       ├── api.js    # Centralized authenticated API client
-│       │       ├── app.js    # Global utility & toast library
-│       │       └── sidebar.js# Reusable responsive navigation component
-│       ├── dashboard.html    # Consolidated real-time financial command center
-│       ├── market.html       # Alpha Vantage live market, technicals & gold hub
-│       ├── transactions.html # Transaction management & filtering
-│       ├── budget.html       # Dynamic category budgeting & AI optimizer
-│       ├── goals.html        # Financial goal tracker & forecasting
-│       ├── investments.html  # Multi-asset portfolio valuation
-│       ├── loans.html        # EMI calculator & prepayment simulator
-│       ├── insurance.html    # Policy & subscription renewal tracking
-│       ├── calendar.html     # Financial calendar & recurring event manager
-│       ├── analytics.html    # Health scoring, cash flow & anomaly detection
-│       ├── ai-advisor.html   # Gemini conversational advisor & what-if simulator
-│       ├── login.html        # User login with JWT & Google OAuth
-│       └── signup.html       # User registration
-├── node-backend/             # Canonical Node.js / Express backend
-│   ├── prisma/
-│   │   └── schema.prisma     # Canonical PostgreSQL database schema
-│   ├── src/
-│   │   ├── config/           # Database & environment configurations
-│   │   ├── controllers/      # 16 domain controllers
-│   │   ├── middleware/       # JWT auth & error handling middleware
-│   │   ├── routes/           # RESTful API route definitions
-│   │   ├── services/         # Business logic & AI/market integrations
-│   │   ├── utils/            # Financial math & formatting utilities
-│   │   ├── app.js            # Express application setup
-│   │   └── server.js         # HTTP server entry point
-│   ├── run-all-tests.js      # 66-assertion master integration test suite
-│   ├── test-auth-comprehensive.js # 40-assertion security & auth test suite
-│   └── test-market-live.js   # Live external API validation suite
-└── README.md                 # Master repository guide
+│   └── public/               # Single Page Application HTML, CSS & JS
+├── mobile/                   # Flutter Cross-Platform Mobile Application
+├── node-backend/             # Canonical Node.js / Express API Backend
+│   ├── prisma/               # Prisma schema & migrations
+│   ├── src/                  # Controllers, services, routes, middleware
+│   └── scripts/              # Secret scanner, linter, build scripts
+├── deployment/               # Nginx configs & Systemd service templates
+├── docker-compose.yml        # Multi-container orchestration
+├── render.yaml               # Render Cloud Blueprint
+└── vercel.json               # Vercel Frontend Reverse Proxy Config
 ```
