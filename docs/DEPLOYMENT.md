@@ -31,7 +31,7 @@ cp node-backend/.env.example node-backend/.env
 Ensure the following variables are configured in `node-backend/.env`:
 ```env
 # Server
-PORT=5000
+PORT=5001
 NODE_ENV=development
 
 # Database
@@ -46,7 +46,7 @@ JWT_REFRESH_EXPIRES_IN=7d
 # Google OAuth2 (Optional for local development)
 GOOGLE_CLIENT_ID="your_client_id.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET="your_client_secret"
-GOOGLE_REDIRECT_URI="http://127.0.0.1:5000/api/v1/auth/google/callback"
+GOOGLE_REDIRECT_URI="http://127.0.0.1:5001/api/v1/auth/google/callback"
 
 # AI Provider (Google Gemini)
 GEMINI_API_KEY="your_gemini_api_key"
@@ -77,7 +77,7 @@ npm run dev
 # Or in production mode
 npm start
 ```
-The server will bind to `http://127.0.0.1:5000` and automatically serve the frontend Single Page Application at `http://127.0.0.1:5000/`.
+The server will bind to `http://127.0.0.1:5001` and automatically serve the frontend Single Page Application at `http://127.0.0.1:5001/`.
 
 ---
 

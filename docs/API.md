@@ -1,5 +1,5 @@
 # Jinay Finance AI — REST API Documentation (v1)
-**Base URL:** `http://127.0.0.1:5000/api/v1`  
+**Base URL:** `http://127.0.0.1:5001/api/v1`  
 **Authentication:** `Authorization: Bearer <access_token>`
 
 ---
@@ -145,3 +145,19 @@
 | `POST` | `/import/confirm` | Protected | Batch import verified bank statement rows into account |
 | `GET` | `/export/transactions.csv` | Protected | Export user transactions as downloadable CSV |
 | `GET` | `/export/summary.csv` | Protected | Export consolidated financial summary CSV |
+
+---
+
+## 9. Mobile Synchronization & Bank SMS Detection
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `POST` | `/mobile/register-device` | Protected | Register/update Android device metadata (`deviceId`, `platform`, `model`, `appVersion`, `smsDetectionEnabled`) |
+| `GET` | `/mobile/sync-state` | Protected | Fetch client sync state, server timestamp, pending SMS count, and account balance checksums |
+| `POST` | `/sms/ingest` | Protected | Ingest and parse single bank SMS alert (`messageText`, `sender`, `timestamp`, `deviceId`) |
+| `POST` | `/sms/batch-ingest` | Protected | Batch ingest bank SMS alerts with per-item idempotency and atomic duplicate prevention |
+| `GET` | `/sms/pending` | Protected | Fetch candidate transactions pending user review and confirmation (`status=PENDING`) |
+| `POST` | `/sms/pending/:id/confirm` | Protected | Confirm pending candidate into canonical ledger (`FinancialTransaction` + atomic account balance update) |
+| `POST` | `/sms/pending/:id/reject` | Protected | Reject pending SMS candidate without mutating account balance |
+| `POST` | `/sms/parse-preview` | Protected | Stateless preview parser for debugging regex extraction without database mutation |
+

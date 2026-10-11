@@ -68,6 +68,9 @@ model User {
   mlPredictions      MLPrediction[]
   cards              Card[]
   financialTasks     FinancialTask[]
+  mobileDevices      MobileDevice[]
+  pendingSmsTransactions PendingSmsTransaction[]
+  fcmTokens          FcmToken[]
 
   @@index([email])
   @@index([googleId])
@@ -91,6 +94,21 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+model FcmToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String
+  deviceId   String   @default("default")
+  platform   String   @default("android") // android | ios | web
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@map("fcm_tokens")
 }
 
 model Profile {
@@ -184,6 +202,7 @@ model FinancialAccount {
   updatedAt           DateTime    @updatedAt
 
   transactions Transaction[]
+  pendingSmsTransactions PendingSmsTransaction[]
 
   @@index([userId])
   @@map("financial_accounts")
@@ -891,6 +910,62 @@ model FinancialTask {
   @@index([userId])
   @@index([userId, isCompleted])
   @@map("financial_tasks")
+}
+
+// ============================================================
+// MOBILE & SMS DETECTION (Phase 4 & 5)
+// ============================================================
+
+model MobileDevice {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId    String
+  deviceModel String?
+  osVersion   String?
+  appVersion  String?
+  fcmToken    String?
+  lastSyncAt  DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@map("mobile_devices")
+}
+
+model PendingSmsTransaction {
+  id                     String            @id @default(uuid())
+  userId                 String
+  user                   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount                 Decimal           @db.Decimal(15, 2)
+  currency               String            @default("INR")
+  transactionType        TransactionType   @default(EXPENSE)
+  merchant               String?
+  accountHint            String?
+  matchedAccountId       String?
+  matchedAccount         FinancialAccount? @relation(fields: [matchedAccountId], references: [id], onDelete: SetNull)
+  suggestedCategory      String?
+  confidence             Decimal?          @db.Decimal(5, 4)
+  categoryReason         String?
+  status                 String            @default("PENDING") // PENDING, CONFIRMED, REJECTED
+  source                 String            @default("BANK_SMS")
+  rawSender              String?
+  rawMessageHash         String?
+  bankReference          String?
+  transactionDate        DateTime          @default(now())
+  confirmedTransactionId String?
+  isDuplicate            Boolean           @default(false)
+  duplicateReason        String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, rawMessageHash])
+  @@index([userId, bankReference])
+  @@map("pending_sms_transactions")
 }
 
 

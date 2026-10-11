@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Transactions — FinPro</title>
+  <title>Transactions — Jinay Finance AI</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/app.css">
@@ -20,9 +20,6 @@
       </div>
       <div class="topbar-actions">
         <button class="btn btn-primary" id="addTxBtn"><i class="ri-add-line"></i>Add Transaction</button>
-        <button class="btn btn-secondary" onclick="window.location.href='/ai-advisor.html'" title="Bank Statement Analyzer (PDF / CSV)"><i class="ri-file-text-line"></i> Statement Analyzer</button>
-        <button class="btn btn-secondary" onclick="window.location.href='/ai-advisor.html'" title="OCR Receipt Scanner & GST"><i class="ri-scan-2-line"></i> Receipt OCR</button>
-        <button class="btn btn-secondary" id="smsReaderBtn" title="Parse Bank SMS / Message"><i class="ri-message-3-line"></i> SMS Reader</button>
         <button class="btn btn-secondary" id="voiceBtn" title="Voice Entry"><i class="ri-mic-line"></i>Voice</button>
       </div>
     </div>
@@ -168,7 +165,7 @@
       </div>
 
       <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <button id="micBtn" type="button" class="btn btn-secondary" style="flex:1;background:rgba(99,102,241,0.15);border:1px solid #6366f1;color:#a5b4fc" onclick="toggleSpeechRecognition()">
+        <button id="micBtn" type="button" class="btn btn-secondary" style="flex:1;background:rgba(16,185,129,0.15);border:1px solid #10b981;color:#6ee7b7" onclick="toggleSpeechRecognition()">
           <i class="ri-mic-line" id="micIcon"></i> <span id="micText">Start Speaking</span>
         </button>
       </div>
@@ -178,7 +175,7 @@
         <textarea id="voiceText" class="form-input" rows="3" placeholder="Click 'Start Speaking' or type here..."></textarea>
       </div>
       
-      <div id="voicePreview" style="display:none;padding:14px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);border-radius:10px;margin-bottom:14px;font-size:13px;"></div>
+      <div id="voicePreview" style="display:none;padding:14px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);border-radius:10px;margin-bottom:14px;font-size:13px;"></div>
       
       <div style="display:flex;gap:10px">
         <button class="btn btn-secondary" style="flex:1" onclick="parseVoice()"><i class="ri-magic-line"></i> Parse</button>
@@ -187,125 +184,16 @@
     </div>
   </div>
 
-  <!-- Bank SMS & Text Reader Modal -->
-  <div class="modal-overlay" id="smsModal">
-    <div class="modal" style="max-width:540px;">
-      <div class="modal-header">
-        <span class="modal-title"><i class="ri-message-3-line" style="color:#6366f1;"></i> Bank SMS & Text Reader</span>
-        <button class="modal-close" onclick="closeModal('smsModal')">✕</button>
-      </div>
-      <p style="font-size:13px;color:#94a3b8;margin-bottom:12px;">Paste any bank SMS or transaction alert. FinPro detects amount, debit/credit, date, and merchant for your review before saving.</p>
-
-      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-        <span style="font-size:11px;color:#64748b;align-self:center;">Sample Presets:</span>
-        <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" onclick="loadSmsSample('debit')">HDFC Debit (₹1,500)</button>
-        <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" onclick="loadSmsSample('credit')">Stipend Credit (₹12,300)</button>
-        <button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" onclick="loadSmsSample('uber')">Uber Trip (₹450)</button>
-      </div>
-
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label">Paste SMS / Notification Text</label>
-        <textarea id="smsInput" class="form-input" rows="3" placeholder="e.g. INR 1,500.00 debited from A/C XX4921 on 10-Sep-2026 at SWIGGY via UPI."></textarea>
-      </div>
-
-      <button type="button" class="btn btn-secondary" style="width:100%;margin-bottom:14px;" id="parseSmsBtn" onclick="parseSmsMessage()">
-        <i class="ri-scan-2-line"></i> Extract Financial Details
-      </button>
-
-      <!-- Review & Confirmation Card (Shown after extraction) -->
-      <div id="smsReviewCard" style="display:none;padding:16px;background:rgba(15,23,42,0.7);border:1px solid rgba(99,102,241,0.3);border-radius:10px;margin-bottom:14px;">
-        <div style="font-weight:700;color:#a5b4fc;margin-bottom:10px;font-size:13px;display:flex;align-items:center;gap:6px;">
-          <i class="ri-check-line" style="color:#10b981;"></i> Detected Transaction (Review & Confirm)
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-          <div class="form-group">
-            <label class="form-label" style="font-size:11px;">Type</label>
-            <select id="smsDetectedType" class="form-select" style="padding:6px 10px;font-size:12px;">
-              <option value="EXPENSE">Expense (Debit)</option>
-              <option value="INCOME">Income (Credit)</option>
-              <option value="TRANSFER">Transfer</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" style="font-size:11px;">Amount (₹)</label>
-            <input type="number" id="smsDetectedAmount" class="form-input" style="padding:6px 10px;font-size:12px;" step="0.01">
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-          <div class="form-group">
-            <label class="form-label" style="font-size:11px;">Date</label>
-            <input type="date" id="smsDetectedDate" class="form-input" style="padding:6px 10px;font-size:12px;color-scheme:dark;">
-          </div>
-          <div class="form-group">
-            <label class="form-label" style="font-size:11px;">Merchant / Vendor</label>
-            <input type="text" id="smsDetectedMerchant" class="form-input" style="padding:6px 10px;font-size:12px;">
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-          <div class="form-group">
-            <label class="form-label" style="font-size:11px;">Category</label>
-            <input type="text" id="smsDetectedCategory" class="form-input" style="padding:6px 10px;font-size:12px;">
-          </div>
-          <div class="form-group">
-            <label class="form-label" style="font-size:11px;">Account</label>
-            <select id="smsDetectedAccount" class="form-select" style="padding:6px 10px;font-size:12px;">
-              <option value="">Default Account</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-group" style="margin-bottom:12px;">
-          <label class="form-label" style="font-size:11px;">Description / Note</label>
-          <input type="text" id="smsDetectedDesc" class="form-input" style="padding:6px 10px;font-size:12px;">
-        </div>
-
-        <button type="button" class="btn btn-primary" style="width:100%;" id="confirmSmsBtn" onclick="confirmSmsTransaction()">
-          <i class="ri-check-double-line"></i> Confirm & Save to Database
-        </button>
-      </div>
-    </div>
-  </div>
-
   <script src="/assets/js/sidebar.js"></script>
   <script>
-    const isDevLiveServer = window.location.port === '3000' || window.location.port === '5500' || window.location.protocol === 'file:';
-    const API_BASE = isDevLiveServer ? 'http://127.0.0.1:5000/api/v1' : '/api/v1';
-    const getToken = () => localStorage.getItem('jf_access_token');
-    const getRefreshToken = () => localStorage.getItem('jf_refresh_token');
-
-    if (!getToken()) window.location.href = '/login.html';
+    const API_BASE = window.location.origin.includes(':5001') ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
+    const token = localStorage.getItem('jf_access_token');
+    if (!token) window.location.href = '/login.html';
 
     const fmt = (v) => new Intl.NumberFormat('en-IN', { style:'currency', currency:'INR', maximumFractionDigits:0 }).format(v || 0);
     const apiFetch = async (url, opts={}) => {
-      let at = getToken();
-      let headers = { 'Content-Type':'application/json', ...(at ? { Authorization:`Bearer ${at}` } : {}), ...(opts.headers||{}) };
-      let r = await fetch(`${API_BASE}${url}`, { ...opts, headers });
-      if (r.status === 401 && getRefreshToken()) {
-        try {
-          const refRes = await fetch(`${API_BASE}/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken: getRefreshToken() }),
-          });
-          const refData = await refRes.json();
-          if (refData.success && refData.data?.accessToken) {
-            localStorage.setItem('jf_access_token', refData.data.accessToken);
-            if (refData.data.refreshToken) localStorage.setItem('jf_refresh_token', refData.data.refreshToken);
-            headers.Authorization = `Bearer ${refData.data.accessToken}`;
-            r = await fetch(`${API_BASE}${url}`, { ...opts, headers });
-          } else {
-            localStorage.clear();
-            window.location.href = '/login.html?session_expired=1';
-            return null;
-          }
-        } catch {
-          localStorage.clear();
-          window.location.href = '/login.html?session_expired=1';
-          return null;
-        }
-      }
+      const r = await fetch(`${API_BASE}${url}`, { headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(opts.headers||{})}, ...opts });
+      if (r.status === 401) { localStorage.clear(); window.location.href='/login.html?session_expired=1'; return null; }
       return r.json();
     };
 
@@ -464,7 +352,7 @@
       if (isListening && recognition) {
         recognition.stop();
         isListening = false;
-        micBtn.style.background = 'rgba(99,102,241,0.15)';
+        micBtn.style.background = 'rgba(16,185,129,0.15)';
         micText.textContent = 'Start Speaking';
         micIcon.className = 'ri-mic-line';
         return;
@@ -493,16 +381,16 @@
         recognition.onerror = (event) => {
           console.error('Speech recognition error:', event.error);
           isListening = false;
-          micBtn.style.background = 'rgba(99,102,241,0.15)';
-          micBtn.style.borderColor = '#6366f1';
+          micBtn.style.background = 'rgba(16,185,129,0.15)';
+          micBtn.style.borderColor = '#10b981';
           micText.textContent = 'Start Speaking';
           micIcon.className = 'ri-mic-line';
         };
 
         recognition.onend = () => {
           isListening = false;
-          micBtn.style.background = 'rgba(99,102,241,0.15)';
-          micBtn.style.borderColor = '#6366f1';
+          micBtn.style.background = 'rgba(16,185,129,0.15)';
+          micBtn.style.borderColor = '#10b981';
           micText.textContent = 'Start Speaking';
           micIcon.className = 'ri-mic-line';
         };
@@ -524,7 +412,7 @@
         const p = res.data.parsed;
         document.getElementById('voicePreview').style.display = 'block';
         document.getElementById('voicePreview').innerHTML = `
-          <div style="font-weight:600;margin-bottom:6px;color:#a5b4fc">Detected Transaction:</div>
+          <div style="font-weight:600;margin-bottom:6px;color:#6ee7b7">Detected Transaction:</div>
           <div style="display:flex;gap:12px;margin-bottom:6px;">
             <div><strong>Type:</strong> <span class="badge ${p.type==='INCOME'?'badge-green':'badge-red'}">${p.type}</span></div>
             <div><strong>Amount:</strong> <span style="font-weight:700;color:${p.type==='INCOME'?'#10b981':'#ef4444'}">${fmt(p.amount)}</span></div>
@@ -573,95 +461,6 @@
     };
     document.getElementById('voiceBtn').onclick = () => showModal('voiceModal');
 
-    // SMS & Bank Text Reader Handlers
-    window.loadSmsSample = (type) => {
-      const el = document.getElementById('smsInput');
-      if (type === 'debit') {
-        el.value = 'Dear Customer, INR 1,500.00 debited from A/C XX4921 on 10-Sep-2026 at SWIGGY via UPI. Avl Bal: INR 24,350.00';
-      } else if (type === 'credit') {
-        el.value = 'Your a/c no. 8812 is credited with Rs. 12,300.00 on 01-Sep-26 by internship stipend. Info: NEFT';
-      } else if (type === 'uber') {
-        el.value = 'Rs 450.00 spent on your HDFC Bank Card ending 1234 on 05-Sep-26 at UBER TRIP.';
-      }
-    };
-
-    window.parseSmsMessage = async () => {
-      const text = document.getElementById('smsInput').value.trim();
-      if (!text) {
-        showToast('Please paste SMS or transaction text first.', 'error');
-        return;
-      }
-      const res = await apiFetch('/transactions/parse-text', {
-        method: 'POST',
-        body: JSON.stringify({ text }),
-      });
-      if (res?.success && res.data?.parsed) {
-        const p = res.data.parsed;
-        document.getElementById('smsDetectedType').value = p.type || 'EXPENSE';
-        document.getElementById('smsDetectedAmount').value = p.amount || '';
-        document.getElementById('smsDetectedDate').value = p.date || new Date().toISOString().split('T')[0];
-        document.getElementById('smsDetectedMerchant').value = p.merchant || '';
-        document.getElementById('smsDetectedCategory').value = p.category || '';
-        document.getElementById('smsDetectedDesc').value = p.description || text.slice(0, 50);
-
-        // Populate accounts
-        const sel = document.getElementById('smsDetectedAccount');
-        sel.innerHTML = '<option value="">No specific account</option>' + accounts.map(a => `<option value="${a.id}">${a.name} (${fmt(a.balance)})</option>`).join('');
-
-        document.getElementById('smsReviewCard').style.display = 'block';
-        showToast('Transaction details extracted! Please review and confirm.', 'success');
-      } else {
-        showToast(res?.error?.message || 'Failed to detect details from text.', 'error');
-      }
-    };
-
-    window.confirmSmsTransaction = async () => {
-      const amount = parseFloat(document.getElementById('smsDetectedAmount').value);
-      const type = document.getElementById('smsDetectedType').value;
-      const date = document.getElementById('smsDetectedDate').value;
-      const merchant = document.getElementById('smsDetectedMerchant').value.trim();
-      const category = document.getElementById('smsDetectedCategory').value.trim();
-      const accountId = document.getElementById('smsDetectedAccount').value;
-      const description = document.getElementById('smsDetectedDesc').value.trim();
-
-      if (!amount || amount <= 0) {
-        showToast('Valid amount is required.', 'error');
-        return;
-      }
-
-      const res = await apiFetch('/transactions', {
-        method: 'POST',
-        body: JSON.stringify({
-          amount,
-          type,
-          category: category || undefined,
-          accountId: accountId || undefined,
-          description: description || undefined,
-          merchant: merchant || undefined,
-          date: date || undefined,
-        }),
-      });
-
-      if (res?.success) {
-        closeModal('smsModal');
-        showToast(`Transaction confirmed: ${type === 'INCOME' ? '+' : '-'}${fmt(amount)}`, 'success');
-        document.getElementById('smsInput').value = '';
-        document.getElementById('smsReviewCard').style.display = 'none';
-        loadTransactions();
-        loadSummary();
-      } else {
-        showToast(res?.error?.message || 'Failed to save transaction.', 'error');
-      }
-    };
-
-    document.getElementById('smsReaderBtn').onclick = () => {
-      const sel = document.getElementById('smsDetectedAccount');
-      if (sel && accounts.length) {
-        sel.innerHTML = '<option value="">No specific account</option>' + accounts.map(a => `<option value="${a.id}">${a.name} (${fmt(a.balance)})</option>`).join('');
-      }
-      showModal('smsModal');
-    };
-
     // Export
     document.getElementById('exportBtn').onclick = async (e) => {
       e.preventDefault();
@@ -675,7 +474,7 @@
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `finpro_transactions_${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `jinay_finance_transactions_${new Date().toISOString().split('T')[0]}.csv`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -695,7 +494,7 @@
       t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;font-family:Inter,sans-serif;z-index:9999;display:flex;align-items:center;gap:8px;box-shadow:0 8px 32px rgba(0,0,0,.4);`;
       if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';
       else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';
-      else t.style.cssText+='background:#1e1b4b;border:1px solid #6366f1;color:#a5b4fc;';
+      else t.style.cssText+='background:#1e1b4b;border:1px solid #10b981;color:#6ee7b7;';
       t.textContent=msg; document.body.appendChild(t);
       setTimeout(()=>t.remove(), 3500);
     }

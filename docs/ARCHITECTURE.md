@@ -45,7 +45,7 @@ Jinay Finance AI is a full-stack, enterprise-grade personal finance management a
 - **Framework:** Express.js 4.21
 - **ORM:** Prisma 5.22
 - **Database:** PostgreSQL 17 (`finance_jinay`)
-- **Port:** `5000` (configurable via `PORT` environment variable)
+- **Port:** `5001` (configurable via `PORT` environment variable)
 
 ### 2.2 Security & Authentication
 - **Token Format:** JSON Web Token (JWT) with HMAC-SHA256 (`HS256`).

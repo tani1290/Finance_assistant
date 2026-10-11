@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Financial Calendar — FinPro</title>
+  <title>Financial Calendar — Jinay Finance AI</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/app.css">
@@ -13,15 +13,15 @@
     .cal-day{background:var(--bg);padding:8px;min-height:80px;position:relative;transition:background .2s;cursor:pointer}
     .cal-day:hover{background:rgba(255,255,255,.03)}
     .cal-day.other-month{opacity:.35}
-    .cal-day.today{background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2)}
+    .cal-day.today{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2)}
     .cal-num{font-size:12px;font-weight:600;margin-bottom:4px;color:var(--muted)}
     .cal-day.today .cal-num{color:var(--primary-light)}
     .cal-event{font-size:10px;padding:2px 6px;border-radius:4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .cal-event.emi{background:rgba(239,68,68,.2);color:#fca5a5}
     .cal-event.loan{background:rgba(245,158,11,.15);color:#fde68a}
     .cal-event.goal{background:rgba(16,185,129,.15);color:#6ee7b7}
-    .cal-event.custom{background:rgba(99,102,241,.15);color:#a5b4fc}
-    .cal-event.sub{background:rgba(139,92,246,.15);color:#c4b5fd}
+    .cal-event.custom{background:rgba(16,185,129,.15);color:#6ee7b7}
+    .cal-event.sub{background:rgba(5,150,105,.15);color:#c4b5fd}
     .month-nav{display:flex;align-items:center;gap:16px}
     .month-nav button{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:var(--text);width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px}
     .month-nav button:hover{background:rgba(255,255,255,.1)}
@@ -85,40 +85,13 @@
 
   <script src="/assets/js/sidebar.js"></script>
   <script>
-    const isDevLiveServer = window.location.port === '3000' || window.location.port === '5500' || window.location.protocol === 'file:';
-    const API_BASE = isDevLiveServer ? 'http://127.0.0.1:5000/api/v1' : '/api/v1';
-    const getToken = () => localStorage.getItem('jf_access_token');
-    const getRefreshToken = () => localStorage.getItem('jf_refresh_token');
-    if (!getToken()) window.location.href = '/login.html';
+    const API_BASE = window.location.origin.includes(':5001') ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
+    const token = localStorage.getItem('jf_access_token');
+    if (!token) window.location.href = '/login.html';
     const fmt = (v) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(v||0);
     const apiFetch = async (url, opts={}) => {
-      let at = getToken();
-      let headers = { 'Content-Type':'application/json', ...(at ? { Authorization:`Bearer ${at}` } : {}), ...(opts.headers||{}) };
-      let r = await fetch(`${API_BASE}${url}`, { ...opts, headers });
-      if (r.status === 401 && getRefreshToken()) {
-        try {
-          const refRes = await fetch(`${API_BASE}/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken: getRefreshToken() }),
-          });
-          const refData = await refRes.json();
-          if (refData.success && refData.data?.accessToken) {
-            localStorage.setItem('jf_access_token', refData.data.accessToken);
-            if (refData.data.refreshToken) localStorage.setItem('jf_refresh_token', refData.data.refreshToken);
-            headers.Authorization = `Bearer ${refData.data.accessToken}`;
-            r = await fetch(`${API_BASE}${url}`, { ...opts, headers });
-          } else {
-            localStorage.clear();
-            window.location.href = '/login.html?session_expired=1';
-            return null;
-          }
-        } catch {
-          localStorage.clear();
-          window.location.href = '/login.html?session_expired=1';
-          return null;
-        }
-      }
+      const r = await fetch(`${API_BASE}${url}`,{headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},...opts});
+      if(r.status===401){localStorage.clear();window.location.href='/login.html';return null;}
       return r.json();
     };
 
@@ -204,7 +177,7 @@
       }
       document.getElementById('eventsList').innerHTML = `<div class="events-list">${upcomingEvts.map(e => `
         <div class="event-item">
-          <div class="event-dot" style="background:${e.type==='emi'||e.eventType==='EMI_DUE'?'#ef4444':'#6366f1'}"></div>
+          <div class="event-dot" style="background:${e.type==='emi'||e.eventType==='EMI_DUE'?'#ef4444':'#10b981'}"></div>
           <div style="flex:1">
             <div style="font-size:12px;font-weight:600">${e.title||e.name||e.loanType||e.serviceName}</div>
             <div style="font-size:10px;color:#6b7280">${new Date(e.eventDate||e.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</div>
@@ -232,7 +205,7 @@
     function showModal(id){document.getElementById(id).classList.add('show');}
     function closeModal(id){document.getElementById(id).classList.remove('show');}
     document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
-    function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);`;if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';else t.style.cssText+='background:#1e1b4b;border:1px solid #6366f1;color:#a5b4fc;';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
+    function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);`;if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';else t.style.cssText+='background:#1e1b4b;border:1px solid #10b981;color:#6ee7b7;';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
 
     loadCalendar();
   </script>

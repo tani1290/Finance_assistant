@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Analytics — FinPro</title>
+  <title>Analytics — Jinay Finance AI</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/app.css">
@@ -49,40 +49,13 @@
 
   <script src="/assets/js/sidebar.js"></script>
   <script>
-    const isDevLiveServer = window.location.port === '3000' || window.location.port === '5500' || window.location.protocol === 'file:';
-    const API_BASE = isDevLiveServer ? 'http://127.0.0.1:5000/api/v1' : '/api/v1';
-    const getToken = () => localStorage.getItem('jf_access_token');
-    const getRefreshToken = () => localStorage.getItem('jf_refresh_token');
-    if (!getToken()) window.location.href = '/login.html';
+    const API_BASE = window.location.origin.includes(':5001') ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
+    const token = localStorage.getItem('jf_access_token');
+    if (!token) window.location.href = '/login.html';
     const fmt = (v) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(v||0);
     const apiFetch = async (url, opts={}) => {
-      let at = getToken();
-      let headers = { 'Content-Type':'application/json', ...(at ? { Authorization:`Bearer ${at}` } : {}), ...(opts.headers||{}) };
-      let r = await fetch(`${API_BASE}${url}`, { ...opts, headers });
-      if (r.status === 401 && getRefreshToken()) {
-        try {
-          const refRes = await fetch(`${API_BASE}/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken: getRefreshToken() }),
-          });
-          const refData = await refRes.json();
-          if (refData.success && refData.data?.accessToken) {
-            localStorage.setItem('jf_access_token', refData.data.accessToken);
-            if (refData.data.refreshToken) localStorage.setItem('jf_refresh_token', refData.data.refreshToken);
-            headers.Authorization = `Bearer ${refData.data.accessToken}`;
-            r = await fetch(`${API_BASE}${url}`, { ...opts, headers });
-          } else {
-            localStorage.clear();
-            window.location.href = '/login.html?session_expired=1';
-            return null;
-          }
-        } catch {
-          localStorage.clear();
-          window.location.href = '/login.html?session_expired=1';
-          return null;
-        }
-      }
+      const r = await fetch(`${API_BASE}${url}`,{headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},...opts});
+      if(r.status===401){localStorage.clear();window.location.href='/login.html';return null;}
       return r.json();
     };
 
@@ -121,7 +94,7 @@
         xAxis: { type: 'category', data: dates, axisLabel: { color: '#6b7280', fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
         yAxis: { type: 'value', axisLabel: { color: '#6b7280', fontSize: 10, formatter: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) }, splitLine: { lineStyle: { color: 'rgba(255,255,255,.05)' } } },
         series: [
-          { name: 'Amount', type: 'bar', data: d.monthlyTrend.map(t => t.amount), itemStyle: { color: '#6366f1', borderRadius: [3,3,0,0] }, barMaxWidth: 20 },
+          { name: 'Amount', type: 'bar', data: d.monthlyTrend.map(t => t.amount), itemStyle: { color: '#10b981', borderRadius: [3,3,0,0] }, barMaxWidth: 20 },
         ],
       });
 
@@ -172,7 +145,7 @@
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `finpro_summary_${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `jinay_finance_summary_${new Date().toISOString().split('T')[0]}.csv`;
         document.body.appendChild(a);
         a.click();
         a.remove();

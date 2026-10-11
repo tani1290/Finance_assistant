@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinPro — AI-Powered Personal Financial Planner | Engineering Capstone Presentation</title>
+
+<!-- Typography: Fraunces (display serif) + DM Sans (body) + IBM Plex Mono (code/tags) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,500;9..144,0,600;9..144,0,700;9..144,1,500;9..144,1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet" />
+
+<style>
+/* ===========================================
+   THEME TOKENS — Warm Paper & Deep Ink
+   Deep teal primary, terracotta secondary,
+   warm paper background, and crisp card surfaces.
+   =========================================== */
+:root{
+  --paper: #FAF6EF;
+  --paper-2: #F3EDE1;
+  --card: #FFFDF8;
+  --ink: #1B2431;
+  --ink-soft: #4A5568;
+  --ink-faint: #8A94A6;
+  --line: #E4DAC6;
+  --teal: #0E7C7B;
+  --teal-deep: #0A5E5D;
+  --teal-wash: #DDF0EE;
+  --terra: #D9622B;
+  --terra-wash: #FBE7D8;
+  --gold: #B98A1F;
+  --gold-wash: #FEF3C7;
+  --shadow: 0 18px 45px -22px rgba(27,36,49,.28);
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'DM Sans', Verdana, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --pad: clamp(1.8rem, 4.5vw, 4rem);
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --dur: .65s;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-snap-type:y mandatory}
+body{
+  font-family:var(--font-body);background:var(--paper);color:var(--ink);
+  overflow-x:hidden;
+  /* subtle grid + warm grain over paper */
+  background-image:
+    linear-gradient(rgba(27,36,49,.05) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(27,36,49,.05) 1px,transparent 1px),
+    radial-gradient(ellipse at 85% 10%,rgba(14,124,123,.10),transparent 55%),
+    radial-gradient(ellipse at 10% 90%,rgba(217,98,43,.10),transparent 55%);
+  background-size:44px 44px,44px 44px,100% 100%,100% 100%;
+}
+
+/* progress bar */
+.progress{position:fixed;top:0;left:0;height:5px;width:0;z-index:60;
+  background:linear-gradient(90deg,var(--teal),var(--terra));}
+
+/* slide counter */
+.counter{position:fixed;left:22px;bottom:18px;z-index:60;font-family:var(--font-mono);
+  font-size:12px;letter-spacing:.12em;color:var(--ink-faint);
+  background:rgba(255,253,248,.88);border:1px solid var(--line);
+  padding:7px 12px;border-radius:999px;backdrop-filter:blur(6px)}
+
+/* nav dots */
+.dots{position:fixed;right:20px;top:50%;transform:translateY(-50%);z-index:60;
+  display:flex;flex-direction:column;gap:8px}
+.dots button{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--teal);
+  background:transparent;cursor:pointer;padding:0;transition:all .3s var(--ease)}
+.dots button.active{background:var(--teal);transform:scale(1.4)}
+.dots button:hover{border-color:var(--terra)}
+
+/* hint */
+.hint{position:fixed;right:22px;bottom:18px;z-index:60;font-family:var(--font-mono);
+  font-size:11px;color:var(--ink-faint);background:rgba(255,253,248,.88);
+  border:1px solid var(--line);padding:7px 12px;border-radius:999px}
+
+/* ===========================================
+   SLIDES — base & scaling
+   =========================================== */
+.slide{height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;
+  padding:var(--pad);scroll-snap-align:start;
+  display:flex;flex-direction:column;justify-content:center;
+  position:relative;overflow:hidden;max-width:1200px;margin:0 auto}
+
+.fit{flex:none;width:100%;min-height:0;transform-origin:center center}
+
+.eyebrow{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--teal-deep);margin-bottom:10px;
+  display:flex;align-items:center;gap:10px}
+.eyebrow::before{content:"";width:24px;height:2px;background:var(--terra);display:inline-block}
+
+h1{font-family:var(--font-display);font-weight:700;line-height:1.04;
+  font-size:clamp(2.3rem,4.8vw,3.8rem);letter-spacing:-.02em}
+h2{font-family:var(--font-display);font-weight:600;line-height:1.08;
+  font-size:clamp(1.7rem,3.4vw,2.6rem);letter-spacing:-.015em;margin-bottom:10px}
+h2 em,h1 em{font-style:italic;color:var(--teal-deep)}
+.sub{color:var(--ink-soft);font-size:clamp(.92rem,1.5vw,1.08rem);line-height:1.55;max-width:68ch}
+
+.badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);
+  font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
+  background:var(--ink);color:#F7F2E7;padding:8px 14px;border-radius:999px;margin-bottom:16px}
+.badge .dot{width:8px;height:8px;border-radius:50%;background:#4ADE80;box-shadow:0 0 0 4px rgba(74,222,128,.25)}
+.rule{width:72px;height:4px;border-radius:4px;background:linear-gradient(90deg,var(--teal),var(--terra));margin:14px 0}
+
+/* entrance animation */
+.reveal{opacity:0;transform:translateY(24px);
+  transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.slide.visible .reveal{opacity:1;transform:none}
+.slide.visible .reveal:nth-child(1){transition-delay:.05s}
+.slide.visible .reveal:nth-child(2){transition-delay:.15s}
+.slide.visible .reveal:nth-child(3){transition-delay:.25s}
+.slide.visible .reveal:nth-child(4){transition-delay:.35s}
+.slide.visible .reveal:nth-child(5){transition-delay:.45s}
+
+/* shared tags */
+.tag{display:inline-block;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;
+  padding:3px 9px;border-radius:999px;margin-bottom:8px}
+.t-teal{background:var(--teal-wash);color:var(--teal-deep);border:1px solid #BFE0DE}
+.t-terra{background:var(--terra-wash);color:#8F3D14;border:1px solid #F0C9AC}
+.t-ink{background:#EBE4D3;color:var(--ink)}
+.t-gold{background:var(--gold-wash);color:#854D0E;border:1px solid #FDE68A}
+
+table{width:100%;border-collapse:collapse;margin-top:16px;background:var(--card);
+  border-radius:14px;overflow:hidden;box-shadow:var(--shadow);font-size:.88rem}
+th{background:var(--ink);color:#F5EFE0;text-align:left;padding:10px 12px;
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.08em}
+td{padding:9px 12px;border-top:1px solid var(--line);color:var(--ink-soft)}
+td:first-child{color:var(--ink);font-weight:700}
+
+/* Title Slide layout */
+.title-wrap{display:grid;grid-template-columns:1.25fr .85fr;gap:24px;align-items:center}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;
+  padding:20px;box-shadow:var(--shadow)}
+.panel h4{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--teal-deep);margin-bottom:10px}
+.panel ul{list-style:none;display:grid;gap:8px}
+.panel li{font-size:.9rem;color:var(--ink-soft)}
+.panel li b{color:var(--ink)}
+
+/* ===========================================
+   BENTO SYSTEM (12-col tray)
+   =========================================== */
+.bento{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));
+  grid-auto-flow:dense;gap:12px;margin-top:18px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.tile h3{font-family:var(--font-display);font-size:1.1rem;margin-bottom:6px}
+.tile p{color:var(--ink-soft);font-size:.9rem;line-height:1.52}
+.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}
+.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+.tall{grid-row:span 2}
+.tile.dark{background:var(--ink);border-color:var(--ink);color:#F5EFE0}
+.tile.dark p{color:#C9BFA9}
+.tile.dark h3{color:#FFFDF8}
+.tile.tealwash{background:var(--teal-wash);border-color:#BFE0DE}
+.tile.terrawash{background:var(--terra-wash);border-color:#F0C9AC}
+
+/* SVG Animations */
+@keyframes dashmove{to{stroke-dashoffset:-28}}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes barpulse{0%,100%{transform:scaleY(.55)}50%{transform:scaleY(1)}}
+
+.flowline{stroke-dasharray:7 9;animation:dashmove 1.1s linear infinite}
+.floaty{animation:floaty 5s ease-in-out infinite}
+.floaty.d2{animation-delay:-1.6s}.floaty.d3{animation-delay:-3.2s}
+.pulse{animation:pulse 2.2s ease-in-out infinite}
+.spin-slow{transform-origin:center;transform-box:fill-box;animation:spin 26s linear infinite}
+.bars rect{transform-origin:bottom;transform-box:fill-box;animation:barpulse 1.8s ease-in-out infinite}
+.bars rect:nth-child(2){animation-delay:-.4s}
+.bars rect:nth-child(3){animation-delay:-.9s}
+.bars rect:nth-child(4){animation-delay:-.3s}
+
+.hero-svg{width:100%;height:auto;margin-top:14px;
+  background:var(--card);border:1px solid var(--line);border-radius:16px;
+  box-shadow:var(--shadow)}
+.doodle{width:96px;height:96px;flex:none}
+.shead{display:flex;gap:20px;align-items:flex-start;justify-content:space-between}
+
+/* Editorial rows */
+.rows{list-style:none;margin-top:18px;border-top:1.5px solid var(--line)}
+.rows li{display:grid;grid-template-columns:56px 1fr auto;gap:16px;align-items:center;
+  padding:14px 6px;border-bottom:1.5px solid var(--line)}
+.rows li:nth-child(even){background:rgba(14,124,123,.05)}
+.rows .num{font-family:var(--font-display);font-size:1.8rem;color:var(--terra);line-height:1}
+.rows h3{font-family:var(--font-display);font-size:1.12rem;margin-bottom:4px}
+.rows p{color:var(--ink-soft);font-size:.88rem;line-height:1.5;max-width:74ch}
+
+/* Layer stack with animated rail */
+.layers{position:relative;margin-top:18px;padding-left:26px;display:grid;gap:10px}
+.layers::before{content:"";position:absolute;left:8px;top:12px;bottom:12px;width:3px;
+  border-radius:3px;background-image:linear-gradient(var(--teal) 55%,transparent 45%);
+  background-size:3px 15px;animation:railflow 1s linear infinite}
+@keyframes railflow{to{background-position-y:15px}}
+
+.layer{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:14px 18px;box-shadow:var(--shadow);position:relative}
+.layer::before{content:"";position:absolute;left:-23px;top:18px;width:10px;height:10px;
+  border-radius:50%;background:var(--terra);box-shadow:0 0 0 4px var(--terra-wash);
+  animation:pulse 2.2s ease-in-out infinite}
+.layer .lname{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.18em;
+  color:var(--teal-deep);margin-bottom:8px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:var(--paper);border:1.5px solid var(--line);border-radius:10px;
+  padding:8px 12px;font-size:.84rem}
+.chip b{display:block}
+.chip span{font-family:var(--font-mono);font-size:10.5px;color:var(--teal-deep)}
+.chip.hot{border-color:var(--teal);background:var(--teal-wash)}
+.chip.warm{border-color:var(--terra);background:var(--terra-wash)}
+.layer.dark{background:var(--ink);border-color:var(--ink)}
+.layer.dark .chip{background:rgba(250,246,239,.07);border-color:rgba(245,239,224,.25);color:#F5EFE0}
+
+/* Status dots */
+.livedot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;
+  background:var(--teal);box-shadow:0 0 0 4px var(--teal-wash);animation:pulse 2s infinite}
+.livedot.next{background:var(--ink-faint);box-shadow:0 0 0 4px #EBE4D3;animation:none}
+
+/* Stat band & Split */
+.statband{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}
+.stat{background:var(--ink);color:#F5EFE0;border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
+.stat b{font-family:var(--font-display);font-size:1.55rem;display:block}
+.stat span{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.1em;color:#C9BFA9}
+
+.split{display:grid;grid-template-columns:7fr 5fr;gap:14px;margin-top:14px;align-items:start}
+.minis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mini{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:14px;box-shadow:var(--shadow)}
+.mini h3{font-family:var(--font-display);font-size:.98rem;margin-bottom:4px}
+.mini p{font-size:.82rem;color:var(--ink-soft);line-height:1.45}
+
+/* Milestone rail */
+.tl{position:relative;margin-top:18px;padding-left:26px;display:grid;gap:2px;max-width:780px}
+.tl::before{content:"";position:absolute;left:8px;top:12px;bottom:12px;width:3px;border-radius:3px;
+  background-image:linear-gradient(var(--terra) 55%,transparent 45%);
+  background-size:3px 15px;animation:railflow 1s linear infinite}
+.tl-group{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--teal-deep);margin:10px 0 6px;position:relative}
+.tl-item{position:relative;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:10px 14px;box-shadow:var(--shadow);margin-bottom:8px}
+.tl-item::before{content:"";position:absolute;left:-23px;top:16px;width:9px;height:9px;
+  border-radius:50%;background:var(--teal);box-shadow:0 0 0 4px var(--teal-wash);
+  animation:pulse 2.2s ease-in-out infinite}
+.tl-item.next::before{background:var(--terra);box-shadow:0 0 0 4px var(--terra-wash)}
+.tl-item b{font-size:.9rem}
+.tl-item p{font-size:.82rem;color:var(--ink-soft);margin-top:2px}
+
+/* Centered closer */
+.closer{text-align:center;align-items:center}
+.closer .sub{margin:0 auto}
+.thanks{font-family:var(--font-display);font-weight:700;letter-spacing:-.02em;
+  font-size:clamp(2.8rem,7vw,4.5rem);line-height:1}
+.thanks-underline{width:min(420px,70%);height:14px;margin:8px auto 0}
+.chiprow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:18px}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:999px;
+  padding:8px 16px;font-size:.86rem;box-shadow:var(--shadow)}
+.pill b{color:var(--teal-deep)}
+
+@media (max-width:860px){
+  .title-wrap,.split,.shead{grid-template-columns:1fr}
+  .shead{flex-direction:column}
+  .bento{grid-template-columns:1fr}
+  .tile{grid-column:auto!important;grid-row:auto!important}
+  .rows li{grid-template-columns:44px 1fr}
+  .rows .tag{display:none}
+  .statband{grid-template-columns:1fr 1fr}
+  .minis{grid-template-columns:1fr}
+  .dots,.hint,.doodle{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none;transition:opacity .2s ease}
+  *{animation:none!important}
+}
+</style>
+</head>
+<body>
+<div class="progress" id="progress" aria-hidden="true"></div>
+<div class="counter" id="counter">01 / 13</div>
+<nav class="dots" id="dots" aria-label="Slide navigation"></nav>
+<div class="hint">← → / space / scroll / swipe</div>
+
+<!-- ================= SLIDE 1 : TITLE (Split + Architecture Flow SVG) ================= -->
+<section class="slide" id="s1" aria-label="Title slide">
+  <div class="title-wrap">
+    <div>
+      <div class="badge reveal"><span class="dot"></span> Final Year Project · Capstone Defense · 2025–2026</div>
+      <h1 class="reveal">FinPro, <em>financial intelligence</em> by design.</h1>
+      <p class="sub reveal" style="margin-top:12px">An AI-powered personal financial planning platform engineered for Indian retail investors: real-time NSE/BSE &amp; MCX market feeds, grounded Gemini advisory, and a 10-factor algorithmic health twin.</p>
+      
+      <!-- Animated SVG Flow -->
+      <svg class="hero-svg reveal" viewBox="0 0 560 160" role="img" aria-label="Data flow diagram: client SPA to backend API, AI and PostgreSQL persistence">
+        <g class="floaty">
+          <rect x="24" y="52" width="105" height="54" rx="10" style="fill:var(--teal-wash);stroke:var(--teal)" stroke-width="2"/>
+          <text x="36" y="76" font-family="IBM Plex Mono,monospace" font-size="11" font-weight="700" style="fill:var(--teal-deep)">VANILLA SPA</text>
+          <text x="36" y="93" font-family="DM Sans,sans-serif" font-size="10" style="fill:var(--ink-soft)">12 Views · ECharts</text>
+          <circle cx="129" cy="79" r="4" style="fill:var(--terra)" class="pulse"/>
+        </g>
+        <path d="M130 79 C 190 45, 205 55, 255 70" fill="none" style="stroke:var(--teal)" stroke-width="2.5" class="flowline"/>
+        <path d="M130 79 C 190 85, 205 90, 255 85" fill="none" style="stroke:var(--terra)" stroke-width="2.5" class="flowline"/>
+        <path d="M130 79 C 190 120, 205 115, 255 100" fill="none" style="stroke:var(--teal)" stroke-width="2.5" class="flowline"/>
+        <g font-family="IBM Plex Mono,monospace" font-size="11">
+          <rect x="255" y="32" width="275" height="30" rx="8" style="fill:var(--teal-wash);stroke:var(--teal)" stroke-width="1.5"/>
+          <text x="268" y="52" style="fill:var(--teal-deep)">AI LAYER · Gemini 1.5 Flash (Context RAG)</text>
+          <rect x="255" y="65" width="275" height="30" rx="8" style="fill:var(--terra-wash);stroke:var(--terra)" stroke-width="1.5"/>
+          <text x="268" y="85" style="fill:#8F3D14">API GATEWAY · Node 22 + Express + JWT</text>
+          <rect x="255" y="98" width="275" height="30" rx="8" fill="none" style="stroke:var(--ink)" stroke-width="1.5"/>
+          <text x="268" y="118" style="fill:var(--ink)">DATA · PostgreSQL 17 + Prisma (28 Models)</text>
+        </g>
+      </svg>
+    </div>
+
+    <aside class="panel reveal" aria-label="Team panel">
+      <h4>Project Identity</h4>
+      <table style="margin-top:0;font-size:.82rem" aria-label="Project Team">
+        <tr><th>Role</th><th>Name</th><th>Department</th></tr>
+        <tr><td>Lead</td><td>Jinay Golecha</td><td>Computer Eng.</td></tr>
+        <tr><td>Cohort</td><td>Students of VU</td><td>Final Year Capstone</td></tr>
+        <tr><td>Year</td><td>2025–2026</td><td>Vishwakarma Univ.</td></tr>
+      </table>
+      <div class="rule"></div>
+      <ul>
+        <li>Theoretical Foundation — <b>22-Paper Lit Survey</b></li>
+        <li>Verification — <b>66/66 Integration Tests (100%)</b></li>
+        <li>Status — <b>Production Ready (Verified)</b></li>
+      </ul>
+    </aside>
+  </div>
+</section>
+
+<!-- ================= SLIDE 2 : PROBLEM STATEMENT (Dark-Hero Bento) ================= -->
+<section class="slide" id="s2" aria-label="Problem and opportunity">
+  <div class="eyebrow reveal">02 — Problem &amp; Opportunity</div>
+  <h2 class="reveal">Navigating capital markets on gut feeling <em>doesn't scale.</em></h2>
+  <p class="sub reveal">Over 100M+ Indian retail investors have entered the markets since 2020, yet lack affordable fiduciary advice, suffer from fragmented tooling, and face Western-biased algorithmic tools.</p>
+
+  <div class="bento reveal">
+    <!-- Hero Dark Tile -->
+    <div class="tile dark c7 tall">
+      <span class="tag t-terra">The Retail Gap</span>
+      <h3>100M+ Demats. 76% Illiteracy. Zero Unified Systems.</h3>
+      <p>Investors track stocks on one app, debts on another, and bank statements in inboxes. Advice comes from ungrounded generic AI or unregulated finfluencers.</p>
+      <!-- Scattered papers animation -->
+      <svg viewBox="0 0 220 86" style="width:100%;height:auto;margin-top:12px" role="img" aria-label="Scattered documents animation">
+        <g class="floaty"><rect x="14" y="14" width="50" height="58" rx="5" fill="none" style="stroke:#F5EFE0" stroke-width="2" transform="rotate(-7 39 43)"/><line x1="22" y1="32" x2="52" y2="28" style="stroke:#8A94A6" stroke-width="2"/></g>
+        <g class="floaty d2"><rect x="84" y="10" width="50" height="58" rx="5" fill="none" style="stroke:#F5EFE0" stroke-width="2" transform="rotate(6 109 39)"/><line x1="92" y1="30" x2="122" y2="32" style="stroke:#8A94A6" stroke-width="2"/></g>
+        <g class="floaty d3"><rect x="152" y="18" width="50" height="58" rx="5" fill="none" style="stroke:var(--terra)" stroke-width="2" transform="rotate(-4 177 47)"/><line x1="160" y1="36" x2="190" y2="34" style="stroke:var(--terra)" stroke-width="2"/></g>
+        <circle cx="196" cy="16" r="6" style="fill:var(--terra)" class="pulse"/>
+        <text x="192" y="20" font-size="10" font-weight="700" fill="#1B2431">!</text>
+      </svg>
+    </div>
+
+    <div class="tile c5"><span class="tag t-terra">Pain 1</span><h3>Western Bias</h3><p>Existing robo-advisors assume 401(k), US IRS brackets, and fail on Indian SIPs &amp; MCX Gold.</p></div>
+    <div class="tile c5"><span class="tag t-terra">Pain 2</span><h3>Hallucinatory AI</h3><p>Generic ChatGPT invents returns with zero knowledge of the user's actual bank records.</p></div>
+    <div class="tile c5"><span class="tag t-terra">Pain 3</span><h3>Tool Silos</h3><p>Budgeting, loans, broking, and insurance exist in isolated, non-communicating applications.</p></div>
+    <div class="tile tealwash c7"><span class="tag t-teal">FinPro Fix</span><h3>One Grounded Financial OS</h3><p>India-native calculations (INR, Lakhs/Crores), live NSE/BSE feeds, and Gemini 1.5 Flash bound strictly to PostgreSQL transactional truth.</p></div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 3 : LITERATURE SURVEY (Editorial Rows + Orbit SVG) ================= -->
+<section class="slide" id="s3" aria-label="Literature review scope">
+  <div class="shead">
+    <div>
+      <div class="eyebrow reveal">03 — Academic Foundation</div>
+      <h2 class="reveal">Literature survey: <em>22 papers across 5 domains.</em></h2>
+    </div>
+    <!-- Orbit Doodle SVG -->
+    <svg class="doodle reveal" viewBox="0 0 120 120" role="img" aria-label="Literature taxonomy orbit diagram">
+      <circle cx="60" cy="60" r="44" fill="none" style="stroke:var(--line)" stroke-width="2"/>
+      <g class="spin-slow"><circle cx="60" cy="60" r="44" fill="none" style="stroke:var(--teal)" stroke-width="3" stroke-dasharray="35 240" stroke-linecap="round"/></g>
+      <circle cx="60" cy="60" r="26" style="fill:var(--teal-wash);stroke:var(--teal)" stroke-width="2"/>
+      <text x="60" y="56" text-anchor="middle" font-size="11" font-weight="700" style="fill:var(--teal-deep)" font-family="DM Sans,sans-serif">22</text>
+      <text x="60" y="68" text-anchor="middle" font-size="8" font-weight="700" style="fill:var(--teal-deep)" font-family="IBM Plex Mono,monospace">PAPERS</text>
+      <circle cx="90" cy="36" r="8" style="fill:var(--terra)" class="pulse"/>
+      <text x="90" y="40" text-anchor="middle" font-size="8" font-weight="700" fill="#FFFDF8" font-family="DM Sans,sans-serif">5D</text>
+    </svg>
+  </div>
+
+  <ol class="rows reveal">
+    <li><span class="num">01</span><div><h3>Large Language Models in Finance (6 Papers · 27%)</h3><p>BloombergGPT (50B domain pretraining), FinGPT (LoRA open-source), MarketSenseAI (GPT-4 alpha generation), Du et al. (Information Fusion 10-area taxonomy).</p></div><span class="tag t-teal">LLMs</span></li>
+    <li><span class="num">02</span><div><h3>AI/ML Market Prediction (4 Papers · 18%)</h3><p>Gu et al. (<em>Charting by Machines</em>, JFE), Wang et al. (Two-Stage LSTM+Mean-CVaR, ESWA), Yadav et al. (Techniques &amp; methodology review).</p></div><span class="tag t-teal">Predict</span></li>
+    <li><span class="num">03</span><div><h3>Robo-Advisory &amp; Welfare (4 Papers · 18%)</h3><p>Rossi &amp; Utkus (Vanguard empirical study, JFE), Cardillo &amp; Chiappini (FRL 4-stream framework), Banerjee (SEM of 387 Indian investors, EJISDC).</p></div><span class="tag t-teal">Robo</span></li>
+    <li><span class="num">04</span><div><h3>Cloud Computing &amp; Cybersecurity (4 Papers · 18%)</h3><p>Rai &amp; Thakkar (Cloud banking adoption, IEEE SCOReD), Sharma et al. (TAM/PLS-SEM, ICORIS), Anand et al. (Threat surfaces), Kumar &amp; Singh.</p></div><span class="tag t-teal">Cloud</span></li>
+    <li><span class="num">05</span><div><h3>Algorithmic &amp; HFT Microstructure (2 Papers · 9%)</h3><p>Zhang (HFT endogenous liquidity review, JYI 2026), Gu (Algo trading market evolution >90% volume, DEBDA 2025).</p></div><span class="tag t-ink">Algo</span></li>
+  </ol>
+</section>
+
+<!-- ================= SLIDE 4 : THEORETICAL INSIGHTS (Bento + Live Bars) ================= -->
+<section class="slide" id="s4" aria-label="Theoretical insights">
+  <div class="eyebrow reveal">04 — Key Empirical Findings</div>
+  <h2 class="reveal">Four published findings that <em>anchor FinPro.</em></h2>
+  <div class="bento reveal">
+    <div class="tile c7 tall tealwash">
+      <span class="tag t-teal">1. Context RAG beats raw scale</span>
+      <h3>FinGPT vs. BloombergGPT</h3>
+      <p>While BloombergGPT (50B) proved domain pretraining outperforms general LLMs, FinGPT (Yang et al.) proved that RAG context injection matches domain performance at &lt;1% the deployment cost. FinPro uses Gemini 1.5 Flash grounded in PostgreSQL.</p>
+      <!-- Animated broadcast pulse SVG -->
+      <svg viewBox="0 0 240 85" style="width:100%;height:auto;margin-top:10px" role="img" aria-label="Context injection diagram">
+        <g fill="none" style="stroke:var(--teal)" stroke-width="2">
+          <circle cx="50" cy="45" r="12" class="pulse"/>
+          <circle cx="50" cy="45" r="22" opacity=".5"/>
+        </g>
+        <rect x="36" y="37" width="28" height="18" rx="3" style="fill:var(--card);stroke:var(--teal-deep)" stroke-width="2"/>
+        <path d="M85 45 C 130 20, 150 70, 195 45" fill="none" style="stroke:var(--terra)" stroke-width="2" class="flowline"/>
+        <circle cx="197" cy="45" r="5" style="fill:var(--terra)" class="pulse"/>
+      </svg>
+    </div>
+
+    <div class="tile c5">
+      <span class="tag t-teal">2. Two-Stage Portfolios</span>
+      <h3>R² = 0.9980</h3>
+      <p>Wang et al. (2024, ESWA): Savitzky-Golay denoising + LSTM forecasting + Mean-CVaR achieved 7.54–9.38% cumulative alpha on CSI 300.</p>
+      <!-- Animated data shimmer bars -->
+      <svg class="bars" viewBox="0 0 100 36" style="width:90px;height:auto;margin-top:6px" role="img" aria-label="Alpha performance shimmer">
+        <rect x="5" y="6" width="16" height="26" rx="3" style="fill:var(--teal)"/>
+        <rect x="28" y="6" width="16" height="26" rx="3" style="fill:var(--terra)"/>
+        <rect x="51" y="6" width="16" height="26" rx="3" style="fill:var(--teal)"/>
+        <rect x="74" y="6" width="16" height="26" rx="3" style="fill:var(--gold)"/>
+      </svg>
+    </div>
+
+    <div class="tile c5">
+      <span class="tag t-teal">3. Novice Welfare Gains</span>
+      <h3>Rossi &amp; Utkus (JFE)</h3>
+      <p>Vanguard data shows robo-advisors eliminate home-bias and cash drag, generating the highest Sharpe improvement for inexperienced retail users.</p>
+    </div>
+
+    <div class="tile terrawash c7">
+      <span class="tag t-terra">4. Indian Adoption Determinants</span>
+      <h3>Banerjee (SEM N=387, 2025)</h3>
+      <p>Technology Readiness &amp; Financial Literacy are the two primary drivers of retail robo-advisory adoption in India. FinPro translates this into transparent factor explanations and educational tooltips.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 5 : RESEARCH GAPS (Split + Mapping Table) ================= -->
+<section class="slide" id="s5" aria-label="Research gaps">
+  <div class="eyebrow reveal">05 — Research Gap Analysis</div>
+  <h2 class="reveal">Eight systematic gaps, <em>direct system responses.</em></h2>
+  <p class="sub reveal">Systematic analysis of all 22 papers revealed critical architectural absences that FinPro directly resolves.</p>
+
+  <table class="reveal" style="font-size:.85rem;" aria-label="Research gaps mapped to FinPro solutions">
+    <tr><th>Gap ID</th><th>Literature Finding</th><th>Severity</th><th>FinPro Engineering Contribution</th></tr>
+    <tr><td>G1</td><td>Absence of End-to-End Retail Financial OS</td><td><span class="tag t-terra">Critical</span></td><td>Unified platform: ledger, budgeting, investments, loans &amp; AI in one SPA.</td></tr>
+    <tr><td>G2</td><td>Lack of Indian Financial Localization</td><td><span class="tag t-terra">High</span></td><td>Native NSE/BSE feeds, MCX Gold/Silver in INR, SIPs, and Lakhs/Crores math.</td></tr>
+    <tr><td>G3</td><td>Explainability &amp; Trust Deficit</td><td><span class="tag t-terra">High</span></td><td>10-factor transparent score accompanied by readable positive &amp; warning drivers.</td></tr>
+    <tr><td>G4</td><td>Disconnected Multimodal Financial Data</td><td><span class="tag t-gold">Med-High</span></td><td>Fuses live stock charts, news sentiment (Marketaux), and user transaction ledgers.</td></tr>
+    <tr><td>G6</td><td>Prohibitive LLM Deployment Costs</td><td><span class="tag t-teal">Medium</span></td><td>Tiered Gemini 1.5 Flash context RAG + local deterministic fallback heuristic.</td></tr>
+    <tr><td>G7</td><td>AI Telemetry &amp; Financial Security Risks</td><td><span class="tag t-terra">High</span></td><td>Multi-tenant PostgreSQL isolation (`req.user.id`), JWT HS256, and PCI rules.</td></tr>
+  </table>
+</section>
+
+<!-- ================= SLIDE 6 : SYSTEM ARCHITECTURE (Layer Stack + Rail) ================= -->
+<section class="slide" id="s6" aria-label="System architecture">
+  <div class="eyebrow reveal">06 — Full-Stack Architecture</div>
+  <h2 class="reveal">Four tiers, <em>strictly managed.</em></h2>
+  <p class="sub reveal">High-performance event-driven Node.js backend, relational PostgreSQL 17 persistence, and a lightweight Vanilla JS SPA.</p>
+
+  <div class="layers reveal">
+    <div class="layer">
+      <div class="lname">Tier 1 · Client Presentation Layer (SPA)</div>
+      <div class="chips">
+        <div class="chip hot"><b>Vanilla JS ES6+ Modules</b><span>ZERO FRAMEWORK BLOAT · sub-100ms transitions</span></div>
+        <div class="chip"><b>Apache ECharts + RemixIcons</b><span>12 VIEWS · Dark mode financial dashboard</span></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="lname">Tier 2 · Gateway &amp; Security Infrastructure</div>
+      <div class="chips">
+        <div class="chip warm"><b>Node.js 22 LTS + Express 4.21</b><span>HELMET · CORS · Rate limiters (20 / 200 req)</span></div>
+        <div class="chip warm"><b>JWT (HS256) + bcryptjs (10 rounds)</b><span>ACCESS (60m) · Refresh (7d) single-device rotation</span></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="lname">Tier 3 · Business Logic &amp; AI Engine</div>
+      <div class="chips">
+        <div class="chip hot"><b>Google Gemini 1.5 Flash</b><span>CONTEXT RAG · Audited PostgreSQL snapshot injection</span></div>
+        <div class="chip"><b>Financial Twin Engine</b><span>10-FACTOR HEALTH · Cash flow predictor · Budget optimizer</span></div>
+        <div class="chip"><b>Web Speech &amp; Tesseract OCR</b><span>SAFETY CONFIRMATION · Vision receipt scanning</span></div>
+      </div>
+    </div>
+    <div class="layer dark">
+      <div class="lname" style="color:#7FD1CF">Tier 4 · Relational Persistence Layer</div>
+      <div class="chips">
+        <div class="chip"><b>PostgreSQL 17 Engine</b><span>28 PRISMA MODELS · Multi-tenant isolation</span></div>
+        <div class="chip"><b>Decimal(15,2) Monetary Precision</b><span>ACID ATOMIC · Auto balance rollback on deletion</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 7 : THE FINANCIAL TWIN & 10 FACTORS (Bento) ================= -->
+<section class="slide" id="s7" aria-label="Financial twin engine">
+  <div class="eyebrow reveal">07 — Core Innovation</div>
+  <h2 class="reveal">The Financial Twin &amp; <em>10-Factor Health Score.</em></h2>
+  <p class="sub reveal">Deterministic mathematical scoring on a 0–100 scale, paired with forward-looking balance projections.</p>
+
+  <div class="bento reveal">
+    <div class="tile c7 tall">
+      <span class="tag t-teal">10-Factor Health Engine</span>
+      <h3>Algorithmic Dimensions (0–100 Scale)</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:10px;font-size:.85rem">
+        <div>• <b>Savings Rate Ratio</b>: 85/100</div>
+        <div>• <b>Emergency Runway (6m)</b>: 70/100</div>
+        <div>• <b>Debt-to-Income (DTI)</b>: 60/100</div>
+        <div>• <b>Investment Allocation</b>: 78/100</div>
+        <div>• <b>Goal Velocity</b>: 65/100</div>
+        <div>• <b>Insurance Adequacy</b>: 72/100</div>
+        <div>• <b>Cash Flow Stability</b>: 80/100</div>
+        <div>• <b>Subscription Burden</b>: 55/100</div>
+        <div>• <b>Credit Utilization</b>: 68/100</div>
+        <div>• <b>Anomaly Frequency</b>: 88/100</div>
+      </div>
+      <p style="margin-top:14px;font-size:.84rem;color:var(--ink-soft)">Every score includes transparent drivers: e.g., <em>"Attention: DTI ratio is 38%, exceeding the recommended 35% safe ceiling."</em></p>
+    </div>
+
+    <div class="tile c5 tealwash">
+      <span class="tag t-teal">Predictive Cash Flow</span>
+      <h3>30 &amp; 90-Day Forecast</h3>
+      <p>Simulates daily balances by combining historical burn velocity with scheduled EMI debits, credit card cycles, and subscription renewals.</p>
+    </div>
+
+    <div class="tile c5 terrawash">
+      <span class="tag t-terra">Retirement Simulator</span>
+      <h3>What-If Compounding</h3>
+      <p>Projects corpus across Conservative (8%), Base (12%), and Aggressive (15%) growth regimes with dynamic monthly SIP step-ups.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 8 : GROUNDED AI ADVISORY (Comparison Bento) ================= -->
+<section class="slide" id="s8" aria-label="Grounded AI advisory">
+  <div class="eyebrow reveal">08 — AI Advisory Engine</div>
+  <h2 class="reveal">Audited context RAG vs. <em>dangerous hallucinations.</em></h2>
+  <div class="bento reveal">
+    <div class="tile dark c6 tall">
+      <span class="tag t-terra">Generic ChatGPT</span>
+      <h3>The Hallucination Danger</h3>
+      <ul style="list-style:none;display:grid;gap:10px;margin-top:10px;font-size:.88rem;color:#C9BFA9">
+        <li>❌ <b>Zero Account Context:</b> Unaware whether the user has ₹5,000 or ₹5,00,000 in reserves.</li>
+        <li>❌ <b>Dangerous Advice:</b> Recommends volatile equities to individuals struggling to service high-cost debt.</li>
+        <li>❌ <b>Fabricated Numbers:</b> Hallucinates arbitrary return percentages and non-existent mutual funds.</li>
+        <li>❌ <b>Session Amnesia:</b> Conversation memory evaporates across logins.</li>
+      </ul>
+    </div>
+
+    <div class="tile tealwash c6 tall">
+      <span class="tag t-teal">FinPro Grounded RAG</span>
+      <h3>Audited Ledger Injection</h3>
+      <ul style="list-style:none;display:grid;gap:10px;margin-top:10px;font-size:.88rem;color:var(--ink)">
+        <li>✔ <b>Audited Snapshot:</b> Prepends verified Net Worth, Liquid Cash, Monthly Burn, DTI, and 10-Factor Score.</li>
+        <li>✔ <b>Strict Guardrails:</b> System prompt forbids mentioning numbers outside the injected JSON context.</li>
+        <li>✔ <b>Deterministic Fallback:</b> Heuristic rule engine answers safely if Gemini quotas are exhausted.</li>
+        <li>✔ <b>PostgreSQL Memory:</b> Conversation history persisted in <code style="font-family:var(--font-mono)">chat_messages</code> table.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 9 : REAL-TIME MARKET ENGINE (Bento + Badges) ================= -->
+<section class="slide" id="s9" aria-label="Market data engine">
+  <div class="eyebrow reveal">09 — Market Intelligence</div>
+  <h2 class="reveal">NSE, BSE &amp; MCX Gold in INR with <em>zero fake data.</em></h2>
+  <div class="bento reveal">
+    <div class="tile c4">
+      <span class="tag t-teal">Indian Equities</span>
+      <h3>NSE / BSE Quotes</h3>
+      <p>Live quotes and 7-timeframe charts via Alpha Vantage + Finnhub with RSI, MACD, SMA, and Bollinger Bands.</p>
+    </div>
+    <div class="tile c4 terrawash">
+      <span class="tag t-terra">Precious Metals</span>
+      <h3>24K &amp; 22K Gold in INR</h3>
+      <p>COMEX continuous futures (<code style="font-family:var(--font-mono)">GC=F</code>) converted in real time via live <code style="font-family:var(--font-mono)">USDINR=X</code> interbank rates per gram.</p>
+    </div>
+    <div class="tile c4">
+      <span class="tag t-teal">Commodity Math</span>
+      <h3>Silver Spot Pricing</h3>
+      <p>Deterministic conversion: <code style="font-family:var(--font-mono)">1 troy oz = 31.1035g; 1 kg = 1000g</code> for transparent domestic spot tracking.</p>
+    </div>
+    <div class="tile c6">
+      <span class="tag t-ink">Provider Transparency</span>
+      <h3>Zero Synthetic Candles</h3>
+      <p>All assets explicitly display provider state: <b style="color:var(--teal)">LIVE</b>, <b style="color:var(--gold)">CACHED</b>, or <b style="color:var(--terra)">STALE</b>. Zero fake candles served.</p>
+    </div>
+    <div class="tile c6">
+      <span class="tag t-teal">Sub-Second Cache</span>
+      <h3>Tiered In-Memory Map</h3>
+      <p>3-min TTL for live quotes, 15-min for technical charts, 1-hr for fundamentals prevents rate-limit exhaustion.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 10 : MULTIMODAL INGESTION (Wide + Trio Bento) ================= -->
+<section class="slide" id="s10" aria-label="Multimodal features">
+  <div class="shead">
+    <div>
+      <div class="eyebrow reveal">10 — Multimodal Features</div>
+      <h2 class="reveal">Frictionless ingestion across <em>five modalities.</em></h2>
+    </div>
+    <svg class="doodle reveal" viewBox="0 0 120 120" role="img" aria-label="Connected features icon">
+      <rect x="14" y="14" width="38" height="38" rx="10" style="fill:var(--teal-wash);stroke:var(--teal)" stroke-width="2.5"/>
+      <rect x="68" y="14" width="38" height="38" rx="10" style="fill:var(--terra-wash);stroke:var(--terra)" stroke-width="2.5"/>
+      <rect x="14" y="68" width="38" height="38" rx="10" style="fill:var(--terra-wash);stroke:var(--terra)" stroke-width="2.5"/>
+      <rect x="68" y="68" width="38" height="38" rx="10" style="fill:var(--card);stroke:var(--ink)" stroke-width="2.5" stroke-dasharray="5 5"/>
+      <circle cx="60" cy="60" r="6" style="fill:var(--teal)" class="pulse"/>
+    </svg>
+  </div>
+
+  <div class="bento reveal">
+    <div class="tile c8">
+      <span class="tag t-teal"><span class="livedot"></span>Speech Ingestion</span>
+      <h3>Web Speech API Voice Entry</h3>
+      <p>Users speak naturally (<em>"Spent 450 on fuel"</em>). Safety confirmation modal strictly required before database commit.</p>
+    </div>
+    <div class="tile c4 terrawash">
+      <span class="tag t-terra"><span class="livedot"></span>Vision Ingestion</span>
+      <h3>Tesseract OCR Scanner</h3>
+      <p>Upload receipt image: extracts merchant, date, amount, and suggested category with editable preview.</p>
+    </div>
+    <div class="tile c4"><span class="tag t-teal"><span class="livedot"></span>Budgets</span><h3>50/30/20 Limits</h3><p>Category limits with real-time anomaly detection.</p></div>
+    <div class="tile c4"><span class="tag t-teal"><span class="livedot"></span>PCI Safe</span><h3>Card Tracking</h3><p>Masked last-4 digits; zero PANs/CVVs accepted.</p></div>
+    <div class="tile c4"><span class="tag t-terra"><span class="livedot"></span>Exports</span><h3>Authenticated CSV</h3><p>One-click export across 9 financial domains.</p></div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 11 : VERIFICATION & QA AUDIT (Stat Band + Split) ================= -->
+<section class="slide" id="s11" aria-label="Quality assurance">
+  <div class="eyebrow reveal">11 — Quality Assurance</div>
+  <h2 class="reveal">66 of 66 tests passed, <em>100% verified.</em></h2>
+  <div class="statband reveal">
+    <div class="stat"><b>66 / 66</b><span>MASTER TESTS PASSED</span></div>
+    <div class="stat"><b>40</b><span>SECURITY ASSERTIONS</span></div>
+    <div class="stat"><b>10 / 10</b><span>MARKET SCENARIOS</span></div>
+    <div class="stat"><b>100%</b><span>TENANT ISOLATION</span></div>
+  </div>
+
+  <div class="split reveal">
+    <table style="margin-top:0;font-size:.82rem" aria-label="Test Suite Breakdown">
+      <tr><th>Test Suite</th><th>Scope</th><th>Status</th></tr>
+      <tr><td>Auth &amp; Profile Flow</td><td>Access/Refresh tokens, bcrypt hashing</td><td><span class="tag t-teal">6/6 Passed</span></td></tr>
+      <tr><td>Accounts &amp; Atomic Balance</td><td>Deposit sync, rollback on error</td><td><span class="tag t-teal">2/2 Passed</span></td></tr>
+      <tr><td>Transactions &amp; Reversals</td><td>CRUD, balance undo on delete</td><td><span class="tag t-teal">4/4 Passed</span></td></tr>
+      <tr><td>Budgets &amp; AI Optimizer</td><td>Category ceilings, alert triggers</td><td><span class="tag t-teal">3/3 Passed</span></td></tr>
+      <tr><td>Stocks, Gold &amp; Commodities</td><td>Quotes, indicators, COMEX conversion</td><td><span class="tag t-teal">7/7 Passed</span></td></tr>
+      <tr><td>10-Factor AI Health Score</td><td>Algorithmic scoring &amp; reasons</td><td><span class="tag t-teal">3/3 Passed</span></td></tr>
+      <tr><td>Multi-Tenant Isolation</td><td>User A blocked from User B data</td><td><span class="tag t-teal">4/4 Passed</span></td></tr>
+    </table>
+
+    <div class="minis" style="margin-top:0">
+      <div class="mini"><h3>🔒 Multi-Tenant Guard</h3><p>Every query enforces <code style="font-family:var(--font-mono)">where: { userId }</code>, rejecting unauthorized cross-tenant requests.</p></div>
+      <div class="mini"><h3>⚡ Market Resilience</h3><p>Zero crashes on API timeouts, closed weekend markets, or invalid stock symbols.</p></div>
+      <div class="mini"><h3>💾 Database Integrity</h3><p>Survives server restarts with PostgreSQL 17 ACID persistence and zero state corruption.</p></div>
+      <div class="mini"><h3>🛡️ Strict PCI Safety</h3><p>Rejects full PANs and CVVs at the controller layer; only masked last-4 digits stored.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 12 : ACADEMIC SYNTHESIS (Editorial Rows) ================= -->
+<section class="slide" id="s12" aria-label="Academic contributions">
+  <div class="eyebrow reveal">12 — Academic Contributions</div>
+  <h2 class="reveal">Four direct contributions to <em>FinTech literature.</em></h2>
+  <ol class="rows reveal">
+    <li><span class="num">01</span><div><h3>First Integrated Retail Financial OS in India</h3><p>Unifies five previously isolated research streams into one production-ready system tailored for Indian capital markets (NSE/BSE, MCX Gold, SIPs, INR).</p></div><span class="tag t-teal">OS</span></li>
+    <li><span class="num">02</span><div><h3>Elimination of Generative Hallucination via Context RAG</h3><p>Validates Li et al. and Yang et al. by demonstrating that consumer financial utility does not require 50B pretraining, but rather deterministic context injection into Gemini 1.5 Flash.</p></div><span class="tag t-teal">RAG</span></li>
+    <li><span class="num">03</span><div><h3>Operationalized Explainable AI (XAI) Framework</h3><p>Solves the adoption trust barrier documented by Banerjee (2025) by replacing black-box robo-advisory scores with a transparent 10-factor breakdown and educational reasons.</p></div><span class="tag t-teal">XAI</span></li>
+    <li><span class="num">04</span><div><h3>Resilient Microstructure-Aware Market Ingestion</h3><p>Demonstrates that combining Alpha Vantage, Finnhub, and COMEX continuous futures via tiered caching yields sub-50ms latency with zero synthetic candle compromises.</p></div><span class="tag t-teal">Feeds</span></li>
+  </ol>
+</section>
+
+<!-- ================= SLIDE 13 : CONCLUSION & ROADMAP (Milestones + Closer) ================= -->
+<section class="slide" id="s13" aria-label="Conclusion and roadmap">
+  <div class="eyebrow reveal">13 — Conclusion &amp; Roadmap</div>
+  <h2 class="reveal">Production ready today, <em>evolving tomorrow.</em></h2>
+
+  <div class="split reveal">
+    <div class="tl">
+      <div class="tl-group">Current Status · Production Ready (Verified)</div>
+      <div class="tl-item"><b>Full-Stack Enterprise Architecture</b><p>Node.js 22 LTS, PostgreSQL 17, Gemini 1.5 Flash, Vanilla JS SPA.</p></div>
+      <div class="tl-item"><b>66/66 Integration Tests Passed (100%)</b><p>Persistent database integrity, 40 security tests, 10 market scenarios.</p></div>
+      <div class="tl-group">Future Roadmap · Next Frontier</div>
+      <div class="tl-item next"><b>Multilingual Regional Support</b><p>Voice and AI advisory in Hindi, Marathi, and Gujarati.</p></div>
+      <div class="tl-item next"><b>Direct Broker API Execution</b><p>Zerodha Kite / Upstox API integration for 1-click rebalancing.</p></div>
+      <div class="tl-item next"><b>SEBI Regulatory Sandbox Testing</b><p>Formal algorithmic advisor testing under SEBI FinTech frameworks.</p></div>
+    </div>
+
+    <div class="panel closer" style="padding:28px 20px;">
+      <div class="thanks">Thank you.</div>
+      <svg class="thanks-underline" viewBox="0 0 420 14" role="img" aria-label="Decorative underline">
+        <path d="M6 9 C 120 3, 300 3, 414 8" fill="none" style="stroke:var(--terra)" stroke-width="5" stroke-linecap="round" class="flowline"/>
+      </svg>
+      <p class="sub" style="margin-top:14px;font-size:.9rem;">FinPro — AI-Powered Personal Financial Planner<br>Final Year Capstone Project · 2025–2026</p>
+      <div class="chiprow">
+        <span class="pill"><b>✓</b> Production Ready</span>
+        <span class="pill"><b>✓</b> 66/66 Tests</span>
+        <span class="pill"><b>✓</b> Dockerized</span>
+      </div>
+      <p class="sub" style="margin-top:16px;font-size:.85rem;color:var(--teal-deep);">Questions from the Evaluation Panel?</p>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ===========================================
+   SlidePresentation Controller:
+   - IntersectionObserver adds .visible for reveals
+   - Keyboard / wheel / touch navigation
+   - Progress bar + dots + counter + hash links
+   =========================================== */
+class SlidePresentation{
+  constructor(){
+    this.slides=[...document.querySelectorAll('.slide')];
+    this.dots=document.getElementById('dots');
+    this.bar=document.getElementById('progress');
+    this.counter=document.getElementById('counter');
+    this.current=0; this.lock=false;
+    this.buildDots();
+    this.observe();
+    this.bind();
+    this.fromHash();
+    this.update();
+  }
+  buildDots(){
+    this.slides.forEach((s,i)=>{
+      const b=document.createElement('button');
+      b.setAttribute('aria-label','Go to slide '+(i+1));
+      b.addEventListener('click',()=>this.go(i));
+      this.dots.appendChild(b);
+    });
+  }
+  observe(){
+    const io=new IntersectionObserver(es=>{
+      es.forEach(e=>{
+        if(e.isIntersecting){
+          e.target.classList.add('visible');
+          const i=this.slides.indexOf(e.target);
+          if(i>-1){this.current=i;this.update();}
+        }
+      });
+    },{threshold:.45});
+    this.slides.forEach(s=>io.observe(s));
+  }
+  bind(){
+    addEventListener('keydown',e=>{
+      if(['ArrowRight',' ','PageDown'].includes(e.key)){e.preventDefault();this.next();}
+      if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();this.prev();}
+      if(e.key==='Home')this.go(0);
+      if(e.key==='End')this.go(this.slides.length-1);
+    });
+    // debounced wheel paging
+    addEventListener('wheel',e=>{
+      if(this.lock||Math.abs(e.deltaY)<24)return;
+      this.lock=true;setTimeout(()=>this.lock=false,850);
+      e.deltaY>0?this.next():this.prev();
+    },{passive:true});
+    // touch swipe
+    let y0=null;
+    addEventListener('touchstart',e=>y0=e.touches[0].clientY,{passive:true});
+    addEventListener('touchend',e=>{
+      if(y0===null)return;
+      const d=y0-e.changedTouches[0].clientY;
+      if(Math.abs(d)>60)(d>0?this.next():this.prev());
+      y0=null;
+    },{passive:true});
+    addEventListener('hashchange',()=>this.fromHash());
+  }
+  go(i){
+    i=Math.max(0,Math.min(this.slides.length-1,i));
+    this.slides[i].scrollIntoView({behavior:'smooth'});
+    history.replaceState(null,'','#s'+(i+1));
+  }
+  next(){this.go(this.current+1)} prev(){this.go(this.current-1)}
+  fromHash(){
+    const m=location.hash.match(/s(\d+)/);
+    if(m){const i=+m[1]-1;if(this.slides[i])setTimeout(()=>this.go(i),60);}
+  }
+  update(){
+    const n=this.slides.length,p=(this.current/(n-1))*100;
+    this.bar.style.width=p+'%';
+    this.counter.textContent=String(this.current+1).padStart(2,'0')+' / '+String(n).padStart(2,'0');
+    [...this.dots.children].forEach((d,i)=>d.classList.toggle('active',i===this.current));
+  }
+}
+
+/* ===========================================
+   FIT-TO-FULLSCREEN — wrap each slide's children
+   in .fit and shrink-scale so content never overflows.
+   =========================================== */
+function fitSlides(){
+  document.querySelectorAll('.slide').forEach(s=>{
+    let w=s.querySelector(':scope > .fit');
+    if(!w){
+      w=document.createElement('div');
+      w.className='fit';
+      while(s.firstChild)w.appendChild(s.firstChild);
+      s.appendChild(w);
+    }
+    w.style.transform='none';
+    const r=Math.min(1,
+      (s.clientHeight-6)/w.scrollHeight,
+      (s.clientWidth-6)/w.scrollWidth);
+    w.style.transform='scale('+r+')';
+  });
+}
+
+addEventListener('resize',()=>requestAnimationFrame(fitSlides));
+addEventListener('load',fitSlides);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>setTimeout(fitSlides,60));
+new SlidePresentation();
+fitSlides();
+</script>
+</body>
+</html>

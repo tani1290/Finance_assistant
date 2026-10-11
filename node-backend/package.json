@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "test": "node run-all-tests.js",
+    "test": "node run-all-tests.js && node test-sms-mobile-suite.js",
+    "test:sms": "node test-sms-mobile-suite.js",
     "test:cloud": "node test-cloud-verification.js",
     "test:failure": "node test-cloud-failure.js",
     "test:repair": "node test-major-engineering-repair.js",
@@ -40,6 +41,7 @@
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "express-validator": "^7.2.1",
+    "firebase-admin": "^14.5.0",
     "helmet": "^8.0.0",
     "json2csv": "^6.0.0-alpha.2",
     "jsonwebtoken": "^9.0.2",

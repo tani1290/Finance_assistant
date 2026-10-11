@@ -9,7 +9,7 @@
 
 | Layer | Canonical Technology | Verification Status | Notes |
 |---|---|---|---|
-| **Backend** | Node.js (v20+) + Express (v4.21) | ✅ Active (Port 5000) | Single canonical RESTful API (`/api/v1/...`) |
+| **Backend** | Node.js (v20+) + Express (v4.21) | ✅ Active (Port 5001) | Single canonical RESTful API (`/api/v1/...`) |
 | **ORM / Database** | Prisma ORM (v5.22) + PostgreSQL 17 | ✅ Connected & Verified | Schema in `prisma/schema.prisma`, 22 DB models |
 | **Authentication** | JWT (Access + Refresh Token) + Google OAuth | ✅ Fully Integrated | User isolation, bcrypt password hashing, token revocation |
 | **Frontend** | Vanilla JS SPA / HTML5 / CSS3 / ECharts / RemixIcons | ✅ Active | Static files served from `frontend/public/` |
@@ -34,7 +34,7 @@
                                        ▼ (HTTP REST with Bearer JWT)
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    CENTRAL API CLIENT (/assets/js/api.js)                   │
-│   - Base URL routing (port 5000 / relative)                                 │
+│   - Base URL routing (port 5001 / relative)                                 │
 │   - Transparent 401 token refresh loop                                      │
 │   - Unified JSON formatting & INR currency localization                     │
 └──────────────────────────────────────┬──────────────────────────────────────┘

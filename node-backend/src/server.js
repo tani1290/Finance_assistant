@@ -7,7 +7,7 @@ require('dotenv').config();
 const app = require('./app');
 const prisma = require('./config/database');
 
-const PORT = parseInt(process.env.PORT) || 5000;
+const PORT = parseInt(process.env.PORT) || 5001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Graceful shutdown handler

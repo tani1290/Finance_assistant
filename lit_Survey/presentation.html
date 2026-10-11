@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinPro — AI-Powered Personal Financial Planner | Engineering Capstone Defense</title>
+
+<!-- Typography: Fraunces (display serif) + DM Sans (body) + IBM Plex Mono (code/tags) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,500;9..144,0,600;9..144,0,700;9..144,1,500;9..144,1,600;9..144,1,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet" />
+
+<style>
+/* ===========================================
+   THEME TOKENS — Warm Editorial Paper & Deep Ink
+   Deep teal primary, vibrant terracotta,
+   warm paper background, and crisp card surfaces.
+   =========================================== */
+:root{
+  --paper: #FAF6EF;
+  --paper-2: #F3EDE1;
+  --card: #FFFDF8;
+  --ink: #182230;
+  --ink-soft: #475467;
+  --ink-faint: #8592A6;
+  --line: #E2D7C3;
+  --teal: #0D7D7C;
+  --teal-deep: #085958;
+  --teal-wash: #DDF0EE;
+  --teal-glow: rgba(13,125,124,0.35);
+  --terra: #D85D26;
+  --terra-wash: #FBE5D5;
+  --terra-glow: rgba(216,93,38,0.35);
+  --gold: #B88718;
+  --gold-wash: #FEF3C7;
+  --green: #10B981;
+  --green-wash: #D1FAE5;
+  --purple: #8B5CF6;
+  --purple-wash: #EDE9FE;
+  --shadow: 0 20px 48px -20px rgba(24,34,48,0.22);
+  --shadow-hover: 0 28px 56px -18px rgba(24,34,48,0.32);
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'DM Sans', -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --pad: clamp(1.8rem, 4.4vw, 3.8rem);
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --dur: .65s;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-snap-type:y mandatory;height:100%}
+body{
+  font-family:var(--font-body);background:var(--paper);color:var(--ink);
+  overflow-x:hidden;
+  /* subtle grid + ambient noise over paper */
+  background-image:
+    linear-gradient(rgba(24,34,48,.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(24,34,48,.04) 1px,transparent 1px),
+    radial-gradient(ellipse at 85% 8%,rgba(13,125,124,.12),transparent 50%),
+    radial-gradient(ellipse at 12% 92%,rgba(216,93,38,.12),transparent 52%);
+  background-size:40px 40px,40px 40px,100% 100%,100% 100%;
+}
+
+/* Background canvas for dynamic constellation particles */
+#ambient-canvas{
+  position:fixed;top:0;left:0;width:100vw;height:100vh;
+  pointer-events:none;z-index:1;opacity:0.6;
+}
+
+/* Top dynamic progress line with pulse head */
+.progress-wrap{position:fixed;top:0;left:0;width:100%;height:5px;z-index:100;background:rgba(226,215,195,0.3)}
+.progress{height:100%;width:0;background:linear-gradient(90deg,var(--teal),var(--terra));position:relative;transition:width .25s ease}
+.progress::after{content:'';position:absolute;right:0;top:-2px;bottom:-2px;width:10px;background:#FFF;box-shadow:0 0 12px var(--terra);border-radius:50%}
+
+/* Floating Controls */
+.counter{position:fixed;left:24px;bottom:20px;z-index:80;font-family:var(--font-mono);
+  font-size:14.4px;letter-spacing:.14em;color:var(--ink);font-weight:600;
+  background:rgba(255,253,248,.92);border:1px solid var(--line);
+  padding:7px 14px;border-radius:999px;backdrop-filter:blur(10px);box-shadow:var(--shadow)}
+
+.dots{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:80;
+  display:flex;flex-direction:column;gap:8px}
+.dots button{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--teal);
+  background:transparent;cursor:pointer;padding:0;transition:all .35s var(--ease);outline:none;position:relative}
+.dots button:hover{transform:scale(1.3);border-color:var(--terra)}
+.dots button.active{background:var(--teal);transform:scale(1.4);box-shadow:0 0 10px var(--teal-glow)}
+.dots button::after{content:attr(data-title);position:absolute;right:22px;top:50%;transform:translateY(-50%);
+  background:var(--ink);color:#FFF;font-family:var(--font-mono);font-size:12.0px;padding:3px 8px;border-radius:6px;
+  white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .2s ease}
+.dots button:hover::after{opacity:1}
+
+.hint{position:fixed;right:24px;bottom:20px;z-index:80;font-family:var(--font-mono);
+  font-size:13.2px;color:var(--ink-soft);background:rgba(255,253,248,.92);
+  border:1px solid var(--line);padding:7px 14px;border-radius:999px;backdrop-filter:blur(10px);
+  display:flex;align-items:center;gap:8px}
+.hint kbd{background:var(--paper-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:12.0px}
+
+/* Fullscreen Toggle */
+.fs-btn{position:fixed;top:18px;right:22px;z-index:80;background:rgba(255,253,248,.92);
+  border:1px solid var(--line);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;
+  justify-content:center;cursor:pointer;color:var(--ink);transition:all .2s ease;box-shadow:var(--shadow)}
+.fs-btn:hover{background:var(--teal-wash);color:var(--teal-deep);transform:scale(1.1)}
+
+/* ===========================================
+   SLIDES — Layout & Responsive Fitter
+   =========================================== */
+.slide{height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;
+  padding:var(--pad);scroll-snap-align:start;
+  display:flex;flex-direction:column;justify-content:center;
+  position:relative;overflow:hidden;max-width: 1440px;margin:0 auto;z-index:10}
+
+.fit{flex:none;width:100%;min-height:0;transform-origin:center center}
+
+.eyebrow{font-family:var(--font-mono);font-size:13.2px;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--teal-deep);margin-bottom:8px;
+  display:flex;align-items:center;gap:10px;font-weight:600}
+.eyebrow::before{content:"";width:24px;height:2px;background:var(--terra);display:inline-block}
+
+h1{font-family:var(--font-display);font-weight:700;line-height:1.04;
+  font-size:clamp(2.76rem,5.5vw,4.56rem);letter-spacing:-.02em}
+h2{font-family:var(--font-display);font-weight:600;line-height:1.08;
+  font-size:clamp(1.98rem,3.8vw,3.0rem);letter-spacing:-.015em;margin-bottom:8px}
+h2 em,h1 em{font-style:italic;color:var(--teal-deep)}
+.sub{color:var(--ink-soft);font-size:clamp(1.08rem,1.7vw,1.26rem);line-height:1.52;max-width:68ch}
+
+.badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);
+  font-size:13.2px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
+  background:var(--ink);color:#F7F2E7;padding:7px 14px;border-radius:999px;margin-bottom:14px;
+  box-shadow:0 4px 14px rgba(0,0,0,0.15)}
+.badge .dot{width:8px;height:8px;border-radius:50%;background:#4ADE80;box-shadow:0 0 0 4px rgba(74,222,128,.28);animation:pulse 2s infinite}
+.rule{width:64px;height:3px;border-radius:4px;background:linear-gradient(90deg,var(--teal),var(--terra));margin:14px 0}
+
+/* Reveal system */
+.reveal{opacity:0;transform:translateY(26px);
+  transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.slide.visible .reveal{opacity:1;transform:none}
+.slide.visible .reveal:nth-child(1){transition-delay:.04s}
+.slide.visible .reveal:nth-child(2){transition-delay:.12s}
+.slide.visible .reveal:nth-child(3){transition-delay:.20s}
+.slide.visible .reveal:nth-child(4){transition-delay:.28s}
+.slide.visible .reveal:nth-child(5){transition-delay:.36s}
+
+/* Shared tags */
+.tag{display:inline-block;font-family:var(--font-mono);font-size:12.6px;letter-spacing:.08em;font-weight:600;
+  padding:3px 9px;border-radius:999px;margin-bottom:8px}
+.t-teal{background:var(--teal-wash);color:var(--teal-deep);border:1px solid #BFE0DE}
+.t-terra{background:var(--terra-wash);color:#8F3D14;border:1px solid #F0C9AC}
+.t-ink{background:#EBE4D3;color:var(--ink)}
+.t-gold{background:var(--gold-wash);color:#854D0E;border:1px solid #FDE68A}
+.t-green{background:var(--green-wash);color:#065F46;border:1px solid #A7F3D0}
+.t-purple{background:var(--purple-wash);color:#5B21B6;border:1px solid #DDD6FE}
+
+table{width:100%;border-collapse:collapse;margin-top:14px;background:var(--card);
+  border-radius:14px;overflow:hidden;box-shadow:var(--shadow);font-size:1.02rem}
+th{background:var(--ink);color:#F5EFE0;text-align:left;padding:9px 12px;
+  font-family:var(--font-mono);font-size:12.6px;letter-spacing:.08em}
+td{padding:8px 12px;border-top:1px solid var(--line);color:var(--ink-soft)}
+td:first-child{color:var(--ink);font-weight:700}
+
+/* Title Slide layout */
+.title-wrap{display:grid;grid-template-columns:1.24fr .86fr;gap:24px;align-items:center}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;
+  padding:20px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.panel::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--teal),var(--terra))}
+.panel h4{font-family:var(--font-mono);font-size:13.8px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--teal-deep);margin-bottom:10px}
+.panel ul{list-style:none;display:grid;gap:8px}
+.panel li{font-size:1.06rem;color:var(--ink-soft)}
+.panel li b{color:var(--ink)}
+
+/* ===========================================
+   BENTO SYSTEM (12-col tray with dense pack)
+   =========================================== */
+.bento{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));
+  grid-auto-flow:dense;gap:12px;margin-top:16px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:16px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+  transition:all .35s var(--ease);transform-style:preserve-3d}
+.tile:hover{transform:translateY(-4px);box-shadow:var(--shadow-hover);border-color:var(--teal)}
+.tile h3{font-family:var(--font-display);font-size:1.30rem;margin-bottom:5px;line-height:1.2}
+.tile p{color:var(--ink-soft);font-size:1.03rem;line-height:1.48}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}
+.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+.tall{grid-row:span 2}
+.tile.dark{background:var(--ink);border-color:var(--ink);color:#F5EFE0}
+.tile.dark p{color:#C9BFA9}
+.tile.dark h3{color:#FFFDF8}
+.tile.tealwash{background:var(--teal-wash);border-color:#BFE0DE}
+.tile.terrawash{background:var(--terra-wash);border-color:#F0C9AC}
+
+/* ===========================================
+   SVG MOTION & CRAZY KEYFRAME SUITE
+   =========================================== */
+@keyframes dashmove{to{stroke-dashoffset:-36}}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(0.85)}}
+@keyframes beacon{0%{box-shadow:0 0 0 0 rgba(216,93,38,0.6)}70%{box-shadow:0 0 0 12px rgba(216,93,38,0)}100%{box-shadow:0 0 0 0 rgba(216,93,38,0)}}
+@keyframes beacon-teal{0%{box-shadow:0 0 0 0 rgba(13,125,124,0.6)}70%{box-shadow:0 0 0 12px rgba(13,125,124,0)}100%{box-shadow:0 0 0 0 rgba(13,125,124,0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes barpulse{0%,100%{transform:scaleY(.45)}50%{transform:scaleY(1)}}
+@keyframes wave{0%,100%{height:6px}50%{height:26px}}
+@keyframes scanbeam{0%{top:0%;opacity:0.8}50%{top:90%;opacity:1}100%{top:0%;opacity:0.8}}
+@keyframes marquee{0%{transform:translateX(0%)}100%{transform:translateX(-50%)}}
+@keyframes neonshimmer{0%{filter:drop-shadow(0 0 4px var(--teal))}50%{filter:drop-shadow(0 0 12px var(--terra))}100%{filter:drop-shadow(0 0 4px var(--teal))}}
+
+.flowline{stroke-dasharray:6 8;animation:dashmove 1.1s linear infinite}
+.floaty{animation:floaty 4.8s ease-in-out infinite}
+.floaty.d2{animation-delay:-1.5s}.floaty.d3{animation-delay:-3s}
+.pulse{animation:pulse 2s ease-in-out infinite}
+.spin-slow{transform-origin:center;transform-box:fill-box;animation:spin 24s linear infinite}
+.bars rect{transform-origin:bottom;transform-box:fill-box;animation:barpulse 1.8s ease-in-out infinite}
+.bars rect:nth-child(2){animation-delay:-.4s}
+.bars rect:nth-child(3){animation-delay:-.8s}
+.bars rect:nth-child(4){animation-delay:-1.2s}
+.neon-glow{animation:neonshimmer 4s ease-in-out infinite}
+
+.hero-svg{width:100%;height:auto;margin-top:14px;
+  background:var(--card);border:1px solid var(--line);border-radius:16px;
+  box-shadow:var(--shadow)}
+.doodle{width:92px;height:92px;flex:none}
+.shead{display:flex;gap:20px;align-items:flex-start;justify-content:space-between}
+
+/* Editorial rows */
+.rows{list-style:none;margin-top:16px;border-top:1.5px solid var(--line)}
+.rows li{display:grid;grid-template-columns:52px 1fr auto;gap:14px;align-items:center;
+  padding:12px 6px;border-bottom:1.5px solid var(--line);transition:all .25s ease}
+.rows li:hover{background:rgba(13,125,124,0.06);padding-left:12px}
+.rows li:nth-child(even){background:rgba(13,125,124,.03)}
+.rows .num{font-family:var(--font-display);font-size:2.04rem;color:var(--terra);line-height:1}
+.rows h3{font-family:var(--font-display);font-size:1.30rem;margin-bottom:3px}
+.rows p{color:var(--ink-soft);font-size:1.02rem;line-height:1.46;max-width:76ch}
+
+/* Layer stack with animated glowing rail */
+.layers{position:relative;margin-top:16px;padding-left:26px;display:grid;gap:9px}
+.layers::before{content:"";position:absolute;left:8px;top:10px;bottom:10px;width:3px;
+  border-radius:3px;background-image:linear-gradient(var(--teal) 55%,transparent 45%);
+  background-size:3px 15px;animation:railflow 1s linear infinite}
+@keyframes railflow{to{background-position-y:15px}}
+
+.layer{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:12px 16px;box-shadow:var(--shadow);position:relative;transition:all .3s ease}
+.layer:hover{transform:translateX(5px);border-color:var(--teal)}
+.layer::before{content:"";position:absolute;left:-23px;top:16px;width:10px;height:10px;
+  border-radius:50%;background:var(--terra);animation:beacon 2s infinite}
+.layer .lname{font-family:var(--font-mono);font-size:12.0px;letter-spacing:.18em;
+  color:var(--teal-deep);margin-bottom:6px;font-weight:700}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{background:var(--paper);border:1.5px solid var(--line);border-radius:9px;
+  padding:7px 11px;font-size:0.98rem;transition:all .2s ease}
+.chip:hover{transform:scale(1.03)}
+.chip b{display:block}
+.chip span{font-family:var(--font-mono);font-size:12.0px;color:var(--teal-deep)}
+.chip.hot{border-color:var(--teal);background:var(--teal-wash)}
+.chip.warm{border-color:var(--terra);background:var(--terra-wash)}
+.layer.dark{background:var(--ink);border-color:var(--ink)}
+.layer.dark .chip{background:rgba(250,246,239,.07);border-color:rgba(245,239,224,.25);color:#F5EFE0}
+
+/* Status dots */
+.livedot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;
+  background:var(--teal);box-shadow:0 0 0 4px var(--teal-wash);animation:pulse 2s infinite}
+.livedot.next{background:var(--ink-faint);box-shadow:0 0 0 4px #EBE4D3;animation:none}
+
+/* Stat band & Split */
+.statband{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.stat{background:var(--ink);color:#F5EFE0;border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);
+  border:1px solid rgba(255,255,255,0.06);position:relative;overflow:hidden}
+.stat::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--teal),var(--terra))}
+.stat b{font-family:var(--font-display);font-size:1.78rem;display:block}
+.stat span{font-family:var(--font-mono);font-size:12.0px;letter-spacing:.1em;color:#C9BFA9}
+
+.split{display:grid;grid-template-columns:7fr 5fr;gap:14px;margin-top:14px;align-items:start}
+.minis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mini{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:12px;box-shadow:var(--shadow);transition:transform .25s ease}
+.mini:hover{transform:translateY(-3px);border-color:var(--teal)}
+.mini h3{font-family:var(--font-display);font-size:1.14rem;margin-bottom:3px}
+.mini p{font-size:0.96rem;color:var(--ink-soft);line-height:1.42}
+
+/* Milestone rail */
+.tl{position:relative;margin-top:16px;padding-left:26px;display:grid;gap:2px;max-width:780px}
+.tl::before{content:"";position:absolute;left:8px;top:10px;bottom:10px;width:3px;border-radius:3px;
+  background-image:linear-gradient(var(--terra) 55%,transparent 45%);
+  background-size:3px 15px;animation:railflow 1s linear infinite}
+.tl-group{font-family:var(--font-mono);font-size:12.0px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--teal-deep);margin:8px 0 5px;position:relative;font-weight:700}
+.tl-item{position:relative;background:var(--card);border:1px solid var(--line);
+  border-radius:11px;padding:9px 13px;box-shadow:var(--shadow);margin-bottom:6px;transition:transform .2s ease}
+.tl-item:hover{transform:translateX(4px)}
+.tl-item::before{content:"";position:absolute;left:-23px;top:14px;width:9px;height:9px;
+  border-radius:50%;background:var(--teal);box-shadow:0 0 0 4px var(--teal-wash);animation:pulse 2s infinite}
+.tl-item.next::before{background:var(--terra);box-shadow:0 0 0 4px var(--terra-wash)}
+.tl-item b{font-size:1.06rem}
+.tl-item p{font-size:0.96rem;color:var(--ink-soft);margin-top:2px}
+
+/* Soundwave animation (Voice) */
+.soundwave{display:flex;align-items:center;gap:3px;height:24px;margin-top:8px}
+.soundwave span{width:3px;background:var(--teal);border-radius:3px;animation:wave 1s ease-in-out infinite}
+.soundwave span:nth-child(2){animation-delay:0.2s}
+.soundwave span:nth-child(3){animation-delay:0.4s}
+.soundwave span:nth-child(4){animation-delay:0.1s}
+.soundwave span:nth-child(5){animation-delay:0.3s}
+
+/* Scanner beam animation (OCR) */
+.scanner-box{position:relative;height:54px;background:var(--paper-2);border-radius:8px;overflow:hidden;border:1px dashed var(--line);margin-top:8px}
+.scanner-beam{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--terra),transparent);
+  box-shadow:0 0 8px var(--terra);animation:scanbeam 2.2s ease-in-out infinite}
+
+/* Ticker tape marquee (Market) */
+.marquee-wrap{overflow:hidden;white-space:nowrap;background:var(--paper-2);border-radius:8px;padding:6px 0;margin-top:10px;border:1px solid var(--line)}
+.marquee-content{display:inline-block;animation:marquee 18s linear infinite}
+.marquee-item{display:inline-block;margin:0 14px;font-family:var(--font-mono);font-size:13.2px}
+.m-green{color:var(--green);font-weight:600}
+.m-gold{color:var(--gold);font-weight:600}
+
+/* Journey SVG curve */
+.journey-svg{width:100%;height:auto;margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;box-shadow:var(--shadow)}
+.jchips{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px}
+.jchip{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:var(--shadow);font-size:0.98rem;color:var(--ink-soft);transition:transform .2s ease}
+.jchip:hover{transform:translateY(-3px);border-color:var(--teal)}
+.jchip b{display:block;color:var(--ink);margin-bottom:3px}
+.jchip i{font-style:normal;font-family:var(--font-display);color:var(--terra);font-size:1.38rem;font-weight:700}
+
+/* Closer */
+.closer{text-align:center;align-items:center}
+.closer .sub{margin:0 auto}
+.thanks{font-family:var(--font-display);font-weight:700;letter-spacing:-.02em;
+  font-size:clamp(3.12rem,7.8vw,5.04rem);line-height:1}
+.thanks-underline{width:min(400px,65%);height:14px;margin:8px auto 0}
+.chiprow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:16px}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:999px;
+  padding:7px 14px;font-size:1.01rem;box-shadow:var(--shadow);transition:all .2s ease}
+.pill:hover{transform:scale(1.05);border-color:var(--teal)}
+/* Gantt Chart Slide 8 Animations */
+#s8 .gantt-bar-fill {
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+}
+#s8.visible .gantt-bar-fill {
+  transform: scaleX(1);
+}
+#s8.visible .gantt-bar-1 { transition-delay: 0.1s; }
+#s8.visible .gantt-bar-2 { transition-delay: 0.25s; }
+#s8.visible .gantt-bar-3 { transition-delay: 0.4s; }
+#s8.visible .gantt-bar-4 { transition-delay: 0.55s; }
+#s8.visible .gantt-bar-5 { transition-delay: 0.7s; }
+#s8.visible .gantt-bar-6 { transition-delay: 0.85s; }
+
+#s8 .today-line {
+  stroke-dasharray: 350;
+  stroke-dashoffset: 350;
+  transition: stroke-dashoffset 0.9s ease-out 0.8s;
+}
+#s8.visible .today-line {
+  stroke-dashoffset: 0;
+}
+#s8 .today-badge {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: all 0.4s ease 1.1s;
+}
+#s8.visible .today-badge {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Architecture Flowline Animation */
+@keyframes archFlow {
+  from { stroke-dashoffset: 20; }
+  to { stroke-dashoffset: 0; }
+}
+.arch-flowline {
+  stroke-dasharray: 6 4;
+  animation: archFlow 1.2s linear infinite;
+}
+
+@media (max-width:860px){
+  .title-wrap,.split,.shead{grid-template-columns:1fr}
+  .shead{flex-direction:column}
+  .bento{grid-template-columns:1fr}
+  .tile{grid-column:auto!important;grid-row:auto!important}
+  .rows li{grid-template-columns:40px 1fr}
+  .rows .tag{display:none}
+  .statband{grid-template-columns:1fr 1fr}
+  .minis{grid-template-columns:1fr}
+  .jchips{grid-template-columns:1fr 1fr}
+  .dots,.hint,.doodle{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none;transition:opacity .2s ease}
+  *{animation:none!important}
+  .motion-dot{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- Ambient Constellation Particle Canvas -->
+<canvas id="ambient-canvas"></canvas>
+
+<!-- Top Progress Indicator -->
+<div class="progress-wrap"><div class="progress" id="progress" aria-hidden="true"></div></div>
+<div class="counter" id="counter">01 / 13</div>
+<nav class="dots" id="dots" aria-label="Slide navigation"></nav>
+<div class="hint"><kbd>←</kbd><kbd>→</kbd> or <kbd>Space</kbd> to navigate</div>
+<button class="fs-btn" id="fsBtn" title="Toggle Fullscreen (F)" aria-label="Toggle Fullscreen"><i class="ri-fullscreen-line"></i></button>
+
+<!-- ================= SLIDE 1 : TITLE (Split + Architecture Flow SVG) ================= -->
+<section class="slide" id="s1" aria-label="Title slide">
+  <div class="title-wrap">
+    <div>
+      <div class="badge reveal"><span class="dot"></span> Final Year Engineering Project ·  2026–2027</div>
+      <h1 class="reveal">FinPro, <em>financial intelligence</em> by design.</h1>
+      <p class="sub reveal" style="margin-top:12px">An AI-powered personal financial planning platform engineered for Indian retail investors: real-time NSE/BSE &amp; MCX market feeds, grounded Gemini Flash advisory, and a 10-factor algorithmic health twin.</p>
+      
+      <!-- Animated Dynamic Dataflow SVG with Wide Breathing Room (No Text Overflow) -->
+      <svg class="hero-svg reveal" viewBox="0 0 660 160" role="img" aria-label="Data flow diagram: client SPA to backend API, AI and PostgreSQL persistence">
+        <defs>
+          <linearGradient id="flowGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="var(--teal)" stop-opacity="0.85"/>
+            <stop offset="100%" stop-color="var(--terra)" stop-opacity="0.9"/>
+          </linearGradient>
+        </defs>
+        <g class="floaty">
+          <rect x="20" y="48" width="126" height="62" rx="12" style="fill:var(--teal-wash);stroke:var(--teal)" stroke-width="2"/>
+          <text x="32" y="73" font-family="IBM Plex Mono,monospace" font-size="12" font-weight="700" style="fill:var(--teal-deep)">VANILLA SPA</text>
+          <text x="32" y="93" font-family="DM Sans,sans-serif" font-size="11" style="fill:var(--ink-soft)">12 Views · ECharts</text>
+          <circle cx="146" cy="79" r="4.5" style="fill:var(--terra)" class="pulse"/>
+        </g>
+        
+        <!-- Animated streaming curves with packets -->
+        <path d="M146 79 C 190 48, 215 48, 255 48" fill="none" style="stroke:url(#flowGrad1)" stroke-width="2.5" class="flowline"/>
+        <path d="M146 79 C 190 82, 215 82, 255 82" fill="none" style="stroke:var(--terra)" stroke-width="2.5" class="flowline"/>
+        <path d="M146 79 C 190 116, 215 116, 255 116" fill="none" style="stroke:var(--teal)" stroke-width="2.5" class="flowline"/>
+        
+        <!-- 3 Target Service Boxes with Wide 380px Width & Proper Inset -->
+        <g font-family="IBM Plex Mono,monospace" font-size="11.5">
+          <rect x="255" y="31" width="385" height="34" rx="8" style="fill:var(--teal-wash);stroke:var(--teal)" stroke-width="1.5"/>
+          <text x="268" y="53" style="fill:var(--teal-deep);font-weight:600">AI LAYER · Gemini  Flash (Context RAG)</text>
+          <rect x="255" y="67" width="385" height="34" rx="8" style="fill:var(--terra-wash);stroke:var(--terra)" stroke-width="1.5"/>
+          <text x="268" y="89" style="fill:#8F3D14;font-weight:600">API GATEWAY · Node 22 + Express + JWT</text>
+          <rect x="255" y="103" width="385" height="34" rx="8" fill="none" style="stroke:var(--ink)" stroke-width="1.5"/>
+          <text x="268" y="125" style="fill:var(--ink);font-weight:600">DATA · PostgreSQL 17  </text>
+        </g>
+      </svg>
+    </div>
+
+    <aside class="panel reveal" aria-label="Team panel">
+      <h4>Presented By · Project Team</h4>
+      <table style="margin-top:0;font-size:0.92rem" aria-label="Project Team">
+        <tr><th>PRN / Roll</th><th>Student Name</th></tr>
+        <tr><td><b>31232127</b></td><td>Tanishq Agrawal</td></tr>
+        <tr><td><b>31230035</b></td><td>Jinay Golecha</td></tr>
+        <tr><td><b>31232021</b></td><td>Partha Nallelu</td></tr>
+        <tr><td><b>31231521</b></td><td>Diksha Choraghe</td></tr>
+        <tr><td><b>31231787</b></td><td>Parth Hande</td></tr>
+      </table>
+      <div class="rule"></div>
+      <ul>
+        <li>Department — <b>Computer Engineering · Vishwakarma Univ.</b></li>
+        <li>Academic Year — <b>2026–2027 (Final Year Project)</b></li>
+        
+      </ul>
+    </aside>
+  </div>
+</section>
+
+<!-- ================= SLIDE 2 : PROBLEM STATEMENT (Dark-Hero Bento) ================= -->
+<section class="slide" id="s2" aria-label="Problem and opportunity">
+  <div class="eyebrow reveal">02 — Problem &amp; Opportunity</div>
+  <h2 class="reveal">Navigating capital markets on gut feeling <em>doesn't scale.</em></h2>
+  <p class="sub reveal">Over 100M+ Indian retail investors have entered capital markets since 2020, yet lack affordable fiduciary advice, suffer from fragmented tooling, and face Western-biased algorithms.</p>
+
+  <div class="bento reveal">
+    <!-- Hero Dark Tile with Jittering Warning Sheets -->
+    <div class="tile dark c7 tall">
+      <span class="tag t-terra">The Retail Gap</span>
+      <h3>100M+ Demats. 76% Illiteracy. Zero Unified Systems.</h3>
+      <p>Investors track stocks on one app, debts on another, and bank statements in inboxes. Advice comes from ungrounded generic AI or unregulated finfluencers.</p>
+      
+      <!-- Scattered documents animation with glowing alert badge -->
+      <svg viewBox="0 0 220 86" style="width:100%;height:auto;margin-top:12px" role="img" aria-label="Scattered documents animation">
+        <g class="floaty"><rect x="14" y="14" width="50" height="58" rx="5" fill="none" style="stroke:#F5EFE0" stroke-width="2" transform="rotate(-7 39 43)"/><line x1="22" y1="32" x2="52" y2="28" style="stroke:#8A94A6" stroke-width="2"/></g>
+        <g class="floaty d2"><rect x="84" y="10" width="50" height="58" rx="5" fill="none" style="stroke:#F5EFE0" stroke-width="2" transform="rotate(6 109 39)"/><line x1="92" y1="30" x2="122" y2="32" style="stroke:#8A94A6" stroke-width="2"/></g>
+        <g class="floaty d3"><rect x="152" y="18" width="50" height="58" rx="5" fill="none" style="stroke:var(--terra)" stroke-width="2" transform="rotate(-4 177 47)"/><line x1="160" y1="36" x2="190" y2="34" style="stroke:var(--terra)" stroke-width="2"/></g>
+        <circle cx="196" cy="16" r="7" style="fill:var(--terra)" class="pulse"/>
+        <text x="193" y="20" font-size="12" font-weight="700" fill="#1B2431">!</text>
+      </svg>
+    </div>
+
+    <div class="tile c5"><span class="tag t-terra">Pain 1</span><h3>Western Bias</h3><p>Existing robo-advisors assume 401(k), US IRS brackets, and fail on Indian SIPs, PPF &amp; MCX Gold.</p></div>
+    <div class="tile c5"><span class="tag t-terra">Pain 2</span><h3>Hallucinatory AI</h3><p>Generic ChatGPT invents returns with zero knowledge of the user's actual bank records or DTI.</p></div>
+    <div class="tile c5"><span class="tag t-terra">Pain 3</span><h3>Tool Silos</h3><p>Budgeting, loans, broking, and insurance exist in isolated, non-communicating applications.</p></div>
+    <div class="tile tealwash c7"><span class="tag t-teal">FinPro Fix</span><h3>One Grounded Financial OS</h3><p>India-native calculations (INR, Lakhs/Crores), live NSE/BSE feeds, and Gemini Flash bound strictly to PostgreSQL transactional truth.</p></div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 3 : LITERATURE SURVEY (Editorial Rows + Orbit SVG) ================= -->
+<section class="slide" id="s3" aria-label="Literature review scope">
+  <div class="shead">
+    <div>
+      <div class="eyebrow reveal">03 — Academic Foundation</div>
+      <h2 class="reveal">Literature survey: <em>22 papers across 5 domains.</em></h2>
+    </div>
+    <!-- Orbit Doodle SVG with spinning rings -->
+    <svg class="doodle reveal" viewBox="0 0 120 120" role="img" aria-label="Literature taxonomy orbit diagram">
+      <circle cx="60" cy="60" r="44" fill="none" style="stroke:var(--line)" stroke-width="2"/>
+      <g class="spin-slow"><circle cx="60" cy="60" r="44" fill="none" style="stroke:var(--teal)" stroke-width="3" stroke-dasharray="35 240" stroke-linecap="round"/></g>
+      <circle cx="60" cy="60" r="26" style="fill:var(--teal-wash);stroke:var(--teal)" stroke-width="2"/>
+      <text x="60" y="56" text-anchor="middle" font-size="13.2" font-weight="700" style="fill:var(--teal-deep)" font-family="DM Sans,sans-serif">22</text>
+      <text x="60" y="68" text-anchor="middle" font-size="9.6" font-weight="700" style="fill:var(--teal-deep)" font-family="IBM Plex Mono,monospace">PAPERS</text>
+      <circle cx="90" cy="36" r="8" style="fill:var(--terra)" class="pulse"/>
+      <text x="90" y="40" text-anchor="middle" font-size="9.6" font-weight="700" fill="#FFFDF8" font-family="DM Sans,sans-serif">5D</text>
+    </svg>
+  </div>
+
+  <ol class="rows reveal">
+    <li><span class="num">01</span><div><h3>Large Language Models in Finance (6 Papers · 27%)</h3><p>BloombergGPT (50B domain pretraining), FinGPT (LoRA open-source), MarketSenseAI (GPT-4 alpha generation), Du et al. (Information Fusion 10-area taxonomy).</p></div><span class="tag t-teal">LLMs</span></li>
+    <li><span class="num">02</span><div><h3>AI/ML Market Prediction (4 Papers · 18%)</h3><p>Gu et al. (<em>Charting by Machines</em>, JFE), Wang et al. (Two-Stage LSTM+Mean-CVaR, ESWA), Yadav et al. (Techniques &amp; methodology review).</p></div><span class="tag t-teal">Predict</span></li>
+    <li><span class="num">03</span><div><h3>Robo-Advisory &amp; Welfare (4 Papers · 18%)</h3><p>Rossi &amp; Utkus (Vanguard empirical study, JFE), Cardillo &amp; Chiappini (FRL 4-stream framework), Banerjee (SEM of 387 Indian investors, EJISDC).</p></div><span class="tag t-teal">Robo</span></li>
+    <li><span class="num">04</span><div><h3>Cloud Computing &amp; Cybersecurity (4 Papers · 18%)</h3><p>Rai &amp; Thakkar (Cloud banking adoption, IEEE SCOReD), Sharma et al. (TAM/PLS-SEM, ICORIS), Anand et al. (Threat surfaces), Kumar &amp; Singh.</p></div><span class="tag t-teal">Cloud</span></li>
+    <li><span class="num">05</span><div><h3>Algorithmic &amp; HFT Microstructure (2 Papers · 9%)</h3><p>Zhang (HFT endogenous liquidity review, JYI 2026), Gu (Algo trading market evolution >90% volume, DEBDA 2025).</p></div><span class="tag t-ink">Algo</span></li>
+  </ol>
+</section>
+
+<!-- ================= SLIDE 4 : THEORETICAL INSIGHTS (Bento + Live Shimmer) ================= -->
+<section class="slide" id="s4" aria-label="Theoretical insights">
+  <div class="eyebrow reveal">04 — Key Empirical Findings</div>
+  <h2 class="reveal">Four published findings that <em>anchor FinPro.</em></h2>
+  <div class="bento reveal">
+    <div class="tile c7 tall tealwash">
+      <span class="tag t-teal">1. Context RAG beats raw scale</span>
+      <h3>FinGPT vs. BloombergGPT</h3>
+      <p>While BloombergGPT (50B) proved domain pretraining outperforms general LLMs, FinGPT (Yang et al.) proved that RAG context injection matches domain performance at &lt;1% the deployment cost. FinPro leverages Gemini 1.5 Flash grounded strictly in PostgreSQL records.</p>
+      
+      <!-- Animated broadcast pulse SVG -->
+      <svg viewBox="0 0 240 85" style="width:100%;height:auto;margin-top:10px" role="img" aria-label="Context injection diagram">
+        <g fill="none" style="stroke:var(--teal)" stroke-width="2">
+          <circle cx="50" cy="45" r="12" class="pulse"/>
+          <circle cx="50" cy="45" r="22" opacity=".5"/>
+        </g>
+        <rect x="36" y="37" width="28" height="18" rx="3" style="fill:var(--card);stroke:var(--teal-deep)" stroke-width="2"/>
+        <path d="M85 45 C 130 20, 150 70, 195 45" fill="none" style="stroke:var(--terra)" stroke-width="2" class="flowline"/>
+        <circle cx="197" cy="45" r="5" style="fill:var(--terra)" class="pulse"/>
+      </svg>
+    </div>
+
+    
+
+    <div class="tile c5">
+      <span class="tag t-teal">2. Novice Welfare Gains</span>
+      <h3>Rossi &amp; Utkus (JFE)</h3>
+      <p>Vanguard data shows robo-advisors eliminate home-bias and cash drag, generating the highest Sharpe improvement for inexperienced retail users.</p>
+    </div>
+
+    <div class="tile terrawash c7">
+      <span class="tag t-terra">3. Indian Adoption Determinants</span>
+      <h3>Banerjee (SEM N=387, 2025)</h3>
+      <p>Technology Readiness &amp; Financial Literacy are the two primary drivers of retail robo-advisory adoption in India. FinPro translates this into transparent factor explanations and educational tooltips.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 5 : RESEARCH GAPS (Split + Mapping Table) ================= -->
+<section class="slide" id="s5" aria-label="Research gaps">
+  <div class="eyebrow reveal">05 — Research Gap Analysis</div>
+  <h2 class="reveal">Eight systematic gaps, <em>direct system responses.</em></h2>
+  <p class="sub reveal">Systematic analysis of all 22 papers revealed critical architectural absences that FinPro directly resolves.</p>
+
+  <table class="reveal" style="font-size:1.02rem;" aria-label="Research gaps mapped to FinPro solutions">
+    <tr><th>Gap ID</th><th>Literature Finding</th><th>Severity</th><th>FinPro Engineering Contribution</th></tr>
+    <tr><td>G1</td><td>Absence of End-to-End Retail Financial OS</td><td><span class="tag t-terra">Critical</span></td><td>Unified platform: ledger, budgeting, investments, loans &amp; AI in one SPA.</td></tr>
+    <tr><td>G2</td><td>Lack of Indian Financial Localization</td><td><span class="tag t-terra">High</span></td><td>Native NSE/BSE feeds, MCX Gold/Silver in INR, SIPs, and Lakhs/Crores math.</td></tr>
+    <tr><td>G3</td><td>Explainability &amp; Trust Deficit</td><td><span class="tag t-terra">High</span></td><td>10-factor transparent score accompanied by readable positive &amp; warning drivers.</td></tr>
+    <tr><td>G4</td><td>Disconnected Multimodal Financial Data</td><td><span class="tag t-gold">Med-High</span></td><td>Fuses live stock charts, news sentiment (Marketaux), and user transaction ledgers.</td></tr>
+    <tr><td>G6</td><td>Prohibitive LLM Deployment Costs</td><td><span class="tag t-teal">Medium</span></td><td>Tiered Gemini Flash context RAG + local deterministic fallback heuristic.</td></tr>
+    <tr><td>G7</td><td>AI Telemetry &amp; Financial Security Risks</td><td><span class="tag t-terra">High</span></td><td>Multi-tenant PostgreSQL isolation (<code style="font-family:var(--font-mono)">where: { userId }</code>), JWT HS256, and PCI rules.</td></tr>
+  </table>
+</section>
+
+<!-- ================= SLIDE 6 : SYSTEM ARCHITECTURE DIAGRAM ================= -->
+<section class="slide" id="s6" aria-label="System architecture">
+  <div class="eyebrow reveal">06 — System Architecture</div>
+  <h2 class="reveal">End-to-end system architecture &amp; <em>component topology.</em></h2>
+  <p class="sub reveal">Production-ready decoupled architecture connecting the client SPA, API Gateway, AI advisory engine, and relational PostgreSQL persistence.</p>
+
+  <div class="bento reveal" style="margin-top:10px;">
+    <!-- Visual Architecture Diagram Card (Full 12 cols) -->
+    <div class="tile dark c12" style="background:var(--ink);padding:16px 20px;border-radius:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:6px;">
+        <span class="tag t-teal"><span class="livedot"></span>System Architecture &amp; Component Interaction Topology</span>
+        <span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--teal-wash)">Node.js 22 LTS • PostgreSQL 17 • Gemini 1.5 RAG • Docker</span>
+      </div>
+
+      <!-- System Architecture SVG — text visibility fix: larger fonts, high-contrast colors -->
+      <svg class="hero-svg" viewBox="0 0 1020 300" role="img" aria-label="FINPRO End-to-End System Architecture Diagram" style="width:100%;height:auto;display:block;">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5ECECA"/>
+          </marker>
+          <marker id="arrow-terra" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#F5845A"/>
+          </marker>
+          <marker id="arrow-gold" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#F0C45A"/>
+          </marker>
+          <!-- Subtle glow filter for tier headers -->
+          <filter id="glow" x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Inner SVG <style>: all text black + bold for maximum visibility -->
+        <style>
+          .at  { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 800; fill: #FFFFFF; }
+          .ab  { font-family: 'DM Sans', sans-serif;      font-size: 11px; font-weight: 800; fill: #0A0A0A; }
+          .am  { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; fill: #0A0A0A; }
+          .as  { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; fill: #0A0A0A; }
+          .af  { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 800; fill: #0A0A0A; }
+        </style>
+
+        <!-- ═══ TIER 1 · CLIENT SPA (x 10–220) ═══ -->
+        <rect x="10" y="10" width="210" height="280" rx="12" fill="rgba(13,125,124,0.15)" stroke="#5ECECA" stroke-width="2"/>
+        <rect x="10" y="10" width="210" height="34" rx="12" fill="#0D7D7C"/>
+        <rect x="10" y="32" width="210" height="12" fill="#0D7D7C"/>
+        <text x="115" y="31" class="at" text-anchor="middle">1 · CLIENT SPA</text>
+
+        <rect x="20" y="52" width="190" height="48" rx="7" fill="rgba(255,255,255,0.80)" stroke="rgba(94,206,202,0.5)" stroke-width="1"/>
+        <text x="30" y="70" class="ab">Vanilla JS ES6+ SPA</text>
+        <text x="30" y="87" class="am">Sub-100ms UI · 12 Views</text>
+
+        <rect x="20" y="108" width="190" height="48" rx="7" fill="rgba(255,255,255,0.80)" stroke="rgba(94,206,202,0.5)" stroke-width="1"/>
+        <text x="30" y="126" class="ab">ECharts Dashboards</text>
+        <text x="30" y="143" class="am">Net Worth &amp; Cash Flow</text>
+
+        <rect x="20" y="164" width="190" height="60" rx="7" fill="rgba(255,255,255,0.80)" stroke="rgba(245,132,90,0.5)" stroke-width="1"/>
+        <text x="30" y="182" class="ab">Multimodal Input Parsers</text>
+        <text x="30" y="199" class="am">· Web Speech API Voice</text>
+        <text x="30" y="215" class="am">· Tesseract OCR Camera</text>
+
+        <rect x="20" y="232" width="190" height="46" rx="7" fill="rgba(255,255,255,0.80)" stroke="#5ECECA" stroke-width="1"/>
+        <text x="115" y="252" class="am" text-anchor="middle">PWA Mobile Support</text>
+        <text x="115" y="268" class="as" text-anchor="middle">Offline Asset Caching</text>
+
+        <!-- FLOW 1 -->
+        <path class="arch-flowline" d="M 220 150 L 265 150" stroke="#5ECECA" stroke-width="2.5" marker-end="url(#arrow)"/>
+        <text x="242" y="142" class="af" text-anchor="middle">HTTPS</text>
+
+
+        <!-- ═══ TIER 2 · API GATEWAY (x 265–480) ═══ -->
+        <rect x="265" y="10" width="215" height="280" rx="12" fill="rgba(216,93,38,0.15)" stroke="#F5845A" stroke-width="2"/>
+        <rect x="265" y="10" width="215" height="34"  rx="12" fill="#D85D26"/>
+        <rect x="265" y="32" width="215" height="12"        fill="#D85D26"/>
+        <text x="372" y="31" class="at" text-anchor="middle">2 · API GATEWAY</text>
+
+        <rect x="275" y="52" width="195" height="48" rx="7" fill="rgba(255,255,255,0.80)" stroke="rgba(245,132,90,0.5)" stroke-width="1"/>
+        <text x="285" y="70"  class="ab">Express 4.21 Gateway</text>
+        <text x="285" y="87"  class="am">Node.js 22 LTS Runtime</text>
+
+        <rect x="275" y="108" width="195" height="62" rx="7" fill="rgba(255,255,255,0.80)" stroke="rgba(245,132,90,0.5)" stroke-width="1"/>
+        <text x="285" y="126" class="ab">Security Middleware</text>
+        <text x="285" y="143" class="am">· Helmet + CORS Guard</text>
+        <text x="285" y="159" class="am">· Rate Limiters 20/200 req</text>
+
+        <rect x="275" y="178" width="195" height="46" rx="7" fill="rgba(255,255,255,0.80)" stroke="rgba(245,132,90,0.5)" stroke-width="1"/>
+        <text x="285" y="196" class="ab">Dual JWT Auth Guard</text>
+        <text x="285" y="212" class="am">HS256 Access + Refresh</text>
+
+        <rect x="275" y="232" width="195" height="46" rx="7" fill="rgba(255,255,255,0.80)" stroke="#F5845A" stroke-width="1"/>
+        <text x="372" y="252" class="am" text-anchor="middle">Multi-Tenant Isolation</text>
+        <text x="372" y="268" class="as"  text-anchor="middle">where: &#123; userId &#125; Guard</text>
+
+        <!-- FLOW 2 -->
+        <path class="arch-flowline" d="M 480 150 L 525 150" stroke="#F5845A" stroke-width="2.5" marker-end="url(#arrow-terra)"/>
+        <text x="502" y="142" class="af" text-anchor="middle">REST</text>
+
+        <!-- ═══ TIER 3 · BUSINESS &amp; AI (x 525–765) ═══ -->
+        <rect x="525" y="10" width="240" height="280" rx="12" fill="rgba(184,135,24,0.15)" stroke="#F0C45A" stroke-width="2"/>
+        <rect x="525" y="10" width="240" height="34"  rx="12" fill="#B88718"/>
+        <rect x="525" y="32" width="240" height="12"        fill="#B88718"/>
+        <text x="645" y="31" class="at" text-anchor="middle">3 · BUSINESS &amp; AI</text>
+
+        <rect x="535" y="52" width="220" height="62" rx="7" fill="rgba(255,255,255,0.80)" stroke="rgba(240,196,90,0.5)" stroke-width="1"/>
+        <text x="545" y="70"  class="ab">Financial Twin Engine</text>
+        <text x="545" y="87"  class="am">· 10-Factor Health Score</text>
+        <text x="545" y="103" class="am">· 30/90-Day Cash Flow AI</text>
+
+        <rect x="535" y="122" width="220" height="74" rx="7" fill="rgba(255,255,255,0.80)" stroke="rgba(240,196,90,0.5)" stroke-width="1"/>
+        <text x="545" y="140" class="ab">Grounded AI (RAG)</text>
+        <text x="545" y="157" class="am">· Gemini 1.5 Flash RAG</text>
+        <text x="545" y="173" class="am">· Chroma Vector DB</text>
+        <text x="545" y="189" class="am">· Heuristic Fallback</text>
+
+        <rect x="535" y="204" width="220" height="74" rx="7" fill="rgba(255,255,255,0.80)" stroke="#F0C45A" stroke-width="1"/>
+        <text x="545" y="222" class="ab">Real-Time Market Engine</text>
+        <text x="545" y="239" class="am">· NSE/BSE &amp; Benchmarks</text>
+        <text x="545" y="255" class="am">· COMEX Gold/Silver FX</text>
+        <text x="545" y="270" class="as">· Marketaux News Feed</text>
+
+        <!-- FLOW 3 -->
+        <path class="arch-flowline" d="M 765 150 L 810 150" stroke="#F0C45A" stroke-width="2.5" marker-end="url(#arrow-gold)"/>
+        <text x="787" y="142" class="af" text-anchor="middle">Prisma</text>
+
+        <!-- ═══ TIER 4 · DATA &amp; CLOUD (x 810–1010) ═══ -->
+        <rect x="810" y="10" width="200" height="280" rx="12" fill="rgba(30,10,60,0.92)" stroke="#A78BFA" stroke-width="2"/>
+        <rect x="810" y="10" width="200" height="34"  rx="12" fill="#8B5CF6"/>
+        <rect x="810" y="32" width="200" height="12"        fill="#8B5CF6"/>
+        <text x="910" y="31" class="at" text-anchor="middle">4 · DATA &amp; CLOUD</text>
+
+        <rect x="820" y="52" width="180" height="82" rx="7" fill="rgba(255,255,255,0.80)" stroke="rgba(167,139,250,0.5)" stroke-width="1"/>
+        <text x="830" y="70"  class="ab">PostgreSQL 17 DB</text>
+        <text x="830" y="87"  class="am">· 28 Relational Models</text>
+        <text x="830" y="103" class="am">· Decimal(15,2) ACID</text>
+        <text x="830" y="119" class="am">· SSL Connection Pool</text>
+
+        <rect x="820" y="142" width="180" height="60" rx="7" fill="rgba(255,255,255,0.80)" stroke="rgba(167,139,250,0.5)" stroke-width="1"/>
+        <text x="830" y="160" class="ab">Cloud Storage</text>
+        <text x="830" y="177" class="am">· AWS S3 / GCP Storage</text>
+        <text x="830" y="193" class="am">· Pre-Signed 15-min URLs</text>
+
+        <rect x="820" y="210" width="180" height="68" rx="7" fill="rgba(255,255,255,0.80)" stroke="#A78BFA" stroke-width="1"/>
+        <text x="910" y="230" class="am" text-anchor="middle">Docker + GCP Cloud Run</text>
+        <text x="910" y="247" class="am" text-anchor="middle">node:22-alpine Image</text>
+        <text x="910" y="263" class="as" text-anchor="middle">Scale-to-Zero Serverless</text>
+      </svg>
+    </div>
+
+    <!-- 4 Key Architectural Guarantees (Bottom Grid) -->
+    <div class="tile c12" style="background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:10px 16px;">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:0.92rem;">
+        <div><b style="color:var(--teal-deep);display:block;">Sub-100ms UI Latency</b><span style="font-size:0.84rem;color:var(--ink-soft);">Zero-framework Vanilla JS SPA for instant screen transitions.</span></div>
+        <div><b style="color:var(--terra);display:block;">Zero Hallucination AI</b><span style="font-size:0.84rem;color:var(--ink-soft);">Gemini 1.5 Flash RAG context injected with verified ledger data.</span></div>
+        <div><b style="color:var(--gold);display:block;">ACID Financial Math</b><span style="font-size:0.84rem;color:var(--ink-soft);">PostgreSQL 17 Decimal(15,2) precision with 28 Prisma models.</span></div>
+        <div><b style="color:var(--purple);display:block;">Cloud Elasticity</b><span style="font-size:0.84rem;color:var(--ink-soft);">Docker OCI container auto-scaling on GCP Cloud Run serverless.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 7 : LAYER-WISE ARCHITECTURE ================= -->
+<section class="slide" id="s7" aria-label="Layer-Wise Architecture">
+  <div class="eyebrow reveal">07 — Layer-Wise Architecture</div>
+  <h2 class="reveal">4-Tier layer-wise architecture &amp; <em>data flow.</em></h2>
+  <p class="sub reveal">Multi-tier decoupled software architecture separating Presentation, Security Gateway, Business AI Logic, and Relational Database persistence.</p>
+
+  <div class="bento reveal">
+    <div class="tile dark c12" style="background:var(--ink);padding:18px;">
+      <span class="tag t-teal" style="margin-bottom:12px;"><span class="livedot"></span>Tier-by-Tier Modular Software Architecture</span>
+      
+      <!-- Layer-Wise Diagram SVG -->
+      <svg class="hero-svg" viewBox="0 0 960 170" role="img" aria-label="Detailed 4-Layer Architecture Diagram">
+        <!-- Layer 1: Presentation Layer -->
+        <rect x="15" y="15" width="200" height="140" rx="10" fill="var(--card)" stroke="var(--teal)" stroke-width="2"/>
+        <rect x="25" y="25" width="180" height="24" rx="5" fill="var(--teal-wash)"/>
+        <text x="115" y="41" fill="var(--teal-deep)" font-family="IBM Plex Mono" font-size="11" font-weight="700" text-anchor="middle">LAYER 1 · PRESENTATION</text>
+        <text x="115" y="68" fill="var(--ink)" font-family="IBM Plex Mono" font-size="10" font-weight="600" text-anchor="middle">Vanilla JS ES6+ SPA</text>
+        <text x="115" y="86" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• Apache ECharts Dashboards</text>
+        <text x="115" y="104" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• Web Speech API Voice Modal</text>
+        <text x="115" y="122" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• Tesseract OCR Receipt Vision</text>
+        <text x="115" y="140" fill="var(--terra)" font-family="IBM Plex Mono" font-size="9" font-weight="600" text-anchor="middle">sub-100ms UI Latency</text>
+
+        <path d="M215 85 L255 85" stroke="var(--teal)" stroke-width="2.5" stroke-dasharray="4 4" class="flowline"/>
+
+        <!-- Layer 2: Security & Gateway Layer -->
+        <rect x="255" y="15" width="210" height="140" rx="10" fill="var(--card)" stroke="var(--terra)" stroke-width="2"/>
+        <rect x="265" y="25" width="190" height="24" rx="5" fill="var(--terra-wash)"/>
+        <text x="360" y="41" fill="#8F3D14" font-family="IBM Plex Mono" font-size="11" font-weight="700" text-anchor="middle">LAYER 2 · SECURITY GATEWAY</text>
+        <text x="360" y="68" fill="var(--ink)" font-family="IBM Plex Mono" font-size="10" font-weight="600" text-anchor="middle">Node.js 22 + Express API</text>
+        <text x="360" y="86" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• Dual JWT HS256 Authentication</text>
+        <text x="360" y="104" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• Helmet Headers &amp; CORS Guard</text>
+        <text x="360" y="122" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• Express Rate Limiter (20/200)</text>
+        <text x="360" y="140" fill="var(--teal-deep)" font-family="IBM Plex Mono" font-size="9" font-weight="600" text-anchor="middle">where: { userId } Isolation</text>
+
+        <path d="M465 85 L505 85" stroke="var(--terra)" stroke-width="2.5" stroke-dasharray="4 4" class="flowline"/>
+
+        <!-- Layer 3: Business Logic & AI Engine Layer -->
+        <rect x="505" y="15" width="220" height="140" rx="10" fill="var(--card)" stroke="var(--gold)" stroke-width="2"/>
+        <rect x="515" y="25" width="200" height="24" rx="5" fill="var(--gold-wash)"/>
+        <text x="615" y="41" fill="#854D0E" font-family="IBM Plex Mono" font-size="11" font-weight="700" text-anchor="middle">LAYER 3 · BUSINESS &amp; AI</text>
+        <text x="615" y="68" fill="var(--ink)" font-family="IBM Plex Mono" font-size="10" font-weight="600" text-anchor="middle">Financial Twin &amp; Gemini RAG</text>
+        <text x="615" y="86" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• 10-Factor Financial Health Twin</text>
+        <text x="615" y="104" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• 30/90-Day Cash Flow Predictor</text>
+        <text x="615" y="122" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• Gemini 1.5 Flash Grounded RAG</text>
+        <text x="615" y="140" fill="#854D0E" font-family="IBM Plex Mono" font-size="9" font-weight="600" text-anchor="middle">NSE/BSE &amp; MCX Gold Engine</text>
+
+        <path d="M725 85 L765 85" stroke="var(--gold)" stroke-width="2.5" stroke-dasharray="4 4" class="flowline"/>
+
+        <!-- Layer 4: Data & Cloud Infrastructure Layer -->
+        <rect x="765" y="15" width="180" height="140" rx="10" fill="var(--card)" stroke="var(--purple)" stroke-width="2"/>
+        <rect x="775" y="25" width="160" height="24" rx="5" fill="var(--purple-wash)"/>
+        <text x="855" y="41" fill="#5B21B6" font-family="IBM Plex Mono" font-size="11" font-weight="700" text-anchor="middle">LAYER 4 · DATA &amp; CLOUD</text>
+        <text x="855" y="68" fill="var(--ink)" font-family="IBM Plex Mono" font-size="10" font-weight="600" text-anchor="middle">PostgreSQL 17 &amp; Cloud</text>
+        <text x="855" y="86" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• 28 Prisma ORM Models</text>
+        <text x="855" y="104" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• Decimal(15,2) ACID Precision</text>
+        <text x="855" y="122" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">• Docker OCI + GCP Cloud Run</text>
+        <text x="855" y="140" fill="#5B21B6" font-family="IBM Plex Mono" font-size="9" font-weight="600" text-anchor="middle">Managed DBaaS &amp; S3 Storage</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 8 : PROJECT PLANNING & GANTT CHART ================= -->
+<section class="slide" id="s8" aria-label="Project Planning and Gantt Chart">
+  <div class="eyebrow reveal">08 — Project Planning</div>
+  <h2 class="reveal">Project execution timeline &amp; <em>Gantt chart roadmap.</em></h2>
+  <p class="sub reveal">Comprehensive 6-month development schedule (Jul–Dec 2026) across 6 core phases with real-time status tracking.</p>
+
+  <div class="bento reveal" style="margin-top:10px;">
+    <!-- Visual Gantt Chart (Full 12 cols) -->
+    <div class="tile c12" style="background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 18px;">
+      
+      <!-- Top Title & Legend Bar -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:8px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <span class="tag t-teal" style="margin-bottom:2px;"><span class="livedot"></span>Project Execution Gantt Chart</span>
+          <h3 style="font-family:var(--font-display);font-size:1.2rem;margin:0;color:var(--ink)">FINPRO — Cloud-Based Personal Finance &amp; Decision Support</h3>
+        </div>
+        <!-- Legend Pills -->
+        <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:0.8rem;align-items:center;background:var(--paper-2);padding:5px 12px;border-radius:20px;border:1px solid var(--line)">
+          <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:10px;height:10px;background:#0F4C81;border-radius:2px;display:inline-block"></i> Completed</span>
+          <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:10px;height:10px;background:#E67E22;border-radius:2px;display:inline-block"></i> In Progress</span>
+          <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:10px;height:10px;background:#94A3B8;border-radius:2px;display:inline-block"></i> Not Started</span>
+          <span style="display:inline-flex;align-items:center;gap:5px;color:#DC2626;font-weight:700"><i style="width:2px;height:12px;background:#DC2626;display:inline-block"></i> Today (11 Sep)</span>
+        </div>
+      </div>
+      
+      <!-- Gantt SVG Diagram -->
+      <svg class="hero-svg" viewBox="0 0 1040 330" role="img" aria-label="FINPRO Project Gantt Chart Diagram" style="width:100%;height:auto;display:block;">
+        <defs>
+          <clipPath id="gantt-clip">
+            <rect x="230" y="0" width="810" height="330"/>
+          </clipPath>
+        </defs>
+
+        <!-- Left Column Background (Phase Names) -->
+        <rect x="0" y="0" width="230" height="330" fill="var(--paper-2)" rx="8 0 0 8"/>
+        
+        <!-- Phase Names Title Header -->
+        <rect x="0" y="0" width="230" height="42" fill="var(--teal-deep)"/>
+        <text x="14" y="26" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#FFF">Project Phase</text>
+
+        <!-- Month Column Headers -->
+        <g font-family="IBM Plex Mono, monospace" font-size="11" font-weight="700" fill="#FFF" text-anchor="middle">
+          <rect x="230" y="0" width="135" height="22" fill="#0D5C75"/>
+          <text x="297.5" y="15">JUL 2026</text>
+
+          <rect x="365" y="0" width="135" height="22" fill="#0D7D7C"/>
+          <text x="432.5" y="15">AUG 2026</text>
+
+          <rect x="500" y="0" width="135" height="22" fill="#0D5C75"/>
+          <text x="567.5" y="15">SEP 2026</text>
+
+          <rect x="635" y="0" width="135" height="22" fill="#0D7D7C"/>
+          <text x="702.5" y="15">OCT 2026</text>
+
+          <rect x="770" y="0" width="135" height="22" fill="#0D5C75"/>
+          <text x="837.5" y="15">NOV 2026</text>
+
+          <rect x="905" y="0" width="135" height="22" fill="#0D7D7C"/>
+          <text x="972.5" y="15">DEC 2026</text>
+        </g>
+
+        <!-- Week Sub-Headers (W1 W2 W3 W4 per month) -->
+        <g font-family="IBM Plex Mono, monospace" font-size="9" font-weight="600" fill="var(--ink-soft)" text-anchor="middle">
+          <rect x="230" y="22" width="810" height="20" fill="var(--paper)"/>
+          
+          <!-- Jul weeks -->
+          <text x="246.8" y="36">W1</text><text x="280.6" y="36">W2</text><text x="314.3" y="36">W3</text><text x="348.1" y="36">W4</text>
+          <!-- Aug weeks -->
+          <text x="381.8" y="36">W1</text><text x="415.6" y="36">W2</text><text x="449.3" y="36">W3</text><text x="483.1" y="36">W4</text>
+          <!-- Sep weeks -->
+          <text x="516.8" y="36">W1</text><text x="550.6" y="36">W2</text><text x="584.3" y="36">W3</text><text x="618.1" y="36">W4</text>
+          <!-- Oct weeks -->
+          <text x="651.8" y="36">W1</text><text x="685.6" y="36">W2</text><text x="719.3" y="36">W3</text><text x="753.1" y="36">W4</text>
+          <!-- Nov weeks -->
+          <text x="786.8" y="36">W1</text><text x="820.6" y="36">W2</text><text x="854.3" y="36">W3</text><text x="888.1" y="36">W4</text>
+          <!-- Dec weeks -->
+          <text x="921.8" y="36">W1</text><text x="955.6" y="36">W2</text><text x="989.3" y="36">W3</text><text x="1023.1" y="36">W4</text>
+        </g>
+
+        <!-- Grid Lines (Background) -->
+        <g stroke="var(--line)" stroke-width="1">
+          <!-- Month Solid Separators -->
+          <line x1="230" y1="0" x2="230" y2="330"/>
+          <line x1="365" y1="0" x2="365" y2="330"/>
+          <line x1="500" y1="0" x2="500" y2="330"/>
+          <line x1="635" y1="0" x2="635" y2="330"/>
+          <line x1="770" y1="0" x2="770" y2="330"/>
+          <line x1="905" y1="0" x2="905" y2="330"/>
+          <line x1="1040" y1="0" x2="1040" y2="330"/>
+
+          <!-- Week Dashed Separators -->
+          <g stroke-dasharray="2 3" opacity="0.6">
+            <!-- Jul weeks -->
+            <line x1="263.7" y1="42" x2="263.7" y2="330"/>
+            <line x1="297.5" y1="42" x2="297.5" y2="330"/>
+            <line x1="331.2" y1="42" x2="331.2" y2="330"/>
+            <!-- Aug weeks -->
+            <line x1="398.7" y1="42" x2="398.7" y2="330"/>
+            <line x1="432.5" y1="42" x2="432.5" y2="330"/>
+            <line x1="466.2" y1="42" x2="466.2" y2="330"/>
+            <!-- Sep weeks -->
+            <line x1="533.7" y1="42" x2="533.7" y2="330"/>
+            <line x1="567.5" y1="42" x2="567.5" y2="330"/>
+            <line x1="601.2" y1="42" x2="601.2" y2="330"/>
+            <!-- Oct weeks -->
+            <line x1="668.7" y1="42" x2="668.7" y2="330"/>
+            <line x1="702.5" y1="42" x2="702.5" y2="330"/>
+            <line x1="736.2" y1="42" x2="736.2" y2="330"/>
+            <!-- Nov weeks -->
+            <line x1="803.7" y1="42" x2="803.7" y2="330"/>
+            <line x1="837.5" y1="42" x2="837.5" y2="330"/>
+            <line x1="871.2" y1="42" x2="871.2" y2="330"/>
+            <!-- Dec weeks -->
+            <line x1="938.7" y1="42" x2="938.7" y2="330"/>
+            <line x1="972.5" y1="42" x2="972.5" y2="330"/>
+            <line x1="1006.2" y1="42" x2="1006.2" y2="330"/>
+          </g>
+
+          <!-- Horizontal Row Lines -->
+          <line x1="0" y1="42" x2="1040" y2="42" stroke-width="1.5"/>
+          <line x1="0" y1="90" x2="1040" y2="90"/>
+          <line x1="0" y1="138" x2="1040" y2="138"/>
+          <line x1="0" y1="186" x2="1040" y2="186"/>
+          <line x1="0" y1="234" x2="1040" y2="234"/>
+          <line x1="0" y1="282" x2="1040" y2="282"/>
+          <line x1="0" y1="330" x2="1040" y2="330"/>
+        </g>
+
+        <!-- ROW 1: REQUIREMENT & LITERATURE STUDY -->
+        <g font-family="DM Sans, sans-serif">
+          <text x="12" y="63" font-size="10.5" font-weight="700" fill="var(--ink)">1. REQUIREMENT &amp;</text>
+          <text x="24" y="76" font-size="10" font-weight="700" fill="var(--ink-soft)">LITERATURE STUDY</text>
+          <text x="24" y="86" font-size="8.5" fill="var(--ink-faint)">July 2026</text>
+          
+          <!-- Bar 1 (Completed - Dark Blue) -->
+          <g clip-path="url(#gantt-clip)">
+            <g class="gantt-bar-fill gantt-bar-1" style="transform-origin: 230px 66px;">
+              <rect x="230" y="52" width="135" height="28" rx="5" fill="#0F4C81"/>
+              <text x="297.5" y="70" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="700" fill="#FFF" text-anchor="middle">COMPLETED</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- ROW 2: SYSTEM & CLOUD ARCHITECTURE -->
+        <g font-family="DM Sans, sans-serif">
+          <text x="12" y="111" font-size="10.5" font-weight="700" fill="var(--ink)">2. SYSTEM &amp; CLOUD</text>
+          <text x="24" y="124" font-size="10" font-weight="700" fill="var(--ink-soft)">ARCHITECTURE</text>
+          <text x="24" y="134" font-size="8.5" fill="var(--ink-faint)">July – August 2026</text>
+
+          <!-- Bar 2 (Completed - Dark Blue) -->
+          <g clip-path="url(#gantt-clip)">
+            <g class="gantt-bar-fill gantt-bar-2" style="transform-origin: 297.5px 114px;">
+              <rect x="297.5" y="100" width="202.5" height="28" rx="5" fill="#0F4C81"/>
+              <text x="398.75" y="118" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="700" fill="#FFF" text-anchor="middle">COMPLETED</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- ROW 3: FULL-STACK APPLICATION DEVELOPMENT -->
+        <g font-family="DM Sans, sans-serif">
+          <text x="12" y="159" font-size="10.5" font-weight="700" fill="var(--ink)">3. FULL-STACK APPLICATION</text>
+          <text x="24" y="172" font-size="10" font-weight="700" fill="var(--ink-soft)">DEVELOPMENT</text>
+          <text x="24" y="182" font-size="8.5" fill="var(--ink-faint)">August – September 2026</text>
+
+          <!-- Bar 3 (In Progress - Orange) -->
+          <g clip-path="url(#gantt-clip)">
+            <g class="gantt-bar-fill gantt-bar-3" style="transform-origin: 365px 162px;">
+              <rect x="365" y="148" width="236.25" height="28" rx="5" fill="#E67E22"/>
+              <text x="483.1" y="166" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="700" fill="#FFF" text-anchor="middle">IN PROGRESS</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- ROW 4: AI, FINANCE & DATA FEATURES -->
+        <g font-family="DM Sans, sans-serif">
+          <text x="12" y="207" font-size="10.5" font-weight="700" fill="var(--ink)">4. AI, FINANCE &amp; DATA</text>
+          <text x="24" y="220" font-size="10" font-weight="700" fill="var(--ink-soft)">FEATURES</text>
+          <text x="24" y="230" font-size="8.5" fill="var(--ink-faint)">September – October 2026</text>
+
+          <!-- Bar 4 (In Progress - Orange) -->
+          <g clip-path="url(#gantt-clip)">
+            <g class="gantt-bar-fill gantt-bar-4" style="transform-origin: 500px 210px;">
+              <rect x="500" y="196" width="236.25" height="28" rx="5" fill="#E67E22"/>
+              <text x="618.1" y="214" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="700" fill="#FFF" text-anchor="middle">IN PROGRESS</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- ROW 5: CLOUD DEPLOYMENT, CI/CD & TESTING -->
+        <g font-family="DM Sans, sans-serif">
+          <text x="12" y="255" font-size="10.5" font-weight="700" fill="var(--ink)">5. CLOUD DEPLOYMENT,</text>
+          <text x="24" y="268" font-size="10" font-weight="700" fill="var(--ink-soft)">CI/CD &amp; TESTING</text>
+          <text x="24" y="278" font-size="8.5" fill="var(--ink-faint)">October – November 2026</text>
+
+          <!-- Bar 5 (Not Started - Grey) -->
+          <g clip-path="url(#gantt-clip)">
+            <g class="gantt-bar-fill gantt-bar-5" style="transform-origin: 635px 258px;">
+              <rect x="635" y="244" width="270" height="28" rx="5" fill="#94A3B8"/>
+              <text x="770" y="262" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="700" fill="#FFF" text-anchor="middle">NOT STARTED</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- ROW 6: FINAL TESTING, DOCUMENTATION & PRESENTATION -->
+        <g font-family="DM Sans, sans-serif">
+          <text x="12" y="303" font-size="10.5" font-weight="700" fill="var(--ink)">6. FINAL TESTING,</text>
+          <text x="24" y="316" font-size="10" font-weight="700" fill="var(--ink-soft)">DOCS &amp; PRESENTATION</text>
+          <text x="24" y="326" font-size="8.5" fill="var(--ink-faint)">December 2026</text>
+
+          <!-- Bar 6 (Not Started - Grey) -->
+          <g clip-path="url(#gantt-clip)">
+            <g class="gantt-bar-fill gantt-bar-6" style="transform-origin: 905px 306px;">
+              <rect x="905" y="292" width="135" height="28" rx="5" fill="#94A3B8"/>
+              <text x="972.5" y="310" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="700" fill="#FFF" text-anchor="middle">NOT STARTED</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- TODAY INDICATOR LINE (11 SEP 2026) -->
+        <g>
+          <!-- Animated Vertical Red Line -->
+          <line class="today-line" x1="560" y1="22" x2="560" y2="330" stroke="#DC2626" stroke-width="2.5" stroke-dasharray="4 2"/>
+          
+          <!-- Today Badge Top Pin -->
+          <g class="today-badge">
+            <rect x="515" y="2" width="90" height="18" rx="4" fill="#DC2626"/>
+            <text x="560" y="14" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="700" fill="#FFF" text-anchor="middle">TODAY: 11 SEP</text>
+          </g>
+        </g>
+      </svg>
+
+      <!-- Bottom Domain Metadata Strip (Matching attached image) -->
+      <div style="margin-top:10px;padding:8px 12px;background:var(--paper-2);border-radius:10px;border:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-family:var(--font-mono);font-size:0.82rem;">
+        <div><b style="color:var(--teal-deep)">MAIN DOMAIN:</b> <span style="color:var(--ink)">CLOUD COMPUTING</span></div>
+        <div><b style="color:var(--teal-deep)">STACK:</b> <span style="color:var(--ink-soft)">Node.js • Express • PostgreSQL • Prisma • Docker • GCP Cloud Run • GitHub Actions</span></div>
+        <div><b style="color:var(--teal-deep)">APPLICATION:</b> <span style="color:var(--ink)">Personal Finance &amp; Investment Decision Support</span></div>
+      </div>
+    </div>
+
+    <!-- Team Responsibility Breakdown Matrix (Compact Grid) -->
+    
+  </div>
+</section>
+
+<!-- ================= SLIDE 9 : FEASIBILITY ANALYSIS ================= -->
+<section class="slide" id="s9" aria-label="Feasibility Analysis">
+  <div class="eyebrow reveal">09 — Feasibility Assessment</div>
+  <h2 class="reveal">Engineering viability &amp; <em>4-pillar feasibility analysis.</em></h2>
+  <p class="sub reveal">Comprehensive assessment demonstrating technical capability, financial cost efficiency, operational adoption, and regulatory compliance.</p>
+
+  <div class="bento reveal">
+    <div class="tile c6">
+      <span class="tag t-teal"><span class="livedot"></span>Technical Feasibility (98%)</span>
+      <h3>Robust &amp; Production-Ready Tech Stack</h3>
+      <ul class="clean" style="font-size:0.98rem;margin-top:6px;">
+        <li><b>Enterprise Core:</b> Node.js 22 LTS API with PostgreSQL 17 &amp; Prisma ORM.</li>
+        <li><b>Grounded AI &amp; Vision:</b> Google Gemini 1.5 Flash API (RAG), Tesseract OCR &amp; Web Speech API.</li>
+        <li><b>Real-Time Feeds:</b> High-throughput WebSocket/REST integrations for NSE/BSE &amp; MCX Gold.</li>
+      </ul>
+    </div>
+
+    <div class="tile c6">
+      <span class="tag t-terra"><span class="livedot"></span>Economic Feasibility (95%)</span>
+      <h3>Cost-Optimized Serverless Architecture</h3>
+      <ul class="clean" style="font-size:0.98rem;margin-top:6px;">
+        <li><b>Zero Idle Server Costs:</b> GCP Cloud Run serverless scale-to-zero container hosting.</li>
+        <li><b>Micro-Cent AI Inference:</b> Gemini 1.5 Flash API costs (~$0.0001 per query).</li>
+        <li><b>Free Open Source Engine:</b> Zero proprietary database or software licensing overhead.</li>
+      </ul>
+    </div>
+
+    <div class="tile c6">
+      <span class="tag t-teal"><span class="livedot"></span>Operational Feasibility (96%)</span>
+      <h3>Seamless User Adoption &amp; Low Friction</h3>
+      <ul class="clean" style="font-size:0.98rem;margin-top:6px;">
+        <li><b>Multi-Channel Entry:</b> Hands-free voice logs, OCR receipt scanning &amp; SMS parsing.</li>
+        <li><b>Transparent 0–100 Score:</b> Intuitive 10-factor financial health score replaces jargon.</li>
+        <li><b>Automated Ledger:</b> Automatic spending categorizer &amp; subscription leak detector.</li>
+      </ul>
+    </div>
+
+    <div class="tile c6">
+      <span class="tag t-terra"><span class="livedot"></span>Legal &amp; Security Feasibility (94%)</span>
+      <h3>Enterprise Security &amp; Compliance</h3>
+      <ul class="clean" style="font-size:0.98rem;margin-top:6px;">
+        <li><b>Data Encryption:</b> AES-256 at rest, TLS 1.3 in transit &amp; query tenant isolation.</li>
+        <li><b>Educational Robo-Advisory:</b> Strict non-fiduciary disclaimer alignment with SEBI rules.</li>
+        <li><b>Audit-Tested Math:</b> 66/66 Jest automated tests validating all financial calculations.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 10 : CLOUD COMPUTING INFRASTRUCTURE ================= -->
+<section class="slide" id="s10" aria-label="Cloud Computing Infrastructure">
+  <div class="eyebrow reveal">10 — Cloud Infrastructure</div>
+  <h2 class="reveal">Cloud-native infrastructure &amp; <em>serverless containers.</em></h2>
+  <p class="sub reveal">Containerized microservices running on Docker, zero-idle cost serverless deployment on GCP Cloud Run / AWS ECS, and managed Database-as-a-Service (DBaaS).</p>
+
+  <div class="bento reveal">
+    <div class="tile dark c7 tall">
+      <span class="tag t-teal"><span class="livedot"></span>Container Orchestration</span>
+      <h3>Docker &amp; Multi-Stage Alpine Build</h3>
+      <p style="margin-bottom:10px;color:#C9BFA9">Package lightweight Node.js 22 LTS runtime into immutable, zero-drift Docker images (<code style="font-family:var(--font-mono)">node:22-alpine</code>).</p>
+      
+      <!-- Container Flow SVG Diagram -->
+      <svg class="hero-svg" viewBox="0 0 540 130" role="img" aria-label="Docker Container to Cloud Architecture Flow">
+        <rect x="15" y="20" width="130" height="90" rx="10" fill="var(--ink)" stroke="var(--teal)" stroke-width="2"/>
+        <text x="80" y="55" fill="#FFF" font-family="IBM Plex Mono" font-size="12" font-weight="700" text-anchor="middle">Dockerfile</text>
+        <text x="80" y="75" fill="var(--teal-wash)" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">Node.js 22 + Prisma</text>
+        <text x="80" y="92" fill="#8592A6" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">Alpine (180MB)</text>
+
+        <path d="M145 65 L215 65" stroke="var(--terra)" stroke-width="2.5" stroke-dasharray="4 4" class="flowline"/>
+
+        <rect x="215" y="20" width="140" height="90" rx="10" fill="var(--paper-2)" stroke="var(--terra)" stroke-width="2"/>
+        <text x="285" y="55" fill="var(--ink)" font-family="IBM Plex Mono" font-size="12" font-weight="700" text-anchor="middle">Artifact Registry</text>
+        <text x="285" y="75" fill="var(--terra)" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">Docker Image Hub</text>
+        <text x="285" y="92" fill="var(--ink-soft)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">SHA256 Signed</text>
+
+        <path d="M355 65 L425 65" stroke="var(--teal)" stroke-width="2.5" stroke-dasharray="4 4" class="flowline"/>
+
+        <rect x="425" y="20" width="100" height="90" rx="10" fill="var(--teal-wash)" stroke="var(--teal-deep)" stroke-width="2"/>
+        <text x="475" y="55" fill="var(--teal-deep)" font-family="IBM Plex Mono" font-size="12" font-weight="700" text-anchor="middle">Cloud Run</text>
+        <text x="475" y="75" fill="var(--ink)" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">Scale-to-Zero</text>
+        <text x="475" y="92" fill="var(--teal-deep)" font-family="IBM Plex Mono" font-size="9" text-anchor="middle">HTTPS TLS 1.3</text>
+      </svg>
+    </div>
+
+    <div class="tile tealwash c5">
+      <span class="tag t-teal">Serverless Elasticity</span>
+      <h3>GCP Cloud Run / AWS ECS</h3>
+      <p>Auto-scales from <b>0 to 100+ concurrent container instances</b> during market volatility spikes. Zero charges when idle.</p>
+    </div>
+
+    <div class="tile terrawash c5">
+      <span class="tag t-terra">Cloud Database (DBaaS)</span>
+      <h3>Managed PostgreSQL 17</h3>
+      <p>Supabase / AWS RDS cloud instances with connection pooling, automated failover, SSL encryption, and zero-downtime Prisma migrations.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 10 : CLOUD STORAGE, AI & CI/CD DEVOPS ================= -->
+<section class="slide" id="s10" aria-label="Cloud DevOps and Storage">
+  <div class="eyebrow reveal">10 — Cloud DevOps &amp; Storage</div>
+  <h2 class="reveal">Cloud object storage, AIaaS &amp; <em>automated CI/CD.</em></h2>
+  <p class="sub reveal">Secure S3/GCS receipt storage using signed URLs, serverless Google Cloud Vertex AI integration, and automated GitHub Actions deployment.</p>
+
+  <div class="split reveal">
+    <div class="minis" style="grid-template-columns:1fr;gap:12px;">
+      <div class="mini" style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;">
+        <span class="tag t-teal">Cloud Blob Storage</span>
+        <h3 style="font-family:var(--font-display);font-size:1.24rem;margin-top:4px;">AWS S3 / Google Cloud Storage</h3>
+        <p style="font-size:0.98rem;color:var(--ink-soft);margin-top:4px;">Receipts and invoices for Tesseract OCR are stored in encrypted cloud buckets using <b>Pre-Signed Temporary URLs (15-min expiry)</b>, preventing direct file exposure on application servers.</p>
+      </div>
+
+      <div class="mini" style="background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:14px;">
+        <span class="tag t-purple">Cloud AI Engine (AIaaS)</span>
+        <h3 style="font-family:var(--font-display);font-size:1.24rem;margin-top:4px;">Google Cloud Vertex AI &amp; Gemini 1.5</h3>
+        <p style="font-size:0.98rem;color:var(--ink-soft);margin-top:4px;">Low-latency serverless AI inference via REST/gRPC endpoints with strict JSON Schema output validation for grounded financial advisory responses.</p>
+      </div>
+    </div>
+
+    <!-- Pipeline Panel (Right) -->
+    <div class="panel dark" style="background:var(--ink);color:#F5EFE0;padding:20px 22px;border-radius:16px;">
+      <span class="tag t-terra" style="margin-bottom:12px;">Automated Cloud CI/CD Pipeline</span>
+      <h3 style="font-family:var(--font-display);font-size:1.36rem;color:#FFFDF8;margin-bottom:14px;">GitHub Actions DevOps Workflow</h3>
+      
+      <div class="tl" style="margin-top:0;padding-left:22px;">
+        <div class="tl-item" style="background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.1);color:#FFF;">
+          <b>1. Git Push Trigger &amp; Security Audit</b>
+          <p style="color:#C9BFA9;">Code checkout, secret detection, and dependency vulnerabilities scan.</p>
+        </div>
+        <div class="tl-item" style="background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.1);color:#FFF;">
+          <b>2. Automated Integration Test Suite</b>
+          <p style="color:#C9BFA9;">Runs 66/66 Jest API tests against isolated PostgreSQL test database container.</p>
+        </div>
+        <div class="tl-item" style="background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.1);color:#FFF;">
+          <b>3. Docker Build &amp; Artifact Push</b>
+          <p style="color:#C9BFA9;">Builds OCI container image and pushes tagged version to GitHub Container Registry.</p>
+        </div>
+        <div class="tl-item next" style="background:rgba(13,125,124,0.18);border-color:var(--teal);color:#FFF;">
+          <b>4. Zero-Downtime Cloud Deployment</b>
+          <p style="color:#AEE0DD;">Triggers automated revision rollout on GCP Cloud Run / Render with zero downtime.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 11 : THE FINANCIAL TWIN & 10 FACTORS (Bento) ================= -->
+<section class="slide" id="s11" aria-label="Financial twin engine">
+  <div class="eyebrow reveal">11 — Core Innovation</div>
+  <h2 class="reveal">The Financial Twin &amp; <em>10-Factor Health Score.</em></h2>
+  <p class="sub reveal">Deterministic mathematical scoring on a 0–100 scale, paired with forward-looking balance projections.</p>
+
+  <div class="bento reveal">
+    <div class="tile c7 tall">
+      <span class="tag t-teal">10-Factor Health Engine</span>
+      <h3>Algorithmic Dimensions (0–100 Scale)</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:10px;font-size:1.02rem">
+        <div>• <b>Savings Rate Ratio</b>: 85/100</div>
+        <div>• <b>Emergency Runway (6m)</b>: 70/100</div>
+        <div>• <b>Debt-to-Income (DTI)</b>: 60/100</div>
+        <div>• <b>Investment Allocation</b>: 78/100</div>
+        <div>• <b>Goal Velocity</b>: 65/100</div>
+        <div>• <b>Insurance Adequacy</b>: 72/100</div>
+        <div>• <b>Cash Flow Stability</b>: 80/100</div>
+        <div>• <b>Subscription Burden</b>: 55/100</div>
+        <div>• <b>Credit Utilization</b>: 68/100</div>
+        <div>• <b>Anomaly Frequency</b>: 88/100</div>
+      </div>
+      <p style="margin-top:14px;font-size:1.01rem;color:var(--ink-soft)">Every score includes transparent drivers: e.g., <em>"Attention: DTI ratio is 38%, exceeding the recommended 35% safe ceiling."</em></p>
+    </div>
+
+    <div class="tile c5 tealwash">
+      <span class="tag t-teal">Predictive Cash Flow</span>
+      <h3>30 &amp; 90-Day Forecast</h3>
+      <p>Simulates daily balances by combining historical burn velocity with scheduled EMI debits, credit card cycles, and subscription renewals.</p>
+    </div>
+
+    <div class="tile c5 terrawash">
+      <span class="tag t-terra">Retirement Simulator</span>
+      <h3>What-If Compounding</h3>
+      <p>Projects corpus across Conservative (8%), Base (12%), and Aggressive (15%) growth regimes with dynamic monthly SIP step-ups.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 12 : GROUNDED AI ADVISORY (Comparison Bento) ================= -->
+<section class="slide" id="s12" aria-label="Grounded AI advisory">
+  <div class="eyebrow reveal">12 — AI Advisory Engine</div>
+  <h2 class="reveal">Audited context RAG vs. <em>dangerous hallucinations.</em></h2>
+  <div class="bento reveal">
+    <div class="tile dark c6 tall">
+      <span class="tag t-terra">Generic ChatGPT</span>
+      <h3>The Hallucination Danger</h3>
+      <ul style="list-style:none;display:grid;gap:10px;margin-top:10px;font-size:1.06rem;color:#C9BFA9">
+        <li>❌ <b>Zero Account Context:</b> Unaware whether the user has ₹5,000 or ₹5,00,000 in liquid reserves.</li>
+        <li>❌ <b>Dangerous Advice:</b> Recommends volatile equities to individuals struggling to service high-cost debt.</li>
+        <li>❌ <b>Fabricated Numbers:</b> Hallucinates arbitrary return percentages and non-existent mutual funds.</li>
+        <li>❌ <b>Session Amnesia:</b> Conversation memory evaporates across logins.</li>
+      </ul>
+    </div>
+
+    <div class="tile tealwash c6 tall">
+      <span class="tag t-teal">FinPro Grounded RAG</span>
+      <h3>Audited Ledger Injection</h3>
+      <ul style="list-style:none;display:grid;gap:10px;margin-top:10px;font-size:1.06rem;color:var(--ink)">
+        <li>✔ <b>Audited Snapshot:</b> Prepends verified Net Worth, Liquid Cash, Monthly Burn, DTI, and 10-Factor Score.</li>
+        <li>✔ <b>Strict Guardrails:</b> System prompt forbids mentioning numbers outside the injected JSON context.</li>
+        <li>✔ <b>Deterministic Fallback:</b> Heuristic rule engine answers safely if Gemini quotas are exhausted.</li>
+        <li>✔ <b>PostgreSQL Memory:</b> Conversation history persisted in <code style="font-family:var(--font-mono)">chat_messages</code> table.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 13 : REAL-TIME MARKET ENGINE (Bento + Badges + Ticker) ================= -->
+<section class="slide" id="s13" aria-label="Market data engine">
+  <div class="eyebrow reveal">13 — Market Intelligence</div>
+  <h2 class="reveal">NSE, BSE &amp; MCX Gold in INR with <em>zero fake data.</em></h2>
+  
+  <!-- Live Ticker Tape Marquee -->
+  <div class="marquee-wrap reveal">
+    <div class="marquee-content">
+      <span class="marquee-item">RELIANCE.NS <span class="m-green">▲ ₹2,940.50 (+1.4%)</span></span>
+      <span class="marquee-item">TCS.NS <span class="m-green">▲ ₹4,120.00 (+0.8%)</span></span>
+      <span class="marquee-item">INFY.NS <span class="m-green">▲ ₹1,890.25 (+1.1%)</span></span>
+      <span class="marquee-item">GOLD 24K <span class="m-gold">₹7,245 / g</span></span>
+      <span class="marquee-item">SILVER <span class="m-gold">₹86.50 / g</span></span>
+      <span class="marquee-item">USD/INR <span class="m-green">83.92</span></span>
+      <span class="marquee-item">RELIANCE.NS <span class="m-green">▲ ₹2,940.50 (+1.4%)</span></span>
+      <span class="marquee-item">TCS.NS <span class="m-green">▲ ₹4,120.00 (+0.8%)</span></span>
+      <span class="marquee-item">INFY.NS <span class="m-green">▲ ₹1,890.25 (+1.1%)</span></span>
+    </div>
+  </div>
+
+  <div class="bento reveal">
+    <div class="tile c4">
+      <span class="tag t-teal">Indian Equities</span>
+      <h3>NSE / BSE Quotes</h3>
+      <p>Live quotes and 7-timeframe charts via Alpha Vantage + Finnhub with RSI, MACD, SMA, and Bollinger Bands.</p>
+    </div>
+    <div class="tile c4 terrawash">
+      <span class="tag t-terra">Precious Metals</span>
+      <h3>24K &amp; 22K Gold in INR</h3>
+      <p>COMEX continuous futures (<code style="font-family:var(--font-mono)">GC=F</code>) converted in real time via live <code style="font-family:var(--font-mono)">USDINR=X</code> interbank rates per gram.</p>
+    </div>
+    <div class="tile c4">
+      <span class="tag t-teal">Commodity Math</span>
+      <h3>Silver Spot Pricing</h3>
+      <p>Deterministic conversion: <code style="font-family:var(--font-mono)">1 troy oz = 31.1035g; 1 kg = 1000g</code> for transparent domestic spot tracking.</p>
+    </div>
+    <div class="tile c6">
+      <span class="tag t-ink">Provider Transparency</span>
+      <h3>Zero Synthetic Candles</h3>
+      <p>All assets explicitly display provider state: <b style="color:var(--teal)">LIVE</b>, <b style="color:var(--gold)">CACHED</b>, or <b style="color:var(--terra)">STALE</b>. Zero fake candles served.</p>
+    </div>
+    <div class="tile c6">
+      <span class="tag t-teal">Sub-Second Cache</span>
+      <h3>Tiered In-Memory Map</h3>
+      <p>3-min TTL for live quotes, 15-min for technical charts, 1-hr for fundamentals prevents rate-limit exhaustion.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 14 : MULTIMODAL INGESTION (Wide + Soundwave + Scanner) ================= -->
+<section class="slide" id="s14" aria-label="Multimodal features">
+  <div class="shead">
+    <div>
+      <div class="eyebrow reveal">14 — Multimodal Features</div>
+      <h2 class="reveal">Frictionless ingestion across <em>five modalities.</em></h2>
+    </div>
+    <svg class="doodle reveal" viewBox="0 0 120 120" role="img" aria-label="Connected features icon">
+      <rect x="14" y="14" width="38" height="38" rx="10" style="fill:var(--teal-wash);stroke:var(--teal)" stroke-width="2.5"/>
+      <rect x="68" y="14" width="38" height="38" rx="10" style="fill:var(--terra-wash);stroke:var(--terra)" stroke-width="2.5"/>
+      <rect x="14" y="68" width="38" height="38" rx="10" style="fill:var(--terra-wash);stroke:var(--terra)" stroke-width="2.5"/>
+      <rect x="68" y="68" width="38" height="38" rx="10" style="fill:var(--card);stroke:var(--ink)" stroke-width="2.5" stroke-dasharray="5 5"/>
+      <circle cx="60" cy="60" r="6" style="fill:var(--teal)" class="pulse"/>
+    </svg>
+  </div>
+
+  <div class="bento reveal">
+    <div class="tile c8">
+      <span class="tag t-teal"><span class="livedot"></span>Speech Ingestion</span>
+      <h3>Web Speech API Voice Entry</h3>
+      <p>Users speak naturally (<em>"Spent 450 on fuel"</em>). Safety confirmation modal strictly required before database commit.</p>
+      <!-- Soundwave animation -->
+      <div class="soundwave">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span style="font-family:var(--font-mono);font-size:12.0px;margin-left:8px;color:var(--teal-deep);font-weight:600">VOICE PARSER ACTIVE</span>
+      </div>
+    </div>
+    <div class="tile c4 terrawash">
+      <span class="tag t-terra"><span class="livedot"></span>Vision Ingestion</span>
+      <h3>Tesseract OCR Scanner</h3>
+      <p>Upload receipt image: extracts merchant, date, amount, and suggested category with editable preview.</p>
+      <!-- Scanner beam animation -->
+      <div class="scanner-box">
+        <div class="scanner-beam"></div>
+        <div style="font-family:var(--font-mono);font-size:11.4px;color:var(--ink-faint);text-align:center;padding-top:18px">SCANNING RECEIPT METRICS...</div>
+      </div>
+    </div>
+    <div class="tile c4"><span class="tag t-teal"><span class="livedot"></span>Budgets</span><h3>50/30/20 Limits</h3><p>Category limits with real-time anomaly detection.</p></div>
+    <div class="tile c4"><span class="tag t-teal"><span class="livedot"></span>PCI Safe</span><h3>Card Tracking</h3><p>Masked last-4 digits; zero PANs/CVVs accepted.</p></div>
+    <div class="tile c4"><span class="tag t-terra"><span class="livedot"></span>Exports</span><h3>Authenticated CSV</h3><p>One-click export across 9 financial domains.</p></div>
+  </div>
+</section>
+
+<!-- ================= SLIDE 15 : WORKFLOW JOURNEY (SVG Path + Travelling Comet) ================= -->
+<section class="slide" id="s15" aria-label="Workflow Journey">
+  <div class="eyebrow reveal">15 — User Journey Walkthrough</div>
+  <h2 class="reveal">From raw transaction to <em>financial freedom.</em></h2>
+  
+  <!-- Travelling Particle along Bezier Curve -->
+  <svg class="journey-svg reveal" viewBox="0 0 1000 140" role="img" aria-label="Interactive 5-step user journey path">
+    <path id="journeyPath" d="M60,95 C220,20 320,130 480,75 S740,20 940,85" fill="none" style="stroke:var(--line)" stroke-width="4"/>
+    <path d="M60,95 C220,20 320,130 480,75 S740,20 940,85" fill="none" style="stroke:var(--teal)" stroke-width="3" class="flowline"/>
+    <g font-family="IBM Plex Mono,monospace" font-size="19.2" font-weight="700" text-anchor="middle">
+      <circle cx="60" cy="95" r="18" style="fill:var(--card);stroke:var(--teal)" stroke-width="3"/><text x="60" y="101" style="fill:var(--teal-deep)">1</text>
+      <circle cx="270" cy="65" r="18" style="fill:var(--card);stroke:var(--teal)" stroke-width="3"/><text x="270" y="71" style="fill:var(--teal-deep)">2</text>
+      <circle cx="480" cy="75" r="18" style="fill:var(--card);stroke:var(--teal)" stroke-width="3"/><text x="480" y="81" style="fill:var(--teal-deep)">3</text>
+      <circle cx="700" cy="55" r="18" style="fill:var(--card);stroke:var(--terra)" stroke-width="3"/><text x="700" y="61" style="fill:#8F3D14">4</text>
+      <circle cx="940" cy="85" r="18" style="fill:var(--terra);stroke:var(--terra)" stroke-width="3"/><text x="940" y="91" fill="#FFFDF8">5</text>
+    </g>
+    <!-- Glowing Travelling Comet Particle -->
+    <circle class="motion-dot" r="8" style="fill:var(--terra);filter:drop-shadow(0 0 6px var(--terra))">
+      <animateMotion dur="6.5s" repeatCount="indefinite"><mpath href="#journeyPath"/></animateMotion>
+    </circle>
+  </svg>
+
+  <div class="jchips reveal">
+    <div class="jchip"><i>1</i><b>Onboarding</b>3-step baseline survey establishes DTI &amp; initial Health Score.</div>
+    <div class="jchip"><i>2</i><b>Ingest</b>Voice, OCR receipt scanning, or atomic balance bank sync.</div>
+    <div class="jchip"><i>3</i><b>Evaluate</b>10-Factor Financial Twin computes scores and anomaly alerts.</div>
+    <div class="jchip"><i>4</i><b>Predict</b>30/90-day cash flow predictor simulates upcoming debits &amp; EMIs.</div>
+    <div class="jchip"><i>5</i><b>Advise</b>Grounded Gemini 1.5 Flash provides explainable fiduciary guidance.</div>
+  </div>
+  <p class="sub reveal" style="margin-top:14px;font-family:var(--font-mono);font-size:13.8px;color:var(--teal-deep);font-weight:600">DEMO SCRIPT: Onboarding → Add Expense (Voice/OCR) → Health Score (74/100) → Ask Gemini → What-If Simulation.</p>
+</section>
+
+<!-- ================= SLIDE 16 : CONCLUSION & ROADMAP ================= -->
+<section class="slide" id="s16" aria-label="Conclusion and roadmap">
+  <div class="eyebrow reveal">16 — Conclusion &amp; Roadmap</div>
+  <h2 class="reveal">Prototype ready today, <em>evolving tomorrow.</em></h2>
+
+  <div class="split reveal">
+    <div class="tl">
+      <div class="tl-group">Current Status · Prototype Ready</div>
+      <div class="tl-item"><b>Full-Stack Enterprise Architecture</b><p>Node.js 22 LTS, PostgreSQL 17, Gemini 1.5 Flash, Vanilla JS SPA.</p></div>
+      <div class="tl-item"><b>66/66 Integration Tests Passed (100%)</b><p>Persistent database integrity, 40 security tests, 10 market scenarios.</p></div>
+      <div class="tl-group">Future Roadmap · Next Frontier</div>
+      <div class="tl-item next"><b>Automated Bank SMS / Text Message Parser</b><p>Deciphers incoming bank credit/debit alerts to automatically categorize transactions without manual entry.</p></div>
+      <div class="tl-item next"><b>Multilingual Regional Support</b><p>Voice and AI advisory in Hindi, Marathi, and Gujarati for tier-2/3 investor adoption.</p></div>
+      <div class="tl-item next"><b>Direct Broker API Execution</b><p>Zerodha Kite / Upstox API integration for 1-click execution of rebalancing advice.</p></div>
+      <div class="tl-item next"><b>SEBI Regulatory Sandbox Testing</b><p>Formal algorithmic advisor testing under SEBI FinTech regulatory frameworks.</p></div>
+    </div>
+
+    <div class="panel closer" style="padding:28px 20px;">
+      <div class="thanks">Thank you.</div>
+      <svg class="thanks-underline" viewBox="0 0 420 14" role="img" aria-label="Decorative underline">
+        <path d="M6 9 C 120 3, 300 3, 414 8" fill="none" style="stroke:var(--terra)" stroke-width="5" stroke-linecap="round" class="flowline"/>
+      </svg>
+      <p class="sub" style="margin-top:14px;font-size:1.08rem;">FinPro — AI-Powered Personal Financial Planner<br>Final Year Minor Project · Academic Year 2026–2027</p>
+      <div class="chiprow">
+        <span class="pill"><b>✓</b> Prototype Ready</span>
+        <span class="pill"><b>✓</b> 66/66 Tests</span>
+        <span class="pill"><b>✓</b> Dockerized</span>
+      </div>
+      <p class="sub" style="margin-top:16px;font-size:1.02rem;color:var(--teal-deep);font-weight:600">Questions from the Evaluation Panel?</p>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ===========================================
+   Constellation Background Canvas Particles
+   =========================================== */
+(function initCanvas(){
+  const canvas = document.getElementById('ambient-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let width, height, particles = [];
+  
+  function resize(){
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  for(let i=0; i<35; i++){
+    particles.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 0.45,
+      vy: (Math.random() - 0.5) * 0.45,
+      radius: Math.random() * 2 + 1,
+      color: Math.random() > 0.5 ? 'rgba(13,125,124,0.35)' : 'rgba(216,93,38,0.3)'
+    });
+  }
+
+  function render(){
+    ctx.clearRect(0,0,width,height);
+    for(let i=0; i<particles.length; i++){
+      let p = particles[i];
+      p.x += p.vx; p.y += p.vy;
+      if(p.x < 0) p.x = width;
+      if(p.x > width) p.x = 0;
+      if(p.y < 0) p.y = height;
+      if(p.y > height) p.y = 0;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+
+      for(let j=i+1; j<particles.length; j++){
+        let p2 = particles[j];
+        let d = Math.hypot(p.x - p2.x, p.y - p2.y);
+        if(d < 120){
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = `rgba(13,125,124,${(1 - d/120)*0.12})`;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(render);
+  }
+  render();
+})();
+
+/* ===========================================
+   SlidePresentation Controller:
+   - IntersectionObserver adds .visible for reveals
+   - Keyboard / wheel / touch navigation
+   - Progress bar + dots + counter + hash links
+   =========================================== */
+class SlidePresentation{
+  constructor(){
+    this.slides=[...document.querySelectorAll('.slide')];
+    this.dots=document.getElementById('dots');
+    this.bar=document.getElementById('progress');
+    this.counter=document.getElementById('counter');
+    this.current=0; this.lock=false;
+    this.buildDots();
+    this.observe();
+    this.bind();
+    this.fromHash();
+    this.update();
+  }
+  buildDots(){
+    const titles = [
+      "Title", "Problem", "Literature Survey", "Key Insights",
+      "Research Gaps", "Layered Architecture", "System Topology", "Project Planning",
+      "Feasibility Analysis", "Cloud Infrastructure", "Cloud DevOps", "Financial Twin",
+      "Grounded AI", "Market Feeds", "Multimodal", "User Journey", "Conclusion"
+    ];
+    this.slides.forEach((s,i)=>{
+      const b=document.createElement('button');
+      b.setAttribute('aria-label','Go to slide '+(i+1));
+      b.setAttribute('data-title', (i+1) + '. ' + (titles[i] || "Slide"));
+      b.addEventListener('click',()=>this.go(i));
+      this.dots.appendChild(b);
+    });
+  }
+  observe(){
+    const io=new IntersectionObserver(es=>{
+      es.forEach(e=>{
+        if(e.isIntersecting){
+          e.target.classList.add('visible');
+          const i=this.slides.indexOf(e.target);
+          if(i>-1){this.current=i;this.update();}
+        }
+      });
+    },{threshold:.45});
+    this.slides.forEach(s=>io.observe(s));
+  }
+  bind(){
+    addEventListener('keydown',e=>{
+      if(['ArrowRight',' ','PageDown'].includes(e.key)){e.preventDefault();this.next();}
+      if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();this.prev();}
+      if(e.key==='Home')this.go(0);
+      if(e.key==='End')this.go(this.slides.length-1);
+      if(e.key==='f' || e.key==='F'){
+        this.toggleFullscreen();
+      }
+    });
+    // debounced wheel paging
+    addEventListener('wheel',e=>{
+      if(this.lock||Math.abs(e.deltaY)<24)return;
+      this.lock=true;setTimeout(()=>this.lock=false,850);
+      e.deltaY>0?this.next():this.prev();
+    },{passive:true});
+    // touch swipe
+    let y0=null;
+    addEventListener('touchstart',e=>y0=e.touches[0].clientY,{passive:true});
+    addEventListener('touchend',e=>{
+      if(y0===null)return;
+      const d=y0-e.changedTouches[0].clientY;
+      if(Math.abs(d)>60)(d>0?this.next():this.prev());
+      y0=null;
+    },{passive:true});
+    addEventListener('hashchange',()=>this.fromHash());
+
+    const fsBtn = document.getElementById('fsBtn');
+    if(fsBtn) fsBtn.addEventListener('click', ()=>this.toggleFullscreen());
+  }
+  toggleFullscreen(){
+    if(!document.fullscreenElement){
+      document.documentElement.requestFullscreen().catch(()=>{});
+    } else {
+      if(document.exitFullscreen) document.exitFullscreen();
+    }
+  }
+  go(i){
+    i=Math.max(0,Math.min(this.slides.length-1,i));
+    this.slides[i].scrollIntoView({behavior:'smooth'});
+    history.replaceState(null,'','#s'+(i+1));
+  }
+  next(){this.go(this.current+1)} prev(){this.go(this.current-1)}
+  fromHash(){
+    const m=location.hash.match(/s(\d+)/);
+    if(m){const i=+m[1]-1;if(this.slides[i])setTimeout(()=>this.go(i),60);}
+  }
+  update(){
+    const n=this.slides.length,p=(this.current/(n-1))*100;
+    this.bar.style.width=p+'%';
+    this.counter.textContent=String(this.current+1).padStart(2,'0')+' / '+String(n).padStart(2,'0');
+    [...this.dots.children].forEach((d,i)=>d.classList.toggle('active',i===this.current));
+  }
+}
+
+/* ===========================================
+   FIT-TO-FULLSCREEN — wrap each slide's children
+   in .fit and shrink-scale so content never overflows.
+   =========================================== */
+function fitSlides(){
+  document.querySelectorAll('.slide').forEach(s=>{
+    let w=s.querySelector(':scope > .fit');
+    if(!w){
+      w=document.createElement('div');
+      w.className='fit';
+      while(s.firstChild)w.appendChild(s.firstChild);
+      s.appendChild(w);
+    }
+    w.style.transform='none';
+    const r=Math.min(1,
+      (s.clientHeight-6)/w.scrollHeight,
+      (s.clientWidth-6)/w.scrollWidth);
+    w.style.transform='scale('+r+')';
+  });
+}
+
+addEventListener('resize',()=>requestAnimationFrame(fitSlides));
+addEventListener('load',fitSlides);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>setTimeout(fitSlides,60));
+new SlidePresentation();
+fitSlides();
+</script>
+</body>
+</html>

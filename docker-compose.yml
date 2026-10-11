@@ -1,21 +1,14 @@
-# ====================================================================
-# FinPro — Docker Compose Configuration
-# Supports both Local Sandbox and Cloud Production Deployments
-# ====================================================================
-
 services:
   # ------------------------------------------------------------------
-  # 1. Local PostgreSQL 17 Service (Profile: "local")
-  # Used for offline local development when cloud database is not active
+  # PostgreSQL 17 Database Service
   # ------------------------------------------------------------------
   postgres:
     image: postgres:17-alpine
-    container_name: finpro_postgres
+    container_name: jinay_finance_postgres
     restart: unless-stopped
-    profiles: ["local", "default"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres2905}
       POSTGRES_DB: ${POSTGRES_DB:-finance_jinay}
     ports:
       - "5432:5432"
@@ -28,42 +21,31 @@ services:
       retries: 5
 
   # ------------------------------------------------------------------
-  # 2. FinPro Application Service (Connects to Local or Cloud Database)
-  # When DATABASE_URL is configured for Cloud (Neon/Supabase/RDS/OCI),
-  # this container connects directly to the cloud without local postgres.
+  # Jinay Finance AI Application Service
   # ------------------------------------------------------------------
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: finpro_app
+    container_name: jinay_finance_app
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: 5000
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/finance_jinay?schema=public}
-      JWT_SECRET: ${JWT_SECRET:-finpro_jwt_secret_production_key_32chars}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-finpro_jwt_refresh_secret_production_key_32chars}
-      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
-      STORAGE_LOCAL_DIR: /app/uploads
-      S3_ENDPOINT: ${S3_ENDPOINT:-}
-      S3_REGION: ${S3_REGION:-us-east-1}
-      S3_BUCKET: ${S3_BUCKET:-finpro-cloud-documents}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
-      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      NODE_ENV: production
+      PORT: 5001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres2905}@postgres:5432/${POSTGRES_DB:-finance_jinay}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-jinay_finance_ai_jwt_secret_production_key_32chars}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-jinay_finance_ai_jwt_refresh_secret_production_key_32chars}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
       CURRENCY: INR
       LOCALE: en-IN
       TIMEZONE: Asia/Kolkata
     ports:
-      - "5000:5000"
-    volumes:
-      - uploads_data:/app/uploads
+      - "5001:5001"
 
 volumes:
   postgres_data:
-    driver: local
-  uploads_data:
     driver: local

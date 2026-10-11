@@ -44,7 +44,7 @@
     .metric-mono {
       font-family: 'JetBrains Mono', monospace;
       font-size: 13px;
-      color: #a5b4fc;
+      color: #6ee7b7;
     }
     .arch-card {
       background: #ffffff;
@@ -110,7 +110,7 @@
 
     <div class="content">
       <!-- Master Banner -->
-      <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.06)); border-color: rgba(99,102,241,0.25);">
+      <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.06)); border-color: rgba(16,185,129,0.25);">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
           <div>
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
@@ -128,7 +128,7 @@
           </div>
           <div style="text-align:right;">
             <div style="font-size:11px; color:#475569; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Auto Refresh</div>
-            <div style="font-size:14px; font-weight:800; color:#4f46e5;" id="countdownText">30s</div>
+            <div style="font-size:14px; font-weight:800; color:#10b981;" id="countdownText">30s</div>
           </div>
         </div>
       </div>
@@ -318,7 +318,7 @@
         tbody.innerHTML = rows.map(r => `
           <tr>
             <td style="font-weight:700; color:#0f172a;">${r.subsystem}</td>
-            <td><code class="metric-mono" style="color:#4f46e5;font-weight:600;">${r.probe}</code></td>
+            <td><code class="metric-mono" style="color:#10b981;font-weight:600;">${r.probe}</code></td>
             <td style="color:#475569;font-size:12px;">${r.config}</td>
             <td class="metric-mono" style="color:#0f172a;font-weight:600;">${r.latency}</td>
             <td>

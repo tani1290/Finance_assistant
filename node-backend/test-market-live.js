@@ -5,14 +5,14 @@ async function testLiveMarket() {
 
   try {
     // 1. Health Market (public)
-    const h = await axios.get('http://127.0.0.1:5000/api/v1/health/market');
+    const h = await axios.get('http://127.0.0.1:5001/api/v1/health/market');
     console.log('✅ Health Market:', h.data);
 
     // Register/Login to get token
     const timestamp = Date.now();
     let token = null;
     try {
-      const reg = await axios.post('http://127.0.0.1:5000/api/v1/auth/register', {
+      const reg = await axios.post('http://127.0.0.1:5001/api/v1/auth/register', {
         email: `market_test_${timestamp}@example.com`,
         username: `market_user_${timestamp}`,
         password: 'Password123!',
@@ -21,7 +21,7 @@ async function testLiveMarket() {
       });
       token = reg.data.data.accessToken;
     } catch {
-      const loginRes = await axios.post('http://127.0.0.1:5000/api/v1/auth/login', {
+      const loginRes = await axios.post('http://127.0.0.1:5001/api/v1/auth/login', {
         email: 'jinay@example.com',
         password: 'Password123!',
       });
@@ -31,7 +31,7 @@ async function testLiveMarket() {
     const authHeaders = { Authorization: `Bearer ${token}` };
 
     // 2. Quote AAPL
-    const qAAPL = await axios.get('http://127.0.0.1:5000/api/v1/market/quote?symbol=AAPL', { headers: authHeaders });
+    const qAAPL = await axios.get('http://127.0.0.1:5001/api/v1/market/quote?symbol=AAPL', { headers: authHeaders });
     console.log('\n✅ Live Quote AAPL (US Stock via Finnhub):', {
       symbol: qAAPL.data.data.symbol,
       price: qAAPL.data.data.price,
@@ -42,7 +42,7 @@ async function testLiveMarket() {
     });
 
     // 3. Quote BTCUSDT
-    const qBTC = await axios.get('http://127.0.0.1:5000/api/v1/market/quote?symbol=BTCUSDT', { headers: authHeaders });
+    const qBTC = await axios.get('http://127.0.0.1:5001/api/v1/market/quote?symbol=BTCUSDT', { headers: authHeaders });
     console.log('\n✅ Live Crypto Quote (BTC/USDT via Finnhub):', {
       symbol: qBTC.data.data.symbol,
       price: qBTC.data.data.price,
@@ -52,7 +52,7 @@ async function testLiveMarket() {
     });
 
     // 4. Metals
-    const metals = await axios.get('http://127.0.0.1:5000/api/v1/market/metals', { headers: authHeaders });
+    const metals = await axios.get('http://127.0.0.1:5001/api/v1/market/metals', { headers: authHeaders });
     console.log('\n✅ Precious Metals Rates (MCX / Spot):', {
       gold24k_10g: '₹' + metals.data?.data?.gold?.karat24?.per10Gram?.toLocaleString('en-IN'),
       gold22k_10g: '₹' + metals.data?.data?.gold?.karat22?.per10Gram?.toLocaleString('en-IN'),
@@ -61,7 +61,7 @@ async function testLiveMarket() {
     });
 
     // 5. Market News
-    const news = await axios.get('http://127.0.0.1:5000/api/v1/market/news', { headers: authHeaders });
+    const news = await axios.get('http://127.0.0.1:5001/api/v1/market/news', { headers: authHeaders });
     console.log(`\n✅ Live Financial Market News (${news.data?.count} headlines fetched):`);
     news.data?.data?.slice(0, 3).forEach((n, i) => {
       console.log(`   ${i + 1}. [${n.source}] ${n.headline}`);
@@ -69,7 +69,7 @@ async function testLiveMarket() {
     });
 
     // 6. Company Profile
-    const prof = await axios.get('http://127.0.0.1:5000/api/v1/market/profile?symbol=AAPL', { headers: authHeaders });
+    const prof = await axios.get('http://127.0.0.1:5001/api/v1/market/profile?symbol=AAPL', { headers: authHeaders });
     console.log('\n✅ Company Profile & Fundamentals (AAPL):', {
       name: prof.data?.data?.name,
       ticker: prof.data?.data?.ticker,

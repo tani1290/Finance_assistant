@@ -22,7 +22,7 @@
     
     .status-badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 9999px; text-transform: uppercase; letter-spacing: .5px; }
     .status-live { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
-    .status-cached { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid #6366f1; }
+    .status-cached { background: rgba(99, 102, 241, 0.2); color: #6ee7b7; border: 1px solid #10b981; }
     .status-stale { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
     .status-unavailable { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
     
@@ -30,7 +30,7 @@
     .market-search-row { display: flex; gap: 10px; margin-bottom: 16px; }
     .timeframe-btns { display: flex; gap: 6px; }
     .tf-btn { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; }
-    .tf-btn.active { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.4); color: #a5b4fc; }
+    .tf-btn.active { background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #6ee7b7; }
     #stockChart { width: 100%; height: 280px; }
     .chart-empty { display: flex; align-items: center; justify-content: center; height: 280px; color: #94a3b8; font-size: 13px; text-align: center; }
   </style>
@@ -101,7 +101,7 @@
             </div>
             <div class="rate-item">
               <span style="color:#94a3b8">Unit Conversion</span>
-              <div class="rate-val" style="font-size:12px;padding-top:4px;color:#a5b4fc;">1 kg = 1000 g | 1 oz = 31.1035g</div>
+              <div class="rate-val" style="font-size:12px;padding-top:4px;color:#6ee7b7;">1 kg = 1000 g | 1 oz = 31.1035g</div>
             </div>
           </div>
           <div style="margin-top:8px;font-size:11px;color:#cbd5e1;background:rgba(148,163,184,0.08);padding:6px 10px;border-radius:6px;border:1px solid rgba(148,163,184,0.2);">
@@ -400,7 +400,7 @@
         tbody.innerHTML = d.holdings.map(h => `
           <tr>
             <td><b>${h.name}</b> <span style="font-size:11px;color:#94a3b8">(${h.symbol})</span></td>
-            <td><span class="status-badge" style="background:rgba(99,102,241,0.15);color:#a5b4fc;">${h.assetType}</span></td>
+            <td><span class="status-badge" style="background:rgba(16,185,129,0.15);color:#6ee7b7;">${h.assetType}</span></td>
             <td>${h.quantity}</td>
             <td>${formatINR(h.averageBuyPrice)}</td>
             <td><b>${formatINR(h.currentPrice)}</b></td>

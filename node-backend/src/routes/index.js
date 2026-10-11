@@ -24,9 +24,15 @@ const news = require('../controllers/newsController');
 const storage = require('../controllers/storageController');
 const creditHealth = require('../controllers/creditHealthController');
 const gst = require('../controllers/gstController');
+const sms = require('../controllers/smsController');
+const mobileSync = require('../controllers/mobileSyncController');
+const notificationRoutes = require('./notificationRoutes');
 
 // Apply auth to all routes below
 router.use(authenticate);
+
+// FCM Push Notifications
+router.use('/notifications', notificationRoutes);
 
 // Dashboard
 router.get('/dashboard', dashboard.getDashboard);
@@ -228,5 +234,17 @@ router.post('/training/train', training.trainModel);
 router.get('/training/runs', training.getTrainingRuns);
 router.post('/training/predict', training.predict);
 router.get('/training/predictions', training.getPredictionHistory);
+
+// Mobile Device Management & Sync
+router.post('/mobile/devices', mobileSync.registerDevice);
+router.get('/mobile/sync', mobileSync.getMobileSyncState);
+
+// Bank SMS Transaction Detection & Ingestion Engine
+router.post('/sms/ingest', sms.ingestSms);
+router.post('/sms/batch-ingest', sms.batchIngestSms);
+router.get('/sms/pending', sms.getPendingSms);
+router.post('/sms/pending/:id/confirm', sms.confirmPendingSms);
+router.post('/sms/pending/:id/reject', sms.rejectPendingSms);
+router.post('/sms/parse', sms.parsePreview);
 
 module.exports = router;

@@ -3,158 +3,1553 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FinPro — Personal Finance & Investment Decision Support Platform</title>
-  <meta name="description" content="Take control of your finances with AI-powered insights, investment tracking, budget management, and personalized financial advice.">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>FinPro — Calm, Intelligent Personal Finance for India</title>
+  <meta name="description" content="Manage daily spending, track Indian investments, plan loans, and get gentle AI financial guidance in a clean, private, and welcoming platform.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <style>
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    :root{--primary:#6366f1;--bg:#05050f;--surface:rgba(255,255,255,0.04);--border:rgba(255,255,255,0.08);--text:#f9fafb;--muted:#6b7280}
-    html{scroll-behavior:smooth}
-    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;-webkit-font-smoothing:antialiased}
-    
-    /* Nav */
-    nav{display:flex;align-items:center;justify-content:space-between;padding:16px 60px;position:fixed;top:0;width:100%;z-index:100;background:rgba(5,5,15,0.8);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
-    .nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
-    .nav-icon{width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;color:white}
-    .nav-name{font-size:16px;font-weight:700;color:white}
-    .nav-links{display:flex;gap:32px}
-    .nav-links a{color:var(--muted);text-decoration:none;font-size:14px;transition:color .2s}
-    .nav-links a:hover{color:white}
-    .nav-actions{display:flex;gap:12px;align-items:center}
-    .btn-ghost{padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;text-decoration:none;transition:all .2s}
-    .btn-ghost:hover{background:var(--surface);border-color:rgba(255,255,255,0.2)}
-    .btn-primary{padding:8px 20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:8px;color:white;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;text-decoration:none;transition:all .2s}
-    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(99,102,241,.4)}
-    
-    /* Hero */
-    .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 24px 80px;position:relative}
-    .hero::before{content:'';position:fixed;top:0;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(ellipse,rgba(99,102,241,.18) 0%,transparent 70%);pointer-events:none}
-    .hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);border-radius:20px;font-size:12px;color:#a5b4fc;margin-bottom:24px}
-    .hero-title{font-size:clamp(36px,6vw,72px);font-weight:800;line-height:1.1;margin-bottom:20px;background:linear-gradient(135deg,#fff 0%,rgba(255,255,255,.6) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-    .hero-subtitle{font-size:clamp(16px,2.5vw,20px);color:var(--muted);max-width:600px;line-height:1.6;margin-bottom:40px}
-    .hero-actions{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
-    .btn-hero{padding:14px 28px;font-size:15px;font-weight:600;border-radius:12px;font-family:'Inter',sans-serif;cursor:pointer;text-decoration:none;transition:all .3s;display:inline-flex;align-items:center;gap:8px}
-    .btn-hero.primary{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none}
-    .btn-hero.primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(99,102,241,.5)}
-    .btn-hero.secondary{background:transparent;color:white;border:1px solid rgba(255,255,255,.2)}
-    .btn-hero.secondary:hover{background:rgba(255,255,255,.06)}
-    .hero-stats{display:flex;gap:48px;justify-content:center;margin-top:60px;flex-wrap:wrap}
-    .stat{text-align:center}
-    .stat-value{font-size:28px;font-weight:800;background:linear-gradient(135deg,#6366f1,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-    .stat-label{font-size:12px;color:var(--muted);margin-top:4px}
-    
-    /* Features */
-    .section{padding:80px 24px}
-    .section-center{text-align:center;max-width:600px;margin:0 auto 48px}
-    .section-badge{display:inline-block;padding:4px 12px;background:rgba(99,102,241,.12);border-radius:20px;font-size:12px;color:#a5b4fc;margin-bottom:12px}
-    .section-title{font-size:clamp(28px,4vw,42px);font-weight:800;margin-bottom:12px}
-    .section-sub{font-size:15px;color:var(--muted)}
-    .features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:1100px;margin:0 auto}
-    .feature-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;transition:all .3s}
-    .feature-card:hover{border-color:rgba(99,102,241,.4);transform:translateY(-4px);box-shadow:0 20px 60px rgba(99,102,241,.1)}
-    .feature-icon{width:48px;height:48px;background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(139,92,246,.2));border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#a5b4fc;margin-bottom:16px}
-    .feature-title{font-size:16px;font-weight:700;margin-bottom:8px}
-    .feature-desc{font-size:13px;color:var(--muted);line-height:1.6}
-    
-    /* CTA */
-    .cta{padding:80px 24px;text-align:center}
-    .cta-card{max-width:700px;margin:0 auto;background:linear-gradient(135deg,rgba(99,102,241,.15),rgba(139,92,246,.1));border:1px solid rgba(99,102,241,.2);border-radius:24px;padding:60px 40px}
-    .cta-title{font-size:clamp(24px,4vw,40px);font-weight:800;margin-bottom:12px}
-    .cta-sub{color:var(--muted);margin-bottom:32px;font-size:15px}
-    
-    /* Footer */
-    footer{border-top:1px solid var(--border);padding:32px 60px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
-    .footer-brand{font-size:13px;color:var(--muted)}
-    .footer-links{display:flex;gap:24px}
-    .footer-links a{font-size:12px;color:var(--muted);text-decoration:none}
-    .footer-links a:hover{color:white}
-    
-    @media(max-width:900px){.features-grid{grid-template-columns:1fr 1fr}.nav-links{display:none}nav{padding:16px 24px}}
-    @media(max-width:600px){.features-grid{grid-template-columns:1fr}.hero-stats{gap:24px}footer{padding:24px}}
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f8fafb;
+      --surface: #ffffff;
+      --surface-subtle: #f1f5f9;
+      --border: #e2e8f0;
+      --border-subtle: #edf2f7;
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      
+      --primary: #059669;
+      --primary-hover: #047857;
+      --primary-light: #ecfdf5;
+      --primary-border: #a7f3d0;
+      --primary-dark: #065f46;
+
+      --accent-blue: #0284c7;
+      --accent-blue-light: #f0f9ff;
+      --accent-amber: #d97706;
+      --accent-amber-light: #fffbeb;
+
+      --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-sm: 0 2px 6px -1px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03);
+      --shadow-md: 0 8px 24px -4px rgba(15, 23, 42, 0.06), 0 2px 6px -2px rgba(15, 23, 42, 0.03);
+      --shadow-lg: 0 20px 40px -8px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --radius-pill: 9999px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    /* Ambient Warmth Background */
+    .bg-gradient {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 720px;
+      background: radial-gradient(circle at 50% -10%, #e6f4ea 0%, rgba(248, 250, 251, 0) 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ===== NAVIGATION ===== */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(248, 250, 251, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      transition: all 0.25s ease;
+    }
+
+    .nav-container {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      background: var(--primary);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 19px;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+    }
+
+    .brand-text {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text span {
+      color: var(--primary);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .nav-link {
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      transition: color 0.15s ease;
+    }
+
+    .nav-link:hover {
+      color: var(--text);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      transition: all 0.15s ease;
+    }
+
+    .btn-ghost:hover {
+      color: var(--text);
+      background: var(--surface-subtle);
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      background: var(--primary);
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 1px 3px rgba(5, 150, 105, 0.2);
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+      transform: translateY(-1px);
+    }
+
+    /* ===== HERO SECTION ===== */
+    .hero {
+      position: relative;
+      z-index: 1;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 72px 24px 48px;
+      text-align: center;
+    }
+
+    .pill-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      box-shadow: var(--shadow-xs);
+      margin-bottom: 24px;
+    }
+
+    .pill-badge i {
+      color: var(--primary);
+      font-size: 15px;
+    }
+
+    .hero-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(34px, 5.5vw, 56px);
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+      margin-bottom: 20px;
+    }
+
+    .hero-title em {
+      font-style: normal;
+      color: var(--primary);
+      background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      max-width: 640px;
+      margin: 0 auto 36px;
+      font-size: clamp(16px, 2vw, 18px);
+      color: var(--text-secondary);
+      line-height: 1.65;
+    }
+
+    .hero-ctas {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .btn-hero-lg {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 26px;
+      background: var(--primary);
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: var(--radius-md);
+      box-shadow: 0 4px 14px rgba(5, 150, 105, 0.25);
+      transition: all 0.2s ease;
+    }
+
+    .btn-hero-lg:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 6px 20px rgba(5, 150, 105, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .btn-hero-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 24px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-xs);
+      transition: all 0.2s ease;
+    }
+
+    .btn-hero-secondary:hover {
+      background: var(--surface-subtle);
+      border-color: #cbd5e1;
+      transform: translateY(-1px);
+    }
+
+    .trust-bullets {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .trust-bullet {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .trust-bullet i {
+      color: var(--primary);
+      font-size: 15px;
+    }
+
+    /* ===== HERO SHOWCASE PREVIEW ===== */
+    .showcase-wrapper {
+      max-width: 1040px;
+      margin: 20px auto 72px;
+      padding: 0 24px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .showcase-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+      padding: 28px 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .showcase-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .user-greeting {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--text);
+      font-size: 15px;
+    }
+
+    .greeting-text h4 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .greeting-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .showcase-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--primary);
+      background: var(--primary-light);
+      padding: 6px 12px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--primary-border);
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .metric-box {
+      background: var(--bg);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-family: 'Outfit', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+
+    .metric-trend {
+      font-size: 12px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .trend-good {
+      color: var(--primary);
+    }
+
+    .progress-bar-wrap {
+      width: 100%;
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: var(--radius-pill);
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--primary);
+      border-radius: var(--radius-pill);
+    }
+
+    .ai-insight-box {
+      background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%);
+      border: 1px solid var(--primary-border);
+      border-radius: var(--radius-md);
+      padding: 18px 22px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .ai-badge-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .ai-insight-content h5 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .ai-insight-content p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* ===== SECTION COMMON ===== */
+    .section-wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 80px 24px;
+    }
+
+    .section-intro {
+      text-align: center;
+      max-width: 620px;
+      margin: 0 auto 52px;
+    }
+
+    .section-tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--primary);
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(28px, 4vw, 38px);
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
+      line-height: 1.2;
+    }
+
+    .section-desc {
+      font-size: 16px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ===== CORE PILLARS GRID ===== */
+    .pillars-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    .pillar-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px 30px;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .pillar-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: #cbd5e1;
+    }
+
+    .pillar-icon-box {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 20px;
+    }
+
+    .pillar-icon-box.green {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .pillar-icon-box.blue {
+      background: var(--accent-blue-light);
+      color: var(--accent-blue);
+    }
+
+    .pillar-icon-box.amber {
+      background: var(--accent-amber-light);
+      color: var(--accent-amber);
+    }
+
+    .pillar-icon-box.purple {
+      background: #f5f3ff;
+      color: #7c3aed;
+    }
+
+    .pillar-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .pillar-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+      margin-bottom: 18px;
+    }
+
+    .pillar-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 16px;
+    }
+
+    .pillar-features li {
+      font-size: 13px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pillar-features li i {
+      color: var(--primary);
+      font-size: 15px;
+    }
+
+    /* ===== INTERACTIVE SIP SIMULATOR ===== */
+    .calculator-section {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 80px 24px;
+    }
+
+    .calc-card {
+      max-width: 960px;
+      margin: 0 auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 40px;
+      box-shadow: var(--shadow-sm);
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 44px;
+    }
+
+    .calc-inputs {
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+    }
+
+    .calc-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .calc-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .calc-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .calc-display {
+      font-family: 'Outfit', sans-serif;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .range-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: #cbd5e1;
+      outline: none;
+    }
+
+    .range-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--primary);
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+      border: 2px solid white;
+      transition: transform 0.1s ease;
+    }
+
+    .range-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+    }
+
+    .calc-results {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .result-row {
+      margin-bottom: 20px;
+    }
+
+    .result-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .result-val {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .result-total {
+      border-top: 1px solid var(--border);
+      padding-top: 18px;
+    }
+
+    .result-total .result-val {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .wealth-split-bar {
+      display: flex;
+      height: 10px;
+      border-radius: var(--radius-pill);
+      overflow: hidden;
+      margin: 16px 0 12px;
+      background: #e2e8f0;
+    }
+
+    .split-invested {
+      background: #64748b;
+      transition: width 0.3s ease;
+    }
+
+    .split-growth {
+      background: var(--primary);
+      transition: width 0.3s ease;
+    }
+
+    .split-legend {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+
+    /* ===== HOW IT WORKS ===== */
+    .steps-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+    }
+
+    .step-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px 26px;
+      position: relative;
+    }
+
+    .step-number-tag {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 18px;
+    }
+
+    .step-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .step-desc {
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ===== TRUST & PRIVACY ===== */
+    .privacy-banner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 48px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: center;
+      margin-bottom: 80px;
+    }
+
+    .privacy-content h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 14px;
+      line-height: 1.25;
+    }
+
+    .privacy-content p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+      margin-bottom: 20px;
+    }
+
+    .privacy-points {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .privacy-points li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .privacy-points li i {
+      color: var(--primary);
+      font-size: 18px;
+      margin-top: 1px;
+    }
+
+    /* ===== SIMPLE ACCORDION FAQ ===== */
+    .faq-list {
+      max-width: 760px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .faq-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: border-color 0.15s ease;
+    }
+
+    .faq-question {
+      width: 100%;
+      text-align: left;
+      padding: 18px 22px;
+      background: none;
+      border: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .faq-question i {
+      font-size: 18px;
+      color: var(--text-muted);
+      transition: transform 0.2s ease;
+    }
+
+    .faq-answer {
+      display: none;
+      padding: 0 22px 18px;
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .faq-item.active {
+      border-color: #cbd5e1;
+    }
+
+    .faq-item.active .faq-question i {
+      transform: rotate(180deg);
+    }
+
+    .faq-item.active .faq-answer {
+      display: block;
+    }
+
+    /* ===== PEACEFUL FINAL CTA ===== */
+    .final-cta {
+      background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 50%, #f8fafc 100%);
+      border: 1px solid var(--primary-border);
+      border-radius: var(--radius-xl);
+      padding: 64px 32px;
+      text-align: center;
+      margin-bottom: 80px;
+    }
+
+    .final-cta h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(26px, 4vw, 38px);
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+
+    .final-cta p {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 540px;
+      margin: 0 auto 28px;
+      line-height: 1.6;
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding: 32px 24px;
+    }
+
+    .footer-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-copy {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .footer-nav {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .footer-nav a {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+
+    .footer-nav a:hover {
+      color: var(--text);
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 860px) {
+      .nav-links { display: none; }
+      .metrics-row { grid-template-columns: 1fr; }
+      .pillars-grid { grid-template-columns: 1fr; }
+      .calc-card { grid-template-columns: 1fr; padding: 24px; }
+      .steps-container { grid-template-columns: 1fr; }
+      .privacy-banner { grid-template-columns: 1fr; padding: 32px 24px; }
+    }
+
+    @media (max-width: 600px) {
+      .hero { padding: 48px 16px 36px; }
+      .showcase-card { padding: 20px 16px; }
+      .section-wrap { padding: 56px 16px; }
+      .trust-bullets { flex-direction: column; gap: 8px; }
+    }
   </style>
 </head>
 <body>
+
+  <div class="bg-gradient"></div>
+
+  <!-- NAVIGATION -->
   <nav>
-    <a href="/" class="nav-brand">
-      <div class="nav-icon"><i class="ri-line-chart-line"></i></div>
-      <span class="nav-name">FinPro</span>
-    </a>
-    <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="/status.html">Cloud Status</a>
-      <a href="#about">About</a>
-    </div>
-    <div class="nav-actions">
-      <a href="/login.html" class="btn-ghost">Sign In</a>
-      <a href="/signup.html" class="btn-primary">Get Started Free</a>
+    <div class="nav-container">
+      <a href="/" class="nav-brand">
+        <div class="brand-mark"><i class="ri-wallet-3-line"></i></div>
+        <span class="brand-text">Fin<span>Pro</span></span>
+      </a>
+
+      <div class="nav-links">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#calculator" class="nav-link">SIP Calculator</a>
+        <a href="#how-it-works" class="nav-link">How It Works</a>
+        <a href="#faq" class="nav-link">FAQ</a>
+        <a href="/status.html" class="nav-link">Cloud Status</a>
+      </div>
+
+      <div class="nav-actions">
+        <a href="/login.html" class="btn-ghost">Sign In</a>
+        <a href="/signup.html" class="btn-primary">Get Started Free</a>
+      </div>
     </div>
   </nav>
-  
-  <section class="hero">
-    <div class="hero-badge"><i class="ri-ai-generate"></i> Powered by AI · Built for India</div>
-    <h1 class="hero-title">Your Complete<br>Financial Command Center</h1>
-    <p class="hero-subtitle">Track spending, grow investments, manage loans, and get personalized AI advice — all in one place. Built for the Indian market with ₹ (INR) at its core.</p>
-    <div class="hero-actions">
-      <a href="/signup.html" class="btn-hero primary"><i class="ri-rocket-line"></i>Start for Free</a>
-      <a href="/login.html" class="btn-hero secondary"><i class="ri-login-box-line"></i>Sign In</a>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="pill-badge">
+      <i class="ri-sparkling-fill"></i>
+      <span>Calm, thoughtful money management built for India</span>
     </div>
-    <div class="hero-stats">
-      <div class="stat"><div class="stat-value">₹INR</div><div class="stat-label">Indian Rupee First</div></div>
-      <div class="stat"><div class="stat-value">AI</div><div class="stat-label">Personalized Advice</div></div>
-      <div class="stat"><div class="stat-value">NSE</div><div class="stat-label">Live Market Data</div></div>
-      <div class="stat"><div class="stat-value">100%</div><div class="stat-label">Your Data, Secured</div></div>
+
+    <h1 class="hero-title">
+      Clarity for your money.<br>
+      <em>Confidence for your future.</em>
+    </h1>
+
+    <p class="hero-subtitle">
+      Track monthly spending, organize your investments, stay on top of EMIs, and receive gentle, personalized AI guidance — without the clutter or financial stress.
+    </p>
+
+    <div class="hero-ctas">
+      <a href="/signup.html" class="btn-hero-lg">
+        <span>Get Started Free</span>
+        <i class="ri-arrow-right-line"></i>
+      </a>
+      <a href="/dashboard.html" class="btn-hero-secondary">
+        <i class="ri-dashboard-line"></i>
+        <span>Explore Demo</span>
+      </a>
+    </div>
+
+    <div class="trust-bullets">
+      <span class="trust-bullet"><i class="ri-shield-check-fill"></i> 256-bit Bank-grade Security</span>
+      <span class="trust-bullet"><i class="ri-checkbox-circle-fill"></i> 100% Free & Private</span>
+      <span class="trust-bullet"><i class="ri-funds-fill"></i> Native ₹ INR & Indian Markets</span>
+    </div>
+  </header>
+
+  <!-- PRODUCT SHOWCASE CARD (Welcoming & Realistic Preview) -->
+  <div class="showcase-wrapper">
+    <div class="showcase-card">
+      <div class="showcase-header">
+        <div class="user-greeting">
+          <div class="user-avatar">RA</div>
+          <div class="greeting-text">
+            <h4>Good afternoon, Rahul 👋</h4>
+            <p>Here is your calm financial overview for October</p>
+          </div>
+        </div>
+        <div class="showcase-status">
+          <span class="pulse-dot"></span>
+          <span>Finances on Track</span>
+        </div>
+      </div>
+
+      <div class="metrics-row">
+        <!-- Net Worth -->
+        <div class="metric-box">
+          <div class="metric-label">
+            <span>Estimated Net Worth</span>
+            <i class="ri-line-chart-line"></i>
+          </div>
+          <div class="metric-value">₹8,42,500</div>
+          <div class="metric-trend trend-good">
+            <i class="ri-arrow-up-line"></i>
+            <span>+12.4% over last year</span>
+          </div>
+        </div>
+
+        <!-- Monthly Spending -->
+        <div class="metric-box">
+          <div class="metric-label">
+            <span>October Budget</span>
+            <i class="ri-pie-chart-line"></i>
+          </div>
+          <div class="metric-value">₹38,200</div>
+          <div class="metric-trend" style="color: var(--text-muted);">
+            <span>₹16,800 remaining of ₹55,000</span>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" style="width: 69%;"></div>
+          </div>
+        </div>
+
+        <!-- Active Investments -->
+        <div class="metric-box">
+          <div class="metric-label">
+            <span>Monthly SIPs & Savings</span>
+            <i class="ri-safe-2-line"></i>
+          </div>
+          <div class="metric-value">₹15,000<span style="font-size: 14px; font-weight: 500; color: var(--text-muted);">/mo</span></div>
+          <div class="metric-trend trend-good">
+            <i class="ri-check-line"></i>
+            <span>3 mutual funds active on auto-pay</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Advisor Friendly Callout -->
+      <div class="ai-insight-box">
+        <div class="ai-badge-icon">
+          <i class="ri-lightbulb-line"></i>
+        </div>
+        <div class="ai-insight-content">
+          <h5>Gentle AI Recommendation for You</h5>
+          <p>
+            "You are currently ₹4,800 under your usual dining expenses this month. If you allocate this extra surplus toward your ELSS tax-saving goal before the March deadline, you can save an estimated ₹1,440 in income tax under Section 80C."
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CORE FEATURES -->
+  <section class="section-wrap" id="features">
+    <div class="section-intro">
+      <span class="section-tag">Thoughtful Features</span>
+      <h2 class="section-title">Everything you need, presented simply.</h2>
+      <p class="section-desc">
+        No complicated financial jargon or cluttered screens. Just the tools you need to make sensible, stress-free decisions with your money.
+      </p>
+    </div>
+
+    <div class="pillars-grid">
+      <!-- Feature 1 -->
+      <div class="pillar-card">
+        <div class="pillar-icon-box green">
+          <i class="ri-wallet-line"></i>
+        </div>
+        <h3 class="pillar-title">Frictionless Expense Tracking</h3>
+        <p class="pillar-desc">
+          Easily log daily expenses, categorize transactions (groceries, dining, rent, shopping), and get clear visual feedback on where your money goes each month.
+        </p>
+        <ul class="pillar-features">
+          <li><i class="ri-check-line"></i> Category-wise monthly budget caps</li>
+          <li><i class="ri-check-line"></i> Gentle alerts before you overspend</li>
+          <li><i class="ri-check-line"></i> Quick manual entry or clean CSV imports</li>
+        </ul>
+      </div>
+
+      <!-- Feature 2 -->
+      <div class="pillar-card">
+        <div class="pillar-icon-box blue">
+          <i class="ri-funds-box-line"></i>
+        </div>
+        <h3 class="pillar-title">Indian Portfolio & SIPs</h3>
+        <p class="pillar-desc">
+          Track all your investments in one unified dashboard — Indian equities, mutual funds, gold, fixed deposits, and public provident fund (PPF).
+        </p>
+        <ul class="pillar-features">
+          <li><i class="ri-check-line"></i> Benchmark returns against Nifty 50</li>
+          <li><i class="ri-check-line"></i> Total asset allocation breakdown</li>
+          <li><i class="ri-check-line"></i> Clear profit & loss tracking over time</li>
+        </ul>
+      </div>
+
+      <!-- Feature 3 -->
+      <div class="pillar-card">
+        <div class="pillar-icon-box amber">
+          <i class="ri-bank-card-line"></i>
+        </div>
+        <h3 class="pillar-title">Calm Loan & EMI Planning</h3>
+        <p class="pillar-desc">
+          Keep your home loans, car loans, and credit EMIs under control. View payoff timelines and simulate prepayments to cut down on total interest paid.
+        </p>
+        <ul class="pillar-features">
+          <li><i class="ri-check-line"></i> Clear principal vs interest breakdown</li>
+          <li><i class="ri-check-line"></i> Smart prepayment simulator</li>
+          <li><i class="ri-check-line"></i> Due date reminders so you never incur penalties</li>
+        </ul>
+      </div>
+
+      <!-- Feature 4 -->
+      <div class="pillar-card">
+        <div class="pillar-icon-box purple">
+          <i class="ri-chat-smile-2-line"></i>
+        </div>
+        <h3 class="pillar-title">Empathetic AI Financial Co-pilot</h3>
+        <p class="pillar-desc">
+          Ask real financial questions in plain language. Whether evaluating a major purchase, understanding tax deductions, or planning an emergency fund.
+        </p>
+        <ul class="pillar-features">
+          <li><i class="ri-check-line"></i> Tailored specifically to your numbers</li>
+          <li><i class="ri-check-line"></i> Unbiased, ad-free financial clarity</li>
+          <li><i class="ri-check-line"></i> Explanations in simple, accessible terms</li>
+        </ul>
+      </div>
     </div>
   </section>
 
-  <section class="section" id="features">
-    <div class="section-center">
-      <div class="section-badge">Everything You Need</div>
-      <h2 class="section-title">Complete Financial Management</h2>
-      <p class="section-sub">From daily expenses to long-term investments — manage it all in one unified platform</p>
+  <!-- INTERACTIVE SIP CALCULATOR -->
+  <section class="calculator-section" id="calculator">
+    <div class="section-intro">
+      <span class="section-tag">Interactive Simulator</span>
+      <h2 class="section-title">See the quiet power of steady savings.</h2>
+      <p class="section-desc">
+        Small amounts invested regularly grow exponentially over time. Adjust the numbers below to see what your future could look like.
+      </p>
     </div>
-    <div class="features-grid">
-      <div class="feature-card"><div class="feature-icon"><i class="ri-dashboard-line"></i></div><div class="feature-title">Smart Dashboard</div><div class="feature-desc">Real-time overview of your net worth, income, expenses, savings rate, and financial health score.</div></div>
-      <div class="feature-card"><div class="feature-icon"><i class="ri-exchange-line"></i></div><div class="feature-title">Transaction Tracking</div><div class="feature-desc">Log expenses and income with voice entry, categorization, and merchant tracking.</div></div>
-      <div class="feature-card"><div class="feature-icon"><i class="ri-pie-chart-line"></i></div><div class="feature-title">Budget Management</div><div class="feature-desc">Set monthly budgets per category. Get alerts at 75%, 90%, and 100% of your budget.</div></div>
-      <div class="feature-card"><div class="feature-icon"><i class="ri-flag-line"></i></div><div class="feature-title">Savings Goals</div><div class="feature-desc">Set and track goals for home, car, vacation, emergency fund, and more.</div></div>
-      <div class="feature-card"><div class="feature-icon"><i class="ri-stock-line"></i></div><div class="feature-title">Investment Portfolio</div><div class="feature-desc">Track stocks, mutual funds, SIPs, gold, and crypto with live P&L calculations.</div></div>
-      <div class="feature-card"><div class="feature-icon"><i class="ri-bank-line"></i></div><div class="feature-title">Loan & EMI Manager</div><div class="feature-desc">Manage all loans, calculate EMIs, and simulate prepayment to save interest.</div></div>
-      <div class="feature-card"><div class="feature-icon"><i class="ri-robot-line"></i></div><div class="feature-title">AI Financial Advisor</div><div class="feature-desc">Get personalized advice based on your actual financial data. Ask anything.</div></div>
-      <div class="feature-card"><div class="feature-icon"><i class="ri-calendar-line"></i></div><div class="feature-title">Financial Calendar</div><div class="feature-desc">Track EMI due dates, SIP dates, subscription renewals, and custom reminders.</div></div>
-      <div class="feature-card"><div class="feature-icon"><i class="ri-file-chart-line"></i></div><div class="feature-title">Analytics & Reports</div><div class="feature-desc">Deep insights into spending patterns, category breakdowns, and monthly trends.</div></div>
+
+    <div class="calc-card">
+      <div class="calc-inputs">
+        <!-- Monthly Amount -->
+        <div class="calc-group">
+          <div class="calc-label-row">
+            <span class="calc-label">Monthly Investment</span>
+            <span class="calc-display" id="dispAmount">₹10,000</span>
+          </div>
+          <input type="range" class="range-slider" id="sliderAmount" min="1000" max="100000" step="1000" value="10000">
+        </div>
+
+        <!-- Return Rate -->
+        <div class="calc-group">
+          <div class="calc-label-row">
+            <span class="calc-label">Expected Annual Return</span>
+            <span class="calc-display" id="dispReturn">12%</span>
+          </div>
+          <input type="range" class="range-slider" id="sliderReturn" min="6" max="18" step="0.5" value="12">
+        </div>
+
+        <!-- Duration -->
+        <div class="calc-group">
+          <div class="calc-label-row">
+            <span class="calc-label">Time Horizon</span>
+            <span class="calc-display" id="dispYears">10 Years</span>
+          </div>
+          <input type="range" class="range-slider" id="sliderYears" min="1" max="25" step="1" value="10">
+        </div>
+
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">
+          <i class="ri-information-line"></i> Calculated using standard compound interest formula with monthly compounding.
+        </p>
+      </div>
+
+      <div class="calc-results">
+        <div>
+          <div class="result-row">
+            <div class="result-label">Amount You Invest</div>
+            <div class="result-val" id="resInvested">₹12,00,000</div>
+          </div>
+
+          <div class="result-row">
+            <div class="result-label">Estimated Wealth Gain</div>
+            <div class="result-val" style="color: var(--primary);" id="resGain">₹11,23,391</div>
+          </div>
+
+          <div class="wealth-split-bar">
+            <div class="split-invested" id="barInvested" style="width: 52%;"></div>
+            <div class="split-growth" id="barGrowth" style="width: 48%;"></div>
+          </div>
+
+          <div class="split-legend">
+            <div class="legend-item">
+              <span class="legend-color" style="background: #64748b;"></span>
+              <span>Your Money</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-color" style="background: var(--primary);"></span>
+              <span>Compound Growth</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-total">
+          <div class="result-label">Projected Future Wealth</div>
+          <div class="result-val" id="resTotal">₹23,23,391</div>
+        </div>
+      </div>
     </div>
   </section>
-  
-  <section class="cta">
-    <div class="cta-card">
-      <h2 class="cta-title">Ready to take control?</h2>
-      <p class="cta-sub">Join thousands taking control of their financial future with AI-powered insights.</p>
-      <a href="/signup.html" class="btn-hero primary"><i class="ri-rocket-line"></i>Create Free Account</a>
+
+  <!-- HOW IT WORKS -->
+  <section class="section-wrap" id="how-it-works">
+    <div class="section-intro">
+      <span class="section-tag">How It Works</span>
+      <h2 class="section-title">Up and running in 3 calm steps.</h2>
+      <p class="section-desc">
+        No lengthy bank linking procedures or intimidating forms. Start at your own pace.
+      </p>
+    </div>
+
+    <div class="steps-container">
+      <div class="step-item">
+        <div class="step-number-tag">01</div>
+        <h3 class="step-title">Create your private space</h3>
+        <p class="step-desc">
+          Sign up with your email. No credit card, no complex verification, and zero commitments.
+        </p>
+      </div>
+
+      <div class="step-item">
+        <div class="step-number-tag">02</div>
+        <h3 class="step-title">Add your current snapshot</h3>
+        <p class="step-desc">
+          Note your monthly salary, everyday expenses, and any existing loans or investments you hold.
+        </p>
+      </div>
+
+      <div class="step-item">
+        <div class="step-number-tag">03</div>
+        <h3 class="step-title">Enjoy continuous clarity</h3>
+        <p class="step-desc">
+          See your monthly cash flow, receive gentle tips from the AI, and watch your savings grow month over month.
+        </p>
+      </div>
     </div>
   </section>
-  
+
+  <!-- PRIVACY & SECURITY BANNER -->
+  <div class="section-wrap" style="padding-top: 0; padding-bottom: 0;">
+    <div class="privacy-banner">
+      <div class="privacy-content">
+        <span class="section-tag" style="margin-bottom: 8px;">Trust & Confidentiality</span>
+        <h3>Your financial life belongs to you. Always.</h3>
+        <p>
+          Unlike traditional finance apps, we do not sell your data to third-party lenders, push high-interest loans, or clutter your experience with spam calls.
+        </p>
+        <ul class="privacy-points">
+          <li><i class="ri-shield-keyhole-line"></i> <strong>256-bit Encryption:</strong> Your data is protected using industry-standard protocols.</li>
+          <li><i class="ri-spam-line"></i> <strong>Zero Spam:</strong> We never share your phone number or email with marketing telecallers.</li>
+          <li><i class="ri-download-cloud-line"></i> <strong>Full Control:</strong> Export your complete data or delete your account whenever you choose.</li>
+        </ul>
+      </div>
+
+      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; text-align: center;">
+        <div style="width: 56px; height: 56px; border-radius: 50%; background: var(--primary-light); color: var(--primary); font-size: 26px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+          <i class="ri-lock-password-line"></i>
+        </div>
+        <h4 style="font-family: 'Outfit', sans-serif; font-size: 19px; font-weight: 700; margin-bottom: 8px;">Private & Independent</h4>
+        <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.6;">
+          Built as an engineering final year project to demonstrate clean AI decision support — free from advertising incentives.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAQ SECTION -->
+  <section class="section-wrap" id="faq">
+    <div class="section-intro">
+      <span class="section-tag">Common Questions</span>
+      <h2 class="section-title">Frequently asked questions.</h2>
+      <p class="section-desc">
+        Simple answers to everything you might wonder about FinPro.
+      </p>
+    </div>
+
+    <div class="faq-list">
+      <div class="faq-item active">
+        <button class="faq-question">
+          <span>Is FinPro really free to use?</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </button>
+        <div class="faq-answer">
+          Yes, completely free. There are no premium tiers, paywalls, or trial periods. It is designed to be an accessible decision-support platform for anyone wanting to organize their personal finances.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question">
+          <span>Does it support Indian financial instruments?</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </button>
+        <div class="faq-answer">
+          Yes! FinPro is built natively for India. It includes native INR (₹) formatting, Indian mutual funds, equities benchmarked against Nifty 50, fixed deposits, public provident funds (PPF), and Section 80C tax planning.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question">
+          <span>How does the AI Financial Advisor work?</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </button>
+        <div class="faq-answer">
+          The advisor reads your aggregated financial context (your income, spending habits, existing savings, and goals) and answers your specific questions objectively without selling products.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question">
+          <span>Do I need to connect my real bank account?</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </button>
+        <div class="faq-answer">
+          No bank credentials or netbanking logins are ever required. You can add entries manually or upload statements as you feel comfortable. You retain 100% control over what data you enter.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PEACEFUL CLOSING CTA -->
+  <div class="section-wrap" style="padding-top: 20px;">
+    <div class="final-cta">
+      <h2>Bring calm to your finances today.</h2>
+      <p>
+        Join hundreds of thoughtful planners taking simple, deliberate steps toward financial peace of mind.
+      </p>
+      <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+        <a href="/signup.html" class="btn-hero-lg">
+          <span>Create Free Account</span>
+          <i class="ri-arrow-right-line"></i>
+        </a>
+        <a href="/login.html" class="btn-hero-secondary">
+          <span>Sign In to Existing Account</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
   <footer>
-    <div class="footer-brand">© 2025 FinPro · Personal Finance & Investment Decision Support Platform · Final Year Engineering Project</div>
-    <div class="footer-links">
-      <a href="/status.html">Cloud Status</a>
-      <a href="/login.html">Sign In</a>
-      <a href="/signup.html">Sign Up</a>
+    <div class="footer-inner">
+      <div class="footer-copy">
+        © 2025 FinPro · Personal Finance & Investment Decision Support Platform
+      </div>
+      <div class="footer-nav">
+        <a href="#features">Features</a>
+        <a href="#calculator">SIP Calculator</a>
+        <a href="/status.html">Cloud Status</a>
+        <a href="/login.html">Sign In</a>
+        <a href="/signup.html">Sign Up</a>
+      </div>
     </div>
   </footer>
-  
+
+  <!-- LIGHTWEIGHT INTERACTIVE SCRIPTS -->
   <script>
-    // Redirect to dashboard if already logged in
+    // ===== Auth Redirect =====
     if (localStorage.getItem('jf_access_token')) {
       window.location.href = '/dashboard.html';
     }
-    // Handle Google OAuth token callback
     const params = new URLSearchParams(window.location.search);
     if (params.get('access_token')) {
       localStorage.setItem('jf_access_token', params.get('access_token'));
-      if (params.get('refresh_token')) localStorage.setItem('jf_refresh_token', params.get('refresh_token'));
+      if (params.get('refresh_token')) {
+        localStorage.setItem('jf_refresh_token', params.get('refresh_token'));
+      }
       window.location.href = '/dashboard.html';
     }
+
+    // ===== FAQ Accordion =====
+    document.querySelectorAll('.faq-question').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = btn.parentElement;
+        const isActive = item.classList.contains('active');
+        
+        // Close others
+        document.querySelectorAll('.faq-item').forEach(other => other.classList.remove('active'));
+
+        if (!isActive) {
+          item.classList.add('active');
+        }
+      });
+    });
+
+    // ===== Interactive SIP Calculator =====
+    const sliderAmount = document.getElementById('sliderAmount');
+    const sliderReturn = document.getElementById('sliderReturn');
+    const sliderYears = document.getElementById('sliderYears');
+
+    const dispAmount = document.getElementById('dispAmount');
+    const dispReturn = document.getElementById('dispReturn');
+    const dispYears = document.getElementById('dispYears');
+
+    const resInvested = document.getElementById('resInvested');
+    const resGain = document.getElementById('resGain');
+    const resTotal = document.getElementById('resTotal');
+
+    const barInvested = document.getElementById('barInvested');
+    const barGrowth = document.getElementById('barGrowth');
+
+    function formatINR(val) {
+      return '₹' + Math.round(val).toLocaleString('en-IN');
+    }
+
+    function calculateSIP() {
+      const P = parseFloat(sliderAmount.value);
+      const annualRate = parseFloat(sliderReturn.value);
+      const years = parseFloat(sliderYears.value);
+      const n = years * 12;
+      const i = (annualRate / 12) / 100;
+
+      // Update slider display labels
+      dispAmount.textContent = formatINR(P);
+      dispReturn.textContent = annualRate + '%';
+      dispYears.textContent = years + (years === 1 ? ' Year' : ' Years');
+
+      // Total Invested
+      const invested = P * n;
+
+      // Future Value of SIP: M = P * [ ((1 + i)^n - 1) / i ] * (1 + i)
+      const totalWealth = P * ((Math.pow(1 + i, n) - 1) / i) * (1 + i);
+      const gain = Math.max(0, totalWealth - invested);
+
+      // Render Values
+      resInvested.textContent = formatINR(invested);
+      resGain.textContent = formatINR(gain);
+      resTotal.textContent = formatINR(totalWealth);
+
+      // Progress bar ratios
+      const investedPct = Math.round((invested / totalWealth) * 100);
+      const growthPct = 100 - investedPct;
+
+      barInvested.style.width = Math.max(10, Math.min(90, investedPct)) + '%';
+      barGrowth.style.width = Math.max(10, Math.min(90, growthPct)) + '%';
+    }
+
+    sliderAmount.addEventListener('input', calculateSIP);
+    sliderReturn.addEventListener('input', calculateSIP);
+    sliderYears.addEventListener('input', calculateSIP);
+
+    // Initial calculation on load
+    calculateSIP();
   </script>
 </body>
 </html>

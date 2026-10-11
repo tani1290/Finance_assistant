@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Goals — FinPro</title>
+  <title>Goals — Jinay Finance AI</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/app.css">
@@ -83,16 +83,8 @@
         <input type="number" id="goalCurrent" class="form-input" placeholder="0" min="0" value="0">
       </div>
       <div class="form-group">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-          <label class="form-label" style="margin:0;">Target Date</label>
-          <div style="display:flex;gap:4px;">
-            <button type="button" class="btn btn-secondary" style="padding:2px 6px;font-size:10px;" onclick="setGoalDatePreset(6)">+6M</button>
-            <button type="button" class="btn btn-secondary" style="padding:2px 6px;font-size:10px;" onclick="setGoalDatePreset(12)">+1Y</button>
-            <button type="button" class="btn btn-secondary" style="padding:2px 6px;font-size:10px;" onclick="setGoalDatePreset(24)">+2Y</button>
-            <button type="button" class="btn btn-secondary" style="padding:2px 6px;font-size:10px;" onclick="document.getElementById('goalDate').value=''">Clear</button>
-          </div>
-        </div>
-        <input type="date" id="goalDate" class="form-input" style="color-scheme:dark;">
+        <label class="form-label">Target Date (optional)</label>
+        <input type="date" id="goalDate" class="form-input">
       </div>
       <div class="form-group">
         <label class="form-label">Monthly Contribution (₹)</label>
@@ -120,7 +112,7 @@
         <span class="modal-title">Add Contribution</span>
         <button class="modal-close" onclick="closeModal('contributeModal')">✕</button>
       </div>
-      <p id="contributeGoalName" style="font-size:13px;color:#a5b4fc;margin-bottom:16px;font-weight:600"></p>
+      <p id="contributeGoalName" style="font-size:13px;color:#6ee7b7;margin-bottom:16px;font-weight:600"></p>
       <div class="form-group">
         <label class="form-label">Amount to Add (₹)</label>
         <input type="number" id="contributeAmount" class="form-input" placeholder="5000" min="1">
@@ -133,54 +125,18 @@
 
   <script src="/assets/js/sidebar.js"></script>
   <script>
-    const isDevLiveServer = window.location.port === '3000' || window.location.port === '5500' || window.location.protocol === 'file:';
-    const API_BASE = isDevLiveServer ? 'http://127.0.0.1:5000/api/v1' : '/api/v1';
-    const getToken = () => localStorage.getItem('jf_access_token');
-    const getRefreshToken = () => localStorage.getItem('jf_refresh_token');
-
-    if (!getToken()) window.location.href = '/login.html';
-
+    const API_BASE = window.location.origin.includes(':5001') ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
+    const token = localStorage.getItem('jf_access_token');
+    if (!token) window.location.href = '/login.html';
     const fmt = (v) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(v||0);
     const apiFetch = async (url, opts={}) => {
-      let at = getToken();
-      let headers = { 'Content-Type':'application/json', ...(at ? { Authorization:`Bearer ${at}` } : {}), ...(opts.headers||{}) };
-      let r = await fetch(`${API_BASE}${url}`, { ...opts, headers });
-      if (r.status === 401 && getRefreshToken()) {
-        try {
-          const refRes = await fetch(`${API_BASE}/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken: getRefreshToken() }),
-          });
-          const refData = await refRes.json();
-          if (refData.success && refData.data?.accessToken) {
-            localStorage.setItem('jf_access_token', refData.data.accessToken);
-            if (refData.data.refreshToken) localStorage.setItem('jf_refresh_token', refData.data.refreshToken);
-            headers.Authorization = `Bearer ${refData.data.accessToken}`;
-            r = await fetch(`${API_BASE}${url}`, { ...opts, headers });
-          } else {
-            localStorage.clear();
-            window.location.href = '/login.html?session_expired=1';
-            return null;
-          }
-        } catch {
-          localStorage.clear();
-          window.location.href = '/login.html?session_expired=1';
-          return null;
-        }
-      }
+      const r = await fetch(`${API_BASE}${url}`,{headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(opts.headers||{})},...opts});
+      if(r.status===401){localStorage.clear();window.location.href='/login.html';return null;}
       return r.json();
     };
 
     document.getElementById('sidebarRoot').innerHTML = getSidebar('goals');
     initSidebarUser();
-
-    // Preset button helper
-    window.setGoalDatePreset = (months) => {
-      const d = new Date();
-      d.setMonth(d.getMonth() + months);
-      document.getElementById('goalDate').value = d.toISOString().split('T')[0];
-    };
 
     let selectedGoalId = null;
     const goalIcons = { EMERGENCY_FUND:'🏦', VACATION:'✈️', HOME:'🏠', CAR:'🚗', EDUCATION:'🎓', RETIREMENT:'🌅', WEDDING:'💍', INVESTMENT:'📈', OTHER:'🎯' };
@@ -193,12 +149,10 @@
         return;
       }
 
-      // Handle both array and object responses safely
-      const rawGoals = Array.isArray(data.data) ? data.data : (data.data?.goals || []);
-      const goals = rawGoals || [];
+      const goals = data.data.goals || [];
       const active = goals.filter(g => g.status === 'ACTIVE');
-      const totalSaved = goals.reduce((s, g) => s + parseFloat(g.currentAmount || 0), 0);
-      const totalTarget = goals.reduce((s, g) => s + parseFloat(g.targetAmount || 0), 0);
+      const totalSaved = goals.reduce((s, g) => s + parseFloat(g.currentAmount), 0);
+      const totalTarget = goals.reduce((s, g) => s + parseFloat(g.targetAmount), 0);
 
       document.getElementById('activeGoals').textContent = active.length;
       document.getElementById('totalSaved').textContent = fmt(totalSaved);
@@ -213,7 +167,7 @@
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
           ${goals.map(g => {
             const pct = Math.min(g.progress || 0, 100);
-            const remaining = Math.max(0, parseFloat(g.targetAmount) - parseFloat(g.currentAmount));
+            const remaining = parseFloat(g.targetAmount) - parseFloat(g.currentAmount);
             const isCompleted = g.status === 'COMPLETED' || pct >= 100;
             return `<div class="card" style="border:1px solid ${isCompleted?'rgba(16,185,129,.3)':g.status==='PAUSED'?'rgba(245,158,11,.2)':g.priority==='HIGH'?'rgba(239,68,68,.2)':'rgba(255,255,255,.08)'}">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -221,7 +175,7 @@
                   <div style="font-size:24px">${goalIcons[g.goalType]||'🎯'}</div>
                   <div>
                     <div style="font-size:14px;font-weight:700">${g.name}</div>
-                    <div style="font-size:11px;color:#6b7280">${(g.goalType || '').replace(/_/g,' ')} · <span style="color:${priorityColors[g.priority] || '#10b981'}">${g.priority || 'MEDIUM'}</span></div>
+                    <div style="font-size:11px;color:#6b7280">${g.goalType.replace(/_/g,' ')} · <span style="color:${priorityColors[g.priority]}">${g.priority}</span></div>
                   </div>
                 </div>
                 <span class="badge ${isCompleted?'badge-green':g.status==='PAUSED'?'badge-amber':'badge-blue'}">${isCompleted?'✅ Done':g.status}</span>
@@ -238,7 +192,7 @@
               
               <div style="font-size:12px;margin-bottom:12px">
                 ${isCompleted ? '<span style="color:#10b981">🎉 Goal completed!</span>' : `<span style="color:#6b7280">Remaining: <strong style="color:white">${fmt(remaining)}</strong></span>`}
-                ${g.targetDate ? `<span style="color:#a5b4fc;margin-left:8px">· <i class="ri-calendar-line"></i> Due: <strong style="color:white">${new Date(g.targetDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</strong></span>` : ''}
+                ${g.targetDate ? `<span style="color:#6b7280;margin-left:8px">· Due: ${new Date(g.targetDate).toLocaleDateString('en-IN',{month:'short',year:'numeric'})}</span>` : ''}
               </div>
               
               <div style="display:flex;gap:8px">
@@ -265,19 +219,7 @@
       if (!targetAmount || targetAmount <= 0) { errEl.textContent='Enter a valid target amount.'; errEl.style.display='block'; return; }
       errEl.style.display='none';
 
-      const res = await apiFetch('/goals', {
-        method: 'POST',
-        body: JSON.stringify({
-          name,
-          goalType,
-          targetAmount,
-          currentAmount,
-          targetDate: targetDate || undefined,
-          monthlyContribution,
-          priority,
-        }),
-      });
-
+      const res = await apiFetch('/goals',{method:'POST',body:JSON.stringify({name,goalType,targetAmount,currentAmount,targetDate:targetDate||undefined,monthlyContribution,priority})});
       if (res?.success) {
         closeModal('addGoalModal');
         document.getElementById('goalName').value='';
@@ -285,8 +227,8 @@
         document.getElementById('goalCurrent').value='0';
         document.getElementById('goalDate').value='';
         document.getElementById('goalMonthly').value='0';
-        showToast('Goal created successfully!','success');
-        await loadGoals();
+        showToast('Goal created!','success');
+        loadGoals();
       } else {
         errEl.textContent=res?.error?.message||'Failed to create goal.';
         errEl.style.display='block';
@@ -325,7 +267,7 @@
     function showModal(id){document.getElementById(id).classList.add('show');}
     function closeModal(id){document.getElementById(id).classList.remove('show');}
     document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
-    function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);`;if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';else t.style.cssText+='background:#1e1b4b;border:1px solid #6366f1;color:#a5b4fc;';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
+    function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);`;if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';else t.style.cssText+='background:#1e1b4b;border:1px solid #10b981;color:#6ee7b7;';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
 
     loadGoals();
   </script>

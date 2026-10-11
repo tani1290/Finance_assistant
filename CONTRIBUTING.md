@@ -50,7 +50,7 @@ Thank you for your interest in contributing to **FinPro** (Personal Finance & In
    ```bash
    npm run dev
    ```
-   Open `http://127.0.0.1:5000/` in your browser.
+   Open `http://127.0.0.1:5001/` in your browser.
 
 ---
 

@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Onboarding — FinPro</title>
+  <title>Onboarding — Jinay Finance AI</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     :root{
-      --primary:#4f46e5;
-      --primary-dark:#4338ca;
-      --primary-light:#eef2ff;
+      --primary:#10b981;
+      --primary-dark:#059669;
+      --primary-light:#ecfdf5;
       --surface:#ffffff;
       --border:#e2e8f0;
       --text:#0f172a;
@@ -44,7 +44,7 @@
     .form-group{margin-bottom:16px}
     .form-label{display:block;font-size:12px;color:var(--text);margin-bottom:6px;font-weight:600}
     .form-input{width:100%;padding:10px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:var(--radius);color:var(--text);font-size:13px;font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s}
-    .form-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,0.1)}
+    .form-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(16,185,129,0.1)}
     .form-input::placeholder{color:#94a3b8}
     .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
@@ -56,7 +56,7 @@
     .btn-back{flex:1;padding:11px;background:#ffffff;border:1px solid #cbd5e1;border-radius:var(--radius);color:var(--text);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s}
     .btn-back:hover{background:#f8fafc;border-color:#94a3b8}
     .btn-next{flex:2;padding:11px;background:var(--primary);border:1px solid transparent;border-radius:var(--radius);color:white;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px}
-    .btn-next:hover:not(:disabled){background:var(--primary-dark);box-shadow:0 2px 6px rgba(79,70,229,0.25)}
+    .btn-next:hover:not(:disabled){background:var(--primary-dark);box-shadow:0 2px 6px rgba(16,185,129,0.25)}
     .btn-next:disabled{opacity:.6;cursor:not-allowed}
     .hint{font-size:11px;color:var(--muted);margin-top:4px}
     .skip-link{display:block;text-align:center;margin-top:16px;font-size:12px;color:var(--muted);text-decoration:none;cursor:pointer}
@@ -70,7 +70,7 @@
     <div class="header">
       <a href="/" class="brand">
         <div class="brand-icon"><i class="ri-line-chart-line"></i></div>
-        <span class="brand-name">FinPro</span>
+        <span class="brand-name">Jinay Finance AI</span>
       </a>
       <div class="step-indicator">
         <div class="step active" id="s1"></div>
@@ -173,8 +173,7 @@
   </div>
   
   <script>
-    const isDevLiveServer = window.location.port === '3000' || window.location.port === '5500' || window.location.protocol === 'file:';
-    const API_BASE = isDevLiveServer ? 'http://127.0.0.1:5000/api/v1' : '/api/v1';
+    const API_BASE = window.location.origin.includes(':5001') ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
     
     // Hash token extraction (secure OAuth transfer)
     const hashParams = new URLSearchParams(window.location.hash ? window.location.hash.substring(1) : '');
@@ -293,7 +292,7 @@
           spinner.style.display = 'none';
         }
       } catch (e) {
-        alert('Cannot connect to server. Is backend running on port 5000?');
+        alert('Cannot connect to server. Is backend running on port 5001?');
         btn.disabled = false;
         text.textContent = 'Generate My Plan';
         icon.style.display = 'inline';

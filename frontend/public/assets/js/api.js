@@ -1,13 +1,12 @@
 /**
- * FinPro — Centralized API Client
- * FinPro — Personal Finance & Investment Decision Support Platform
+ * Jinay Finance AI — Centralized API Client
+ * Owner: Jinay Golecha (jinay_golecha)
  * All API calls go to Node.js/Express backend
  */
 
-const isDevLiveServer = window.location.port === '3000' || window.location.port === '5500' || window.location.protocol === 'file:';
-export const API_BASE = isDevLiveServer 
-  ? 'http://127.0.0.1:5000/api/v1' 
-  : '/api/v1';
+const API_BASE = window.location.origin.includes(':5001') 
+  ? '/api/v1' 
+  : 'http://127.0.0.1:5001/api/v1';
 
 // ===== Token Management =====
 
@@ -25,21 +24,6 @@ export const clearTokens = () => {
   localStorage.removeItem('jf_user');
 };
 
-export const logout = async () => {
-  const refresh = getRefreshToken();
-  if (refresh) {
-    try {
-      await fetch(`${API_BASE}/auth/logout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: refresh }),
-      });
-    } catch {}
-  }
-  clearTokens();
-  window.location.href = '/login.html';
-};
-
 export const getUser = () => {
   try {
     return JSON.parse(localStorage.getItem('jf_user') || 'null');
@@ -53,7 +37,7 @@ export const setUser = (user) => {
 };
 
 export const isAuthenticated = () => {
-  return !!getToken() || !!getRefreshToken();
+  return !!getToken();
 };
 
 // ===== Auto token refresh =====
@@ -94,14 +78,10 @@ const refreshTokens = async () => {
 
 export const apiFetch = async (endpoint, options = {}) => {
   const url = `${API_BASE}${endpoint}`;
-  let token = getToken();
-
-  if (!token && getRefreshToken()) {
-    token = await refreshTokens();
-  }
+  const token = getToken();
 
   const defaultHeaders = {
-    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+    'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
@@ -172,7 +152,6 @@ export const authAPI = {
   refresh: (refreshToken) => apiFetch('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
   logout: (refreshToken) => apiFetch('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
   getMe: () => apiFetch('/auth/me'),
-  updateProfile: (data) => apiFetch('/auth/profile', { method: 'PATCH', body: JSON.stringify(data) }),
   googleToken: (token) => apiFetch('/auth/google/token', { method: 'POST', body: JSON.stringify({ token }) }),
   googleRedirectUrl: () => `${API_BASE}/auth/google`,
 };
@@ -213,7 +192,6 @@ export const transactionsAPI = {
   update: (id, data) => apiFetch(`/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id) => apiFetch(`/transactions/${id}`, { method: 'DELETE' }),
   parseVoice: (text) => apiFetch('/transactions/voice', { method: 'POST', body: JSON.stringify({ text }) }),
-  parseText: (text) => apiFetch('/transactions/parse-text', { method: 'POST', body: JSON.stringify({ text }) }),
 };
 
 // ===== Budgets API =====
@@ -387,21 +365,8 @@ export const receiptsAPI = {
 };
 
 export const importAPI = {
-  bankStatement: (csvContent, accountId) => apiFetch('/import/bank-statement', { method: 'POST', body: JSON.stringify({ csvContent, accountId }) }),
-  statementPDF: (data) => apiFetch('/import/statement-pdf', { method: 'POST', body: JSON.stringify(data) }),
+  bankStatement: (csvContent) => apiFetch('/import/bank-statement', { method: 'POST', body: JSON.stringify({ csvContent }) }),
   confirm: (data) => apiFetch('/import/confirm', { method: 'POST', body: JSON.stringify(data) }),
-  feedback: (data) => apiFetch('/import/feedback', { method: 'POST', body: JSON.stringify(data) }),
-};
-
-// ===== Credit Bureau & Score Intelligence API (Layer 1 + 2) =====
-export const creditAPI = {
-  getCreditScore: () => apiFetch('/credit-score'),
-};
-
-// ===== GST Verification & Tax API =====
-export const gstAPI = {
-  lookup: (gstin) => apiFetch('/gst/lookup', { method: 'POST', body: JSON.stringify({ gstin }) }),
-  calculate: (data) => apiFetch('/gst/calculate', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // ===== Training Data Bot & ML Studio API =====
@@ -421,15 +386,15 @@ export const trainingAPI = {
 // ===== Export API =====
 
 export const exportAPI = {
-  transactions: () => downloadFile('/export/transactions.csv', 'finpro_transactions.csv'),
-  accounts: () => downloadFile('/export/accounts.csv', 'finpro_accounts.csv'),
-  budgets: () => downloadFile('/export/budgets.csv', 'finpro_budgets.csv'),
-  goals: () => downloadFile('/export/goals.csv', 'finpro_goals.csv'),
-  investments: () => downloadFile('/export/investments.csv', 'finpro_investments.csv'),
-  loans: () => downloadFile('/export/loans.csv', 'finpro_loans.csv'),
-  insurance: () => downloadFile('/export/insurance.csv', 'finpro_insurance.csv'),
-  subscriptions: () => downloadFile('/export/subscriptions.csv', 'finpro_subscriptions.csv'),
-  summary: () => downloadFile('/export/summary.csv', 'finpro_summary.csv'),
+  transactions: () => downloadFile('/export/transactions.csv', 'jinay_finance_transactions.csv'),
+  accounts: () => downloadFile('/export/accounts.csv', 'jinay_finance_accounts.csv'),
+  budgets: () => downloadFile('/export/budgets.csv', 'jinay_finance_budgets.csv'),
+  goals: () => downloadFile('/export/goals.csv', 'jinay_finance_goals.csv'),
+  investments: () => downloadFile('/export/investments.csv', 'jinay_finance_investments.csv'),
+  loans: () => downloadFile('/export/loans.csv', 'jinay_finance_loans.csv'),
+  insurance: () => downloadFile('/export/insurance.csv', 'jinay_finance_insurance.csv'),
+  subscriptions: () => downloadFile('/export/subscriptions.csv', 'jinay_finance_subscriptions.csv'),
+  summary: () => downloadFile('/export/summary.csv', 'jinay_finance_summary.csv'),
 };
 
 // ===== Utility Functions =====
@@ -508,8 +473,6 @@ export default {
   trainingAPI,
   receiptsAPI,
   importAPI,
-  creditAPI,
-  gstAPI,
   exportAPI,
   formatINR,
   formatINRFull,
@@ -520,6 +483,5 @@ export default {
   setUser,
   setTokens,
   clearTokens,
-  logout,
   handleGoogleCallback,
 };

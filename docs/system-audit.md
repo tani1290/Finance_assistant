@@ -12,7 +12,7 @@
 
 | Dimension | Canonical Architecture | Audited Status | Verification Proof |
 | :--- | :--- | :--- | :--- |
-| **Backend** | Single canonical Node.js 22 + Express 4 server | **ACTIVE** | `node-backend/src/server.js` listening on port 5000 |
+| **Backend** | Single canonical Node.js 22 + Express 4 server | **ACTIVE** | `node-backend/src/server.js` listening on port 5001 |
 | **Database** | PostgreSQL 17 via Prisma ORM 5.22 | **ACTIVE** | `finance_jinay` running on `127.0.0.1:5432`; real query test passes in 4ms |
 | **Legacy Django** | Quarantined in `legacy-django-backend/` | **DEPRECATED** | Zero runtime dependencies; all web requests served via Node.js |
 | **Frontend** | Vanilla JS / CSS served from `frontend/public/` | **ACTIVE** | Centralized API client in `assets/js/api.js` |

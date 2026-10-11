@@ -1,64 +1,49 @@
 # ====================================================================
-# FinPro — Production Dockerfile
-# Academic Cloud Computing Architecture
-# Multi-stage build with Node.js 22 Alpine & Non-Root Security
+# Jinay Finance AI — Production Dockerfile
+# Multi-stage build with Node.js 22 Alpine
 # ====================================================================
 
-# --------------------------------------------------------------------
-# Stage 1: Build & Dependency Resolution
-# --------------------------------------------------------------------
 FROM node:22-alpine AS builder
-
-# Required by Prisma query engine on Alpine Linux
-RUN apk add --no-cache openssl libc6-compat
 
 WORKDIR /app
 
-# Copy package descriptors
+# Copy root and backend dependency descriptors
 COPY package*.json ./
 COPY node-backend/package*.json ./node-backend/
 
-# Install dependencies cleanly
-RUN npm --prefix node-backend install --omit=dev
+# Install dependencies
+RUN npm install
+RUN cd node-backend && npm install
 
-# Copy Prisma schema & migrations, then generate Prisma Client
+# Copy Prisma schema and generate client
 COPY node-backend/prisma ./node-backend/prisma
 RUN cd node-backend && npx prisma generate
 
-# Copy application source code & public frontend assets
+# Copy source code and frontend assets
 COPY node-backend/src ./node-backend/src
 COPY frontend/public ./frontend/public
 
 # --------------------------------------------------------------------
-# Stage 2: Production Minimal Runtime
+# Production Runner Stage
 # --------------------------------------------------------------------
 FROM node:22-alpine AS runner
-
-# Required by Prisma query engine on Alpine Linux
-RUN apk add --no-cache openssl libc6-compat wget
 
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=5000
-ENV STORAGE_LOCAL_DIR=/app/uploads
+ENV PORT=5001
 
-# Create uploads storage directory and configure permissions for non-root 'node' user
-RUN mkdir -p /app/uploads && chown -R node:node /app
+# Copy necessary files from builder
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/node-backend ./node-backend
+COPY --from=builder /app/frontend ./frontend
 
-# Copy application artifacts from builder stage with appropriate ownership
-COPY --chown=node:node --from=builder /app/package*.json ./
-COPY --chown=node:node --from=builder /app/node-backend ./node-backend
-COPY --chown=node:node --from=builder /app/frontend ./frontend
+EXPOSE 5001
 
-# Enforce Non-Root user execution for container security
-USER node
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:5001/api/v1/health || exit 1
 
-EXPOSE 5000
-
-# Cloud Readiness & Health Check Probe
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:5000/api/v1/health/ready || exit 1
-
-# Start FinPro production server
+# Start production server
 CMD ["node", "node-backend/src/server.js"]

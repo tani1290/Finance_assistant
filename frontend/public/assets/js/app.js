@@ -1,13 +1,12 @@
 /**
- * FinPro — Shared App Utilities
- * FinPro — Personal Finance & Investment Decision Support Platform
+ * Jinay Finance AI — Shared App Utilities
+ * Owner: Jinay Golecha (jinay_golecha)
  * All frontend pages include this file.
  */
 
-const isDevLiveServer = window.location.port === '3000' || window.location.port === '5500' || window.location.protocol === 'file:';
-export const API_BASE = isDevLiveServer 
-  ? 'http://127.0.0.1:5000/api/v1' 
-  : '/api/v1';
+const API_BASE = window.location.origin.includes(':5001') 
+  ? '/api/v1' 
+  : 'http://127.0.0.1:5001/api/v1';
 
 // ============ TOKEN MANAGEMENT ============
 export const getToken = () => localStorage.getItem('jf_access_token');
@@ -21,7 +20,7 @@ export const clearAuth = () => {
   localStorage.removeItem('jf_refresh_token');
   localStorage.removeItem('jf_user');
 };
-export const isAuthenticated = () => !!getToken() || !!getRefreshToken();
+export const isAuthenticated = () => !!getToken();
 export const getUser = () => {
   try { return JSON.parse(localStorage.getItem('jf_user') || 'null'); } catch { return null; }
 };
@@ -47,10 +46,9 @@ const refreshTokens = async () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken: rt }),
   }).then(r => r.json()).then(d => {
-    if (d.success && d.data?.accessToken) { setTokens(d.data.accessToken, d.data.refreshToken); return d.data.accessToken; }
-    if (d.error?.code === 'TOKEN_REVOKED' || d.error?.code === 'USER_NOT_FOUND') { clearAuth(); }
-    return null;
-  }).catch(() => { return null; }).finally(() => { _refreshing = null; });
+    if (d.success) { setTokens(d.data.accessToken, d.data.refreshToken); return d.data.accessToken; }
+    clearAuth(); return null;
+  }).catch(() => { clearAuth(); return null; }).finally(() => { _refreshing = null; });
   return _refreshing;
 };
 
@@ -58,16 +56,13 @@ const refreshTokens = async () => {
 export const apiFetch = async (endpoint, options = {}) => {
   const url = `${API_BASE}${endpoint}`;
   let token = getToken();
-  if (!token && getRefreshToken()) {
-    token = await refreshTokens();
-  }
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };
   let res = await fetch(url, { ...options, headers }).catch(() => null);
-  if (!res) throw { message: 'Cannot connect to server. Is the backend running on port 5000?', code: 'NETWORK_ERROR' };
+  if (!res) throw { message: 'Cannot connect to server. Is the backend running on port 5001?', code: 'NETWORK_ERROR' };
   if (res.status === 401) {
     const newToken = await refreshTokens();
     if (newToken) {

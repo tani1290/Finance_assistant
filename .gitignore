@@ -38,6 +38,7 @@ dist/
 .idea/
 
 # OS
+.DS_Store
 Thumbs.db
 desktop.ini
 
@@ -53,7 +54,6 @@ logs/
 *.db
 *.rdb
 *.sql
-!**/prisma/migrations/**/*.sql
 dump.rdb
 backup.json
 backup.sql
@@ -69,6 +69,6 @@ node-backend/test-db.js
 
 # Local/private data
 data/raw/
-data/private/
-node-backend/uploads/*
-!node-backend/uploads/.gitkeep
+data/private/api_key.txt
+api_key.txt
+replace_port.py

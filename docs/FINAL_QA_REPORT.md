@@ -16,7 +16,7 @@ Jinay Finance AI has undergone a full architectural overhaul, end-to-end databas
 - **Authentication & Security Audit Suite:** **40 / 40 Tests Passed (100%)**
 - **Live External Market Data Suite:** **6 / 6 Subsystems Verified**
 - **Database Engine:** PostgreSQL 17 active & verified on port 5432
-- **Backend API Gateway:** Node.js + Express active on port 5000 serving all `/api/v1/...` routes & frontend SPA
+- **Backend API Gateway:** Node.js + Express active on port 5001 serving all `/api/v1/...` routes & frontend SPA
 
 ---
 

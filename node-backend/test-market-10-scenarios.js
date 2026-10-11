@@ -19,7 +19,7 @@ const axios = require('axios');
 const prisma = require('./src/config/database');
 const marketService = require('./src/services/marketService');
 
-const BASE_URL = 'http://127.0.0.1:5000/api/v1';
+const BASE_URL = 'http://127.0.0.1:5001/api/v1';
 
 async function run10Scenarios() {
   console.log('========================================================================');

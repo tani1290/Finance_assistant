@@ -307,7 +307,7 @@ const googleAuthRedirect = (req, res, next) => {
  * Handles Google OAuth callback with code exchange
  */
 const googleAuthCallback = async (req, res, next) => {
-  const host = req.get('host') || '127.0.0.1:5000';
+  const host = req.get('host') || '127.0.0.1:5001';
   const protocol = req.protocol || 'http';
   const frontendUrl = (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes(':3000'))
     ? process.env.FRONTEND_URL

@@ -42,7 +42,7 @@ const getAccounts = async (req, res, next) => {
 const createAccount = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { name, accountType = 'BANK', institution, balance = 0 } = req.body;
+    const { name, accountType = 'BANK', institution, balance = 0, accountNumberMasked } = req.body;
 
     if (!name) {
       return res.status(400).json({
@@ -57,6 +57,7 @@ const createAccount = async (req, res, next) => {
         name: name.trim(),
         accountType,
         institution: institution?.trim() || null,
+        accountNumberMasked: accountNumberMasked ? accountNumberMasked.trim() : null,
         balance: parseFloat(balance) || 0,
         currency: 'INR',
       },

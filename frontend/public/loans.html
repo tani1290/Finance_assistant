@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Loans & EMI — FinPro</title>
+  <title>Loans & EMI — Jinay Finance AI</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/app.css">
@@ -62,9 +62,9 @@
       <div class="form-group"><label class="form-label">Loan Amount (₹)</label><input type="number" id="calcPrincipal" class="form-input" placeholder="500000" oninput="calcEMI()"></div>
       <div class="form-group"><label class="form-label">Interest Rate (% per annum)</label><input type="number" id="calcRate" class="form-input" placeholder="8.5" step="0.01" oninput="calcEMI()"></div>
       <div class="form-group"><label class="form-label">Tenure (months)</label><input type="number" id="calcTenure" class="form-input" placeholder="240" oninput="calcEMI()"></div>
-      <div id="calcResult" style="display:none;padding:16px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.2);border-radius:12px;margin-top:8px;font-size:13px">
+      <div id="calcResult" style="display:none;padding:16px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);border-radius:12px;margin-top:8px;font-size:13px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div><div style="color:#6b7280;font-size:11px;margin-bottom:4px">Monthly EMI</div><div id="calcEMIResult" style="font-size:20px;font-weight:800;color:#a5b4fc">₹0</div></div>
+          <div><div style="color:#6b7280;font-size:11px;margin-bottom:4px">Monthly EMI</div><div id="calcEMIResult" style="font-size:20px;font-weight:800;color:#6ee7b7">₹0</div></div>
           <div><div style="color:#6b7280;font-size:11px;margin-bottom:4px">Total Interest</div><div id="calcInterestResult" style="font-size:20px;font-weight:800;color:#fca5a5">₹0</div></div>
           <div><div style="color:#6b7280;font-size:11px;margin-bottom:4px">Total Payment</div><div id="calcTotalResult" style="font-size:20px;font-weight:800;color:white">₹0</div></div>
         </div>
@@ -74,40 +74,13 @@
 
   <script src="/assets/js/sidebar.js"></script>
   <script>
-    const isDevLiveServer = window.location.port === '3000' || window.location.port === '5500' || window.location.protocol === 'file:';
-    const API_BASE = isDevLiveServer ? 'http://127.0.0.1:5000/api/v1' : '/api/v1';
-    const getToken = () => localStorage.getItem('jf_access_token');
-    const getRefreshToken = () => localStorage.getItem('jf_refresh_token');
-    if (!getToken()) window.location.href = '/login.html';
+    const API_BASE = window.location.origin.includes(':5001') ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
+    const token = localStorage.getItem('jf_access_token');
+    if (!token) window.location.href = '/login.html';
     const fmt = (v) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(v||0);
     const apiFetch = async (url, opts={}) => {
-      let at = getToken();
-      let headers = { 'Content-Type':'application/json', ...(at ? { Authorization:`Bearer ${at}` } : {}), ...(opts.headers||{}) };
-      let r = await fetch(`${API_BASE}${url}`, { ...opts, headers });
-      if (r.status === 401 && getRefreshToken()) {
-        try {
-          const refRes = await fetch(`${API_BASE}/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken: getRefreshToken() }),
-          });
-          const refData = await refRes.json();
-          if (refData.success && refData.data?.accessToken) {
-            localStorage.setItem('jf_access_token', refData.data.accessToken);
-            if (refData.data.refreshToken) localStorage.setItem('jf_refresh_token', refData.data.refreshToken);
-            headers.Authorization = `Bearer ${refData.data.accessToken}`;
-            r = await fetch(`${API_BASE}${url}`, { ...opts, headers });
-          } else {
-            localStorage.clear();
-            window.location.href = '/login.html?session_expired=1';
-            return null;
-          }
-        } catch {
-          localStorage.clear();
-          window.location.href = '/login.html?session_expired=1';
-          return null;
-        }
-      }
+      const r = await fetch(`${API_BASE}${url}`,{headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(opts.headers||{})},...opts});
+      if(r.status===401){localStorage.clear();window.location.href='/login.html';return null;}
       return r.json();
     };
 
@@ -225,7 +198,7 @@
     function showModal(id){document.getElementById(id).classList.add('show');}
     function closeModal(id){document.getElementById(id).classList.remove('show');}
     document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
-    function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);`;if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';else t.style.cssText+='background:#1e1b4b;border:1px solid #6366f1;color:#a5b4fc;';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
+    function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);`;if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';else t.style.cssText+='background:#1e1b4b;border:1px solid #10b981;color:#6ee7b7;';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
 
     loadLoans();
   </script>

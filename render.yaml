@@ -1,7 +1,7 @@
 # ====================================================================
 # FinPro — Personal Finance & AI Platform
 # Render Blueprint Specification (render.yaml)
-# Production Deployment with Supabase PostgreSQL
+# Production Deployment with Supabase PostgreSQL + Firebase
 # ====================================================================
 
 services:
@@ -23,8 +23,8 @@ services:
         value: 5000
 
       # Supabase PostgreSQL Database URL
-      # NOTE: For Supabase, use the pooled connection string (port 6543 or port 5432 with pgbouncer)
-      # e.g., postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true
+      # NOTE: For Supabase, use the pooled connection string (port 6543)
+      # e.g., postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true
       - key: DATABASE_URL
         sync: false
 
@@ -56,6 +56,13 @@ services:
       - key: MARKETAUX_BASE_URL
         value: https://api.marketaux.com/v1
 
+      # ── Firebase Admin SDK ──────────────────────────────────────────
+      # Paste the full contents of your Firebase service account JSON as a single-line string.
+      # Get it from: Firebase Console → Project Settings → Service Accounts → Generate new private key
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+
       # CORS & Client Origin
+      # Update this once your Vercel frontend URL is known
       - key: FRONTEND_URL
-        value: https://finpro-finance-ai.onrender.com
+        value: https://finpro-finance-ai.vercel.app
