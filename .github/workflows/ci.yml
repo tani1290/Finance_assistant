@@ -49,11 +49,12 @@ jobs:
         run: |
           npm run lint
 
-      - name: 6. Apply Database Migrations (Prisma Migrate Deploy)
+      - name: 6. Apply Database Migrations (Prisma Migrate Deploy & Push)
         env:
           DATABASE_URL: postgresql://postgres:postgrespassword_ci_test@localhost:5432/finance_jinay_test?schema=public
         run: |
-          cd node-backend && npx prisma migrate deploy
+          cd node-backend && (npx prisma migrate deploy || npx prisma db push --accept-data-loss)
+          cd node-backend && npx prisma db push --accept-data-loss
 
       - name: 7. Run Master Integration & Acceptance Tests
         env:

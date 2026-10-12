@@ -54,6 +54,8 @@ logs/
 *.db
 *.rdb
 *.sql
+!node-backend/prisma/migrations/**/*.sql
+!prisma/migrations/**/*.sql
 dump.rdb
 backup.json
 backup.sql
