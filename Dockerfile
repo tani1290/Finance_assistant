@@ -12,7 +12,8 @@ COPY package*.json ./
 COPY node-backend/package*.json ./node-backend/
 
 # Install dependencies
-RUN npm install
+RUN npm install --omit=dev || true
+RUN mkdir -p /app/node_modules
 RUN cd node-backend && npm install
 
 # Copy Prisma schema and generate client
