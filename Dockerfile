@@ -7,6 +7,8 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+RUN apk add --no-cache openssl
+
 # Copy root and backend dependency descriptors
 COPY package*.json ./
 COPY node-backend/package*.json ./node-backend/
@@ -30,6 +32,8 @@ COPY frontend/public ./frontend/public
 FROM node:22-alpine AS runner
 
 WORKDIR /app
+
+RUN apk add --no-cache openssl
 
 ENV NODE_ENV=production
 ENV PORT=5000
