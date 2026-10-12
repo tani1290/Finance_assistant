@@ -66,7 +66,7 @@ const errorHandler = (err, req, res, next) => {
     success: false,
     error: {
       code: err.code || 'INTERNAL_ERROR',
-      message: process.env.NODE_ENV === 'production'
+      message: (process.env.NODE_ENV === 'production' && statusCode >= 500)
         ? 'An internal server error occurred.'
         : err.message || 'An internal server error occurred.',
     },

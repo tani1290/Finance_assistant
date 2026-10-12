@@ -119,37 +119,57 @@ class FirebaseService {
   /// Perform Google Sign-In and return { user, accessToken, refreshToken } from FinPro backend.
   Future<Map<String, dynamic>?> signInWithGoogle() async {
     try {
-      final googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+      final googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+        // Web client ID so Android returns a Google ID token the backend can verify
+        serverClientId:
+            '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
+      );
       final googleUser = await googleSignIn.signIn();
       if (googleUser == null) return null; // user cancelled
 
       final googleAuth = await googleUser.authentication;
+      final googleIdToken = googleAuth.idToken;
 
-      // Get Firebase ID token via Google credential
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
+      // Authenticate with Firebase on device
+      String? firebaseIdToken;
+      if (googleIdToken != null) {
+        final credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleIdToken,
+        );
+        final userCredential = await auth.signInWithCredential(credential);
+        firebaseIdToken = await userCredential.user?.getIdToken();
+      }
+      firebaseIdToken ??= await auth.currentUser?.getIdToken();
 
-      final userCredential = await auth.signInWithCredential(credential);
-      final firebaseIdToken = await userCredential.user?.getIdToken();
+      final parts = (googleUser.displayName ?? '').trim().split(' ');
+      final firstName = parts.isNotEmpty ? parts.first : '';
+      final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
 
-      if (firebaseIdToken == null) return null;
-
-      // Exchange Firebase ID token with FinPro backend for JWT tokens
+      // Backend expects `token` (frontend contract). Also send `idToken`, `firebaseToken`, and metadata.
       final response = await apiClient.post(
         ApiEndpoints.googleToken,
-        data: {'idToken': firebaseIdToken},
+        data: {
+          'token': googleIdToken ?? firebaseIdToken,
+          'idToken': googleIdToken ?? firebaseIdToken,
+          'firebaseToken': firebaseIdToken,
+          'email': googleUser.email,
+          'firstName': firstName,
+          'lastName': lastName,
+          'avatarUrl': googleUser.photoUrl,
+          'googleId': auth.currentUser?.uid,
+        },
       );
 
       if (response.statusCode == 200 && response.data['success'] == true) {
         return response.data['data'] as Map<String, dynamic>;
       }
-      return null;
+      throw Exception('Google token exchange failed');
     } catch (e) {
       debugPrint('[Firebase] Google Sign-In failed: $e');
       crashlytics.recordError(e, StackTrace.current, reason: 'Google Sign-In');
-      return null;
+      rethrow;
     }
   }
 

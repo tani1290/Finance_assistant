@@ -12,7 +12,20 @@
           "package_name": "com.finpro.app.finpro_mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1024776311502-02qf5999j49r784gao2nvqjjoi2avvbg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.finpro.app.finpro_mobile",
+            "certificate_hash": "7aa7e01a0012535f72980f307494b46a05d8ca4c"
+          }
+        },
+        {
+          "client_id": "1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCeTq5OQQUp2wAlvKE6VoNmOHBfJxC0sso"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

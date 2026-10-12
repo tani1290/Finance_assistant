@@ -13,5 +13,7 @@ router.get('/providers', auth.getAuthProviders);
 router.get('/google', auth.googleAuthRedirect);
 router.get('/google/callback', auth.googleAuthCallback);
 router.post('/google/token', auth.googleAuthWithToken);
+router.get('/seed-demo', auth.seedDemo);
+router.post('/seed-demo', auth.seedDemo);
 
 module.exports = router;

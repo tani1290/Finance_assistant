@@ -1,13 +1,8 @@
-import 'dart:io';
 
 class ApiEndpoints {
   // Configurable base URL
   static String defaultBaseUrl() {
-    if (Platform.isAndroid) {
-      // 127.0.0.1 routes directly to host machine with 'adb reverse tcp:5001 tcp:5001'
-      return 'http://127.0.0.1:5001/api/v1';
-    }
-    return 'http://localhost:5001/api/v1';
+    return 'https://finpro-finance-ai.onrender.com/api/v1';
   }
 
   static String baseUrl = defaultBaseUrl();

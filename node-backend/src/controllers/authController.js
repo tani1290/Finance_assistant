@@ -332,19 +332,28 @@ const googleAuthCallback = async (req, res, next) => {
 
 /**
  * POST /api/v1/auth/google/token
- * For frontend that uses Google Sign-In button with id_token
+ * For frontend & mobile that uses Google / Firebase Sign-In
  */
 const googleAuthWithToken = async (req, res, next) => {
   try {
-    const { token } = req.body;
-    if (!token) {
+    const { token, idToken, firebaseToken, email, firstName, lastName, avatarUrl, googleId } = req.body;
+    const googleToken = token || idToken || firebaseToken;
+    if (!googleToken && !email) {
       return res.status(400).json({
         success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'Google ID token is required.' },
+        error: { code: 'VALIDATION_ERROR', message: 'Google ID token or email is required.' },
       });
     }
 
-    const result = await authService.googleAuth(token);
+    const result = await authService.googleAuth({
+      idToken: googleToken,
+      firebaseToken,
+      email,
+      firstName,
+      lastName,
+      avatarUrl,
+      googleId,
+    });
 
     return res.status(200).json({
       success: true,
@@ -360,4 +369,40 @@ const googleAuthWithToken = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, refresh, logout, getMe, updateProfile, getAuthProviders, googleAuthRedirect, googleAuthCallback, googleAuthWithToken };
+/**
+ * POST /api/v1/auth/seed-demo & GET /api/v1/auth/seed-demo
+ * Seeds demo user (demo@example.com / DemoPassword123!)
+ */
+const seedDemo = async (req, res, next) => {
+  try {
+    const user = await authService.ensureDemoUserExists();
+    return res.status(200).json({
+      success: true,
+      message: 'Demo user Arjun Sharma (demo@example.com) is seeded and ready to log in!',
+      data: {
+        email: user.email,
+        username: user.username,
+        credentials: {
+          email: 'demo@example.com',
+          password: 'DemoPassword123!',
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  register,
+  login,
+  refresh,
+  logout,
+  getMe,
+  updateProfile,
+  getAuthProviders,
+  googleAuthRedirect,
+  googleAuthCallback,
+  googleAuthWithToken,
+  seedDemo,
+};

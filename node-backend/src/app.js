@@ -74,7 +74,8 @@ if (process.env.NODE_ENV !== 'test') {
 
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 100,
+    skipSuccessfulRequests: true,
     message: { success: false, error: { code: 'AUTH_RATE_LIMITED', message: 'Too many authentication attempts. Try again in 15 minutes.' } },
   });
 

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../auth/token_storage.dart';
+import '../debug_agent_log.dart';
 import 'api_endpoints.dart';
 
 class ApiClient {
@@ -8,8 +9,8 @@ class ApiClient {
   ApiClient() {
     dio = Dio(
       BaseOptions(
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 15),
+        connectTimeout: const Duration(seconds: 45),
+        receiveTimeout: const Duration(seconds: 45),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -27,9 +28,27 @@ class ApiClient {
           return handler.next(options);
         },
         onError: (DioException error, handler) async {
-          // Transparent 401 token refresh loop
+          final responseData = error.response?.data;
+          final errorObj = responseData is Map ? responseData['error'] : null;
+          agentLog(
+            location: 'api_client.dart:onError',
+            message: 'Dio interceptor error',
+            hypothesisId: 'A,B,D',
+            data: {
+              'status': error.response?.statusCode,
+              'type': error.type.toString(),
+              'path': error.requestOptions.path,
+              'errorCode': errorObj is Map ? errorObj['code'] : null,
+            },
+          );
+          // Transparent 401 token refresh loop — never treat login/register as expired JWT
+          final path = error.requestOptions.path;
+          final isCredentialAuth = path.contains('/auth/login') ||
+              path.contains('/auth/register') ||
+              path.contains('/auth/google');
           if (error.response?.statusCode == 401 &&
-              !error.requestOptions.path.contains('/auth/refresh')) {
+              !path.contains('/auth/refresh') &&
+              !isCredentialAuth) {
             final refreshToken = await TokenStorage.getRefreshToken();
             if (refreshToken != null) {
               try {

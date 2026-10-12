@@ -35,6 +35,9 @@ const startServer = async () => {
       try {
         await prisma.$connect();
         console.log('[Database] Connected to PostgreSQL (Cloud Supabase) ✓');
+        // Ensure demo user exists for seamless sign in
+        const authService = require('./services/authService');
+        await authService.ensureDemoUserExists().catch((e) => console.warn('[Auth] Demo user auto-seed warning:', e.message));
         break;
       } catch (err) {
         retries--;
