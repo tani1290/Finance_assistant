@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -269,22 +270,76 @@
 
     // Check auth providers status
     let googleOAuthEnabled = false;
+    let googleClientId = '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com';
     fetch(`${API_BASE}/auth/providers`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.data?.google?.enabled) {
           googleOAuthEnabled = true;
+          if (data.data.google.clientId) googleClientId = data.data.google.clientId;
+          initGoogleSignIn();
         }
       })
       .catch(() => {});
 
+    function handleGoogleCredentialResponse(response) {
+      if (!response.credential) return;
+      setLoading(true);
+      clearAlert();
+      fetch(`${API_BASE}/auth/google/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: response.credential, idToken: response.credential }),
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          localStorage.setItem('jf_access_token', data.data.accessToken);
+          localStorage.setItem('jf_refresh_token', data.data.refreshToken);
+          localStorage.setItem('jf_user', JSON.stringify(data.data.user));
+          window.location.href = '/dashboard.html';
+        } else {
+          setLoading(false);
+          showAlert('error', data.error?.message || 'Google signup failed.');
+        }
+      })
+      .catch(() => {
+        setLoading(false);
+        showAlert('error', 'Google signup network error. Please try again.');
+      });
+    }
+
+    function initGoogleSignIn() {
+      if (window.google?.accounts?.id) {
+        google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: handleGoogleCredentialResponse,
+        });
+      }
+    }
+
+    window.addEventListener('load', () => {
+      setTimeout(initGoogleSignIn, 500);
+    });
+
     document.getElementById('googleSignupBtn').addEventListener('click', async (e) => {
       e.preventDefault();
-      if (!googleOAuthEnabled) {
-        showAlert('error', 'Google Sign-In is not configured. To enable Google OAuth, please configure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in node-backend/.env. Please create your account with email and password below.');
-        return;
+      if (window.google?.accounts?.id) {
+        initGoogleSignIn();
+        google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            if (googleOAuthEnabled) {
+              window.location.href = `${API_BASE}/auth/google`;
+            } else {
+              showAlert('error', 'Please select your Google account in the popup or create an account with email and password below.');
+            }
+          }
+        });
+      } else if (googleOAuthEnabled) {
+        window.location.href = `${API_BASE}/auth/google`;
+      } else {
+        showAlert('error', 'Google Sign-In is initializing. Please try again or create an account with email and password.');
       }
-      window.location.href = `${API_BASE}/auth/google`;
     });
 
     // Password strength

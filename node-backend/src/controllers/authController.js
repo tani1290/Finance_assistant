@@ -270,11 +270,10 @@ const updateProfile = async (req, res, next) => {
  * Returns authentication providers configuration status
  */
 const getAuthProviders = (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID || '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com';
   const googleConfigured = !!(
-    process.env.GOOGLE_CLIENT_ID &&
-    process.env.GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com' &&
-    process.env.GOOGLE_CLIENT_SECRET &&
-    process.env.GOOGLE_CLIENT_SECRET !== 'YOUR_GOOGLE_CLIENT_SECRET'
+    clientId &&
+    clientId !== 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com'
   );
 
   return res.status(200).json({
@@ -283,7 +282,7 @@ const getAuthProviders = (req, res) => {
       password: true,
       google: {
         enabled: googleConfigured,
-        clientId: googleConfigured ? process.env.GOOGLE_CLIENT_ID : null,
+        clientId: googleConfigured ? clientId : null,
       },
     },
   });
