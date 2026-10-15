@@ -295,6 +295,33 @@
       transform: translateY(-1px);
     }
 
+    .btn-hero-apk {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 22px;
+      background: #0f172a;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: var(--radius-md);
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
+      transition: all 0.2s ease;
+    }
+
+    .btn-hero-apk:hover {
+      background: #1e293b;
+      color: #86efac;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .btn-hero-apk i {
+      color: #4ade80;
+      font-size: 18px;
+    }
+
     .trust-bullets {
       display: flex;
       align-items: center;
@@ -1030,12 +1057,13 @@
       <div class="nav-links">
         <a href="#features" class="nav-link">Features</a>
         <a href="#calculator" class="nav-link">SIP Calculator</a>
-        <a href="#how-it-works" class="nav-link">How It Works</a>
+        <a href="#mobile-app" class="nav-link"><i class="ri-android-line" style="color:var(--primary);margin-right:2px;"></i> Mobile App</a>
         <a href="#faq" class="nav-link">FAQ</a>
         <a href="/status.html" class="nav-link">Cloud Status</a>
       </div>
 
       <div class="nav-actions">
+        <a href="/downloads/finpro-finance-ai.apk" download="finpro-finance-ai.apk" class="btn-ghost" style="color:#059669;font-weight:600;"><i class="ri-download-line"></i> APK</a>
         <a href="/login.html" class="btn-ghost">Sign In</a>
         <a href="/signup.html" class="btn-primary">Get Started Free</a>
       </div>
@@ -1062,6 +1090,10 @@
       <a href="/signup.html" class="btn-hero-lg">
         <span>Get Started Free</span>
         <i class="ri-arrow-right-line"></i>
+      </a>
+      <a href="/downloads/finpro-finance-ai.apk" download="finpro-finance-ai.apk" class="btn-hero-apk" id="heroApkDownload" title="Direct download Android APK">
+        <i class="ri-android-fill"></i>
+        <span>Download Android App (.apk)</span>
       </a>
       <a href="/dashboard.html" class="btn-hero-secondary">
         <i class="ri-dashboard-line"></i>
@@ -1427,6 +1459,39 @@
     </div>
   </section>
 
+  <!-- DEDICATED ANDROID APP DOWNLOAD SECTION -->
+  <section class="section-wrap" id="mobile-app" style="padding-top: 10px;">
+    <div style="background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%); border-radius: var(--radius-lg); padding: 48px 36px; color: white; display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; box-shadow: 0 16px 36px rgba(6, 78, 59, 0.22); border: 1px solid rgba(255,255,255,0.12);">
+      <div style="max-width: 580px;">
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); border-radius: 9999px; padding: 4px 14px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px;">
+          <i class="ri-android-fill" style="color:#86efac;"></i> Android Mobile Release
+        </div>
+        <h2 style="font-family:'Outfit',sans-serif; font-size: clamp(24px, 3vw, 32px); font-weight: 700; margin-bottom: 12px; color: #ffffff; letter-spacing: -0.02em;">
+          Carry your calm finances everywhere.
+        </h2>
+        <p style="font-size: 15px; color: #d1fae5; line-height: 1.6; margin-bottom: 24px;">
+          Install the native Flutter Android app directly on your device. Instant Indian market updates, portfolio tracking, budget alerts, and Gemini AI advice in your pocket.
+        </p>
+        <div style="display: flex; gap: 14px; flex-wrap: wrap; align-items: center;">
+          <a href="/downloads/finpro-finance-ai.apk" download="finpro-finance-ai.apk" class="btn-hero-apk" style="background:#ffffff; color:#065f46; font-weight:700; padding:14px 28px; box-shadow: 0 6px 18px rgba(0,0,0,0.15);">
+            <i class="ri-download-cloud-2-line" style="color:#059669; font-size:20px;"></i>
+            <span>Download APK (v1.0.0 · 53 MB)</span>
+          </a>
+          <span style="font-size: 12px; color: #a7f3d0; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="ri-shield-check-line"></i> Direct APK · Android 8.0+
+          </span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
+        <div style="width: 140px; height: 140px; background: #ffffff; border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #064e3b; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">
+          <i class="ri-android-fill" style="font-size: 48px; color: #059669; margin-bottom: 4px;"></i>
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase;">Android APK</span>
+          <span style="font-size: 10px; color: #64748b;">Ready to install</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- PEACEFUL CLOSING CTA -->
   <div class="section-wrap" style="padding-top: 20px;">
     <div class="final-cta">
@@ -1455,6 +1520,7 @@
       <div class="footer-nav">
         <a href="#features">Features</a>
         <a href="#calculator">SIP Calculator</a>
+        <a href="/downloads/finpro-finance-ai.apk" download="finpro-finance-ai.apk" style="color:var(--primary);font-weight:600;"><i class="ri-android-fill"></i> Download APK</a>
         <a href="/status.html">Cloud Status</a>
         <a href="/login.html">Sign In</a>
         <a href="/signup.html">Sign Up</a>

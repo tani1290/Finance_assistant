@@ -1,0 +1,13 @@
+# Ignore all backend, mobile, node_modules, and documentation from Vercel deployments
+mobile/
+node-backend/
+legacy-django-backend/
+lit_Survey/
+docs/
+scripts/
+.git/
+.env*
+*.md
+*.log
+*.sqlite3
+*.db
