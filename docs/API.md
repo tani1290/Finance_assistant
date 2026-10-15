@@ -36,7 +36,6 @@
 | `POST` | `/auth/refresh` | Public | Issue new access token using valid `refreshToken` |
 | `POST` | `/auth/logout` | Protected | Invalidate and revoke refresh token in database |
 | `GET` | `/auth/me` | Protected | Retrieve authenticated user profile |
-| `POST` | `/auth/google/token` | Public | Authenticate or register using Google OAuth ID token |
 
 ---
 

@@ -41,7 +41,7 @@ hallucinated balances.
 - AI advisor (Gemini) with offline deterministic fallback.
 - Voice assistant input (Web Speech API) and OCR receipt parsing.
 - CSV export engine with tenant isolation.
-- Authentication: email/password (bcrypt) + Google OAuth + refresh-token revocation.
+- Authentication: email/password (bcrypt) + refresh-token revocation.
 - QA: master integration suite, auth/security suite, and live market verification suite.
 
 ### Out of Scope
@@ -70,7 +70,7 @@ hallucinated balances.
 | Frontend | Vanilla JS SPA (HTML5/CSS3), ECharts visualisations, RemixIcons |
 | AI | Google Gemini — default `gemini-2.5-flash`, fallbacks `gemini-1.5-flash` → `gemini-1.5-pro` → `gemini-pro`; rule-based expert fallback when unconfigured |
 | Market data | Alpha Vantage (primary) + Finnhub (fallback) + MCX; TTL-cached |
-| Auth | JWT access + refresh, bcryptjs, Google OAuth, token revocation |
+| Auth | JWT access + refresh, bcryptjs, token revocation |
 | Voice | Web Speech API (Chrome, Edge, Safari) + backend intent parser |
 | OCR | Client-side image processing + backend parser with user confirmation |
 | API | REST under `/api/v1`, base `http://127.0.0.1:5001/api/v1`, Bearer auth, standard `{ success, data }` / `{ success, error:{code,message} }` envelope |
@@ -93,7 +93,7 @@ Node.js / Express backend (node-backend, port 5001)
 
 - DB context is injected into AI prompts; the advisor only answers from the user's real records.
 - Market cards show transparent source + unit + status badge (`LIVE | CACHED | STALE | UNAVAILABLE`).
-- Legacy Django backend is quarantined in `legacy-django-backend/` and not used by the active system.
+- The legacy Django prototype has been removed; `node-backend/` is the single active backend.
 
 ---
 
@@ -132,7 +132,7 @@ Node.js / Express backend (node-backend, port 5001)
 ## 9. Security
 
 - JWT **access + refresh** tokens, refresh-token **revocation** on logout.
-- **bcrypt** password hashing; Google OAuth integration (config-modal placeholder until keys are set).
+- **bcrypt** password hashing for first-party email + password authentication.
 - **Tenant isolation**: all queries scoped to the authenticated user; cross-user access returns 404.
 - **Rate limits**: 200 req / 15 min global; 20 req / 15 min on auth routes.
 - **Atomic registration**: one transaction creates User, Profile, FinancialProfile and Primary Account.
@@ -159,7 +159,7 @@ Node.js / Express backend (node-backend, port 5001)
 
 - **Alpha Vantage free tier**: 25 requests/day, 5 per minute — mitigated by TTL caching and Finnhub fallback.
 - **Gemini**: no key configured = offline mode; advisor becomes a deterministic rule-based expert system over real DB numbers.
-- **Google OAuth**: placeholder config modal until `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are provided.
+- **Third-party SSO**: not supported; authentication is limited to email + password.
 - **Voice input**: Web Speech API supported on Chrome, Edge and Safari only.
 - Market history for some instruments resolves to `UNAVAILABLE` rather than fabricated data by design.
 

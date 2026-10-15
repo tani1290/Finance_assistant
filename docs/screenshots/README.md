@@ -10,7 +10,7 @@ Every screenshot represents an authentic view of the running application with re
 
 | No. | Screenshot Filename | Feature / Module | Verification Scope & Tested Actions | Verified |
 |:---:|:-------------------|:-----------------|:-------------------------------------|:--------:|
-| 01 | `01-login.png` | Authentication & Security | Verified clean login view, email/password validation, Google OAuth button, and JWT session handling. | **YES** |
+| 01 | `01-login.png` | Authentication & Security | Verified clean login view with email/password validation and JWT session handling. | **YES** |
 | 02 | `02-signup.png` | User Registration | Verified signup form with real-time password strength indicators, tenant isolation, and input sanitization. | **YES** |
 | 03 | `03-landing.png` | FinPro Platform Landing | Verified hero command center overview, platform statistics, Indian Rupee core value proposition, and feature grid. | **YES** |
 | 04 | `04-onboarding.png` | Financial Onboarding | Verified multi-step onboarding wizard, salary, risk profiling, and initial 50/30/20 plan generation. | **YES** |

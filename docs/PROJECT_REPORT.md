@@ -34,7 +34,7 @@ The project set out to deliver the following objectives:
 3. **Provide grounded AI decision support** — a 10-factor financial health score, 30/90-day cash-flow projections, what-if simulators, and budget optimization, all generated strictly from authenticated user records (never from synthetic inputs).
 4. **Track financial obligations automatically** — credit-card monitoring, loan prepayment simulators, insurance renewal tracking, and financial to-dos so no liability is missed.
 5. **Support multimodal input** — voice interaction (Web Speech API with a backend intent parser) and receipt/statement OCR (client-side image processing with a backend parser) for low-friction data entry.
-6. **Ship a production-grade, tested system** — secure authentication (JWT + Google OAuth 2.0), Docker-based deployment, automated test harnesses, and GitHub Actions CI/CD.
+6. **Ship a production-grade, tested system** — secure authentication (JWT email + password), Docker-based deployment, automated test harnesses, and GitHub Actions CI/CD.
 
 ## 3. Scope
 
@@ -52,13 +52,13 @@ The project set out to deliver the following objectives:
 - AI-generated financial health score, cash-flow projections, and what-if simulations.
 - Voice commands and OCR-based expense/receipt capture.
 - CSV export engine with **9 export types** and strict tenant isolation.
-- JWT access/refresh token auth, Google OAuth 2.0 SSO, and role isolation.
+- JWT access/refresh token auth (email + password) with role isolation.
 
 ### 3.2 Out of scope
 
 - Brokerage order execution / live trading (the platform is decision support, not an execution venue).
 - Custom fine-tuning of the Gemini model (the project uses a documented model fallback cascade, not bespoke training).
-- Out-of-the-box Google OAuth without operator-supplied credentials (placeholder credentials surface a configuration modal).
+- Third-party SSO providers (authentication is scoped to first-party email + password credentials).
 - Multilingual UI (the interface and India-domain formatting target English/`en-IN`).
 - Client-side data privacy encryption at rest beyond JWT-auth and server-side access control.
 
@@ -82,7 +82,7 @@ API / Gateway (Node v20+ / Express v4.21; Helmet, CORS, rate limiters, compressi
    │
    ├── Business Services
    │    ├── Financial Twin Engine (accounts, transactions, budgets, goals, loans, insurance)
-   │    ├── Auth & Security Engine (bcrypt 10-round salt, JWT pairs, Google OAuth 2.0)
+   │    ├── Auth & Security Engine (bcrypt 10-round salt, JWT pairs)
    │    ├── Market Aggregator (Alpha Vantage primary, Finnhub fallback, MCX spot, live FX)
    │    ├── AI Prompt & Rules Engines (Gemini + deterministic rule-based fallback)
    │    └── OCR & Voice Parsers
@@ -91,7 +91,7 @@ API / Gateway (Node v20+ / Express v4.21; Helmet, CORS, rate limiters, compressi
         ├── Alpha Vantage ─ NSE/BSE stock quotes & charts
         ├── Finnhub ─ fallback quotes
         ├── Gemini AI ─ advice, health score, cash-flow, what-if, budget optimizer
-        ├── Google OAuth 2.0 ─ SSO
+        ├── Email + Password ─ first-party credentials
         ├── Marketaux ─ finance news & sentiment
         ├── Exchange Rates ─ live USD→INR interbank FX
         └── MCX Spot Rates ─ gold/silver reference
@@ -155,7 +155,7 @@ The final state runs under Docker (root `Dockerfile` + `docker-compose.yml`) wit
 
 ### 5.1 Authentication & Security Engine
 
-JWT-based session management with short-lived **access tokens** (`JWT_EXPIRES_IN=60m`) and long-lived **refresh tokens** (`JWT_REFRESH_EXPIRES_IN=7d`) issued with `jsonwebtoken`. Passwords are hashed with bcrypt (10-round salt). Google OAuth 2.0 provides SSO with a `/auth/google/callback` redirect. The `api.js` client layer transparently refreshes expired access tokens and translates HTTP 401/403/404/422/500 into consistent user-facing errors.
+JWT-based session management with short-lived **access tokens** (`JWT_EXPIRES_IN=60m`) and long-lived **refresh tokens** (`JWT_REFRESH_EXPIRES_IN=7d`) issued with `jsonwebtoken`. Passwords are hashed with bcrypt (10-round salt). Authentication is limited to first-party email + password credentials. The `api.js` client layer transparently refreshes expired access tokens and translates HTTP 401/403/404/422/500 into consistent user-facing errors.
 
 ### 5.2 Financial Twin Engine
 

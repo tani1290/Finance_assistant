@@ -91,7 +91,7 @@ Core pillars of the solution:
 | **Market Data** | NSE/BSE equities, COMEX/MCX Gold & Silver, USD/INR & major FX, historical charts | High-frequency trading or automated broker order placement |
 | **Banking** | User-managed accounts, receipt OCR, Android native SMS transaction ingestion | Direct Open Banking / Account Aggregator API write access |
 | **Intelligence** | Gemini 2.5 Flash grounded assistant, deterministic expert fallback, 10-factor health index, anomaly detector | Unregulated fiduciary financial advice or automated investment execution |
-| **Security** | JWT dual-token, Google OAuth 2.0, bcrypt, Helmet, tiered rate limiters, audit trail | Hardware security modules (HSM) |
+| **Security** | JWT dual-token (email + password), bcrypt, Helmet, tiered rate limiters, audit trail | Hardware security modules (HSM) |
 
 ---
 
@@ -111,7 +111,7 @@ graph TB
         ExpressRouter["Express.js 4.21 HTTP Engine"]
         SecurityMW["Security Middleware\n(Helmet / CORS Whitelist / Compression)"]
         RateLimiter["Rate Limiters\n(200 req/15min API | 20 req/15min Auth)"]
-        AuthMW["Auth Middleware\n(JWT HMAC-SHA256 / Google OAuth Validator)"]
+        AuthMW["Auth Middleware\n(JWT HMAC-SHA256 Validator)"]
     end
 
     subgraph ServiceLayer ["Domain Services & Business Logic"]
@@ -694,7 +694,7 @@ gantt
 
     section Phase 2: DB & Core Backend
     Prisma 5.22 Schema & PostgreSQL 17 Setup   :done, p2_1, 2024-09-01, 2024-09-20
-    Dual-Token JWT & Google OAuth Engine       :done, p2_2, 2024-09-21, 2024-10-10
+    Dual-Token JWT Auth Engine                 :done, p2_2, 2024-09-21, 2024-10-10
     Accounts, Transactions & Budget Services   :done, p2_3, 2024-10-11, 2024-11-05
 
     section Phase 3: Market & AI Pipelines

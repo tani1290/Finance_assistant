@@ -25,7 +25,7 @@ Jinay Finance AI has undergone a full architectural overhaul, end-to-end databas
 ### 2.1 Architecture Status: ✅ APPROVED
 - Canonical architecture established: Node.js/Express backend + Prisma ORM + PostgreSQL 17 + Vanilla JS SPA.
 - Zero competing backend conflicts or circular dependencies.
-- Legacy Django references safely isolated in `legacy-django-backend/`.
+- No legacy or competing backend remains in the repository.
 
 ### 2.2 Database Status: ✅ VERIFIED & PERSISTENT
 - Real PostgreSQL 17 database (`finance_jinay`) connected via Prisma Client.
@@ -36,7 +36,7 @@ Jinay Finance AI has undergone a full architectural overhaul, end-to-end databas
 - Canonical JWT implementation (`HS256`) with access tokens (60m) and refresh tokens (7d).
 - Password hashing with `bcryptjs` (salt rounds = 10). Passwords are never exposed in responses or logs.
 - Strict multi-tenant isolation: User A cannot read, modify, or delete User B's accounts, transactions, goals, or policies (enforces 404/403).
-- Google OAuth2 configured with fallback modal for local development.
+- Email + password authentication verified end-to-end.
 
 ### 2.4 Backend Status: ✅ VERIFIED
 - Unified `/api/v1/...` RESTful API structure with standard `{ success: true, data: {} }` envelope.

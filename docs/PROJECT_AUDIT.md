@@ -11,7 +11,7 @@
 |---|---|---|---|
 | **Backend** | Node.js (v20+) + Express (v4.21) | ✅ Active (Port 5001) | Single canonical RESTful API (`/api/v1/...`) |
 | **ORM / Database** | Prisma ORM (v5.22) + PostgreSQL 17 | ✅ Connected & Verified | Schema in `prisma/schema.prisma`, 22 DB models |
-| **Authentication** | JWT (Access + Refresh Token) + Google OAuth | ✅ Fully Integrated | User isolation, bcrypt password hashing, token revocation |
+| **Authentication** | JWT (Access + Refresh Token) + bcrypt | ✅ Fully Integrated | User isolation, bcrypt password hashing, token revocation |
 | **Frontend** | Vanilla JS SPA / HTML5 / CSS3 / ECharts / RemixIcons | ✅ Active | Static files served from `frontend/public/` |
 | **AI Advisor** | Google Gemini (`gemini-2.5-flash` / `gemini-1.5-flash`) | ✅ Integrated with DB context | Factual financial context + rule-based fallback |
 | **Market Data** | Alpha Vantage (Primary) + Finnhub (Fallback) + MCX | ✅ Live Streaming & Cached | Real-time stocks, 24K/22K Gold, Silver, FX, Crude, Commodities |
@@ -68,7 +68,6 @@
 | **User Registration** | `signup.html` | `POST /api/v1/auth/register` | `authController.js` | `authService.js` | `User`, `Profile`, `FinancialAccount` | None | ✅ Working |
 | **User Login** | `login.html` | `POST /api/v1/auth/login` | `authController.js` | `authService.js` | `User`, `RefreshToken` | None | ✅ Working |
 | **Token Refresh** | `api.js` | `POST /api/v1/auth/refresh` | `authController.js` | `authService.js` | `RefreshToken` | None | ✅ Working |
-| **Google Sign-In** | `login.html` | `POST /api/v1/auth/google/token` | `authController.js` | `authService.js` | `User` | Google OAuth2 | ✅ Configured |
 | **Dashboard** | `dashboard.html` | `GET /api/v1/dashboard` | `dashboardController.js` | `financialTwinService.js` | All entities | None | ✅ Working |
 | **Onboarding** | `onboarding.html` | `POST /api/v1/onboarding` | `onboardingController.js` | `financialTwinService.js` | `FinancialProfile`, `FinancialPlan` | None | ✅ Working |
 | **Account Mgmt** | `dashboard.html` | `GET/POST /api/v1/accounts` | `accountController.js` | `financialTwinService.js` | `FinancialAccount` | None | ✅ Working |
@@ -104,7 +103,7 @@
 
 ## 4. Architectural Decisions & Legacy Code Isolation
 
-1. **Backend Consolidation:** The active canonical backend is Node.js + Express (`node-backend/`). Any older Django references in `legacy-django-backend/` are preserved strictly as an unreferenced archive and do not interfere with the active runtime.
+1. **Backend Consolidation:** The active canonical backend is Node.js + Express (`node-backend/`). The older Django prototype has been removed from the repository, so no competing backend remains.
 2. **Database Integrity:** PostgreSQL with Prisma is the single source of truth. All monetary values are strictly stored as `Decimal(15, 2)` to eliminate floating-point inaccuracies.
 3. **Multi-Tenant User Isolation:** Every entity query is filtered strictly by `userId = req.user.id` obtained from the validated JWT token. Request body `userId` is never trusted.
 4. **Market Data Provider Hierarchy:** Alpha Vantage acts as primary provider for high-resolution NSE stock data, technical indicators, FX rates, and commodities. Finnhub acts as fallback and crypto provider. Verified reference feeds ensure zero application crashes if network limits are reached.

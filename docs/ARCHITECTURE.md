@@ -20,7 +20,7 @@ FinPro is a full-stack, enterprise-grade personal finance management and advisor
 │                         API GATEWAY & SECURITY                         │
 │  - Node.js v20+ LTS / Express.js 4.21                                  │
 │  - Helmet, CORS Origin Whitelist, Express-Rate-Limit, Compression      │
-│  - JWT (HMAC-SHA256) & Google OAuth 2.0 / Firebase Auth Validator     │
+│  - JWT (HMAC-SHA256) & Firebase Auth Validator                        │
 └───────────────────────┬────────────────────────────┬───────────────────┘
                         │                            │
 ┌───────────────────────▼───────────┐ ┌──────────────▼───────────────────┐
@@ -71,7 +71,7 @@ FinPro is a full-stack, enterprise-grade personal finance management and advisor
 - **Offline Resilience:** SharedPreferences secure token caching and local sync states.
 
 ### 2.5 Cloud, Authentication & Notifications
-- **Authentication:** Dual-token JWT (60m access token, 7d refresh token) + Bcrypt (10 salt rounds) + Google OAuth 2.0 / Firebase Auth token validation.
+- **Authentication:** Dual-token JWT (60m access token, 7d refresh token) with Bcrypt (10 salt rounds) password hashing; credentials are first-party email + password.
 - **Push Notifications:** Firebase Cloud Messaging (FCM) via Firebase Admin SDK with graceful offline degradation.
 - **AI Core:** Google Gemini (`@google/generative-ai`) grounded in real user records; deterministic rule fallbacks when offline.
 - **OCR & Voice:** Tesseract.js receipt scanner & Web Speech API intent parser.

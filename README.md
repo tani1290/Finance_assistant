@@ -52,7 +52,7 @@ FinPro is an integrated, full-stack personal finance and investment decision sup
 │                                                 NODE.JS / EXPRESS 4 BACKEND                                                 │
 │   node-backend/src/server.js  |  node-backend/src/app.js                                                                    │
 │   - Middleware: Helmet, CORS, Rate Limiters, Morgan                                                                         │
-│   - JWT Auth & Google OAuth 2.0 Identity Providers                                                                          │
+│   - JWT Auth (Email + Password) Identity Provider                                                                           │
 │   - Controllers: Accounts, Tx, Budgets, Goals, AI, Market, SMS Detection, Mobile Sync                                       │
 └──────────────────────────────▲──────────────────────────────────────────────────────────────▲───────────────────────────────┘
                                │                                                              │
@@ -111,7 +111,7 @@ FinPro is an integrated, full-stack personal finance and investment decision sup
 | **Backend Runtime** | Node.js 22 LTS, Express 4.21 |
 | **Database & ORM** | PostgreSQL 17, Prisma ORM 5.22 |
 | **Frontend** | Vanilla JavaScript (ES6+), HTML5, CSS3 Custom Design System |
-| **Security & Auth** | JWT (`jsonwebtoken`), `bcryptjs` (salt rounds 10), Google OAuth 2.0 |
+| **Security & Auth** | JWT (`jsonwebtoken`), `bcryptjs` (salt rounds 10) |
 | **AI / Machine Learning**| Google Gemini 1.5 Flash (`@google/generative-ai`), custom ML regression/classification engine |
 | **Market Data Feeds** | Live Market Feed Engine, Alpha Vantage, Finnhub, Marketaux |
 | **Testing & CI/CD** | Supertest, Jest, GitHub Actions, Docker Compose |

@@ -23,7 +23,6 @@
                      │   Flutter Mobile   │
                      │   Firebase Auth    │
                      │   FCM Push Notif   │
-                     │   Google Sign-In   │
                      │   SMS Auto-Detect  │
                      └───────────────────┘
 ```
