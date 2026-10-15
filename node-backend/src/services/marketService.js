@@ -73,6 +73,19 @@ const SYMBOL_MAP = {
   'ETHUSDT'    : { yf: 'ETH-USD',       av: 'ETH',            fh: 'BINANCE:ETHUSDT', name: 'Ethereum (ETH)',             exchange: 'CRYPTO', assetType: 'CRYPTO', currency: 'USD' },
 };
 
+// Commodity type -> live Yahoo Finance futures symbol + display metadata.
+// Yahoo is the primary feed; Alpha Vantage commodity functions are the fallback.
+const COMMODITY_MAP = {
+  WTI         : { yf: 'CL=F', name: 'Crude Oil WTI',   unit: 'USD/barrel'  },
+  BRENT       : { yf: 'BZ=F', name: 'Brent Crude Oil', unit: 'USD/barrel'  },
+  NATURAL_GAS : { yf: 'NG=F', name: 'Natural Gas',     unit: 'USD/MMBtu'   },
+  COPPER      : { yf: 'HG=F', name: 'Copper',          unit: 'USD/lb'      },
+  WHEAT       : { yf: 'ZW=F', name: 'Wheat',           unit: 'USD/bushel'  },
+  COFFEE      : { yf: 'KC=F', name: 'Coffee',          unit: 'USD/lb'      },
+  GOLD        : { yf: 'GC=F', name: 'Gold',            unit: 'USD/troy oz' },
+  SILVER      : { yf: 'SI=F', name: 'Silver',          unit: 'USD/troy oz' },
+};
+
 // ── Time & Market Status ──────────────────────────────────────────────────────
 const isMarketOpen = () => {
   const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
@@ -925,6 +938,14 @@ const getPreciousMetals = async () => {
 
 // ── 4. Technical Indicators via Alpha Vantage ─────────────────────────────────
 
+// Alpha Vantage / price values arrive in the instrument's own currency. Only
+// USD-denominated listings need converting to INR for display; NSE/BSE symbols
+// are already quoted in INR.
+const fxFactorFor = async (symbol) => {
+  const currency = SYMBOL_MAP[symbol]?.currency;
+  return currency && currency !== 'INR' ? await fetchLiveUSDINR() : 1;
+};
+
 const fetchSMA = async (symbol, period = 20) => {
   const avKey = process.env.ALPHA_VANTAGE_API_KEY;
   if (!avKey) return null;
@@ -936,10 +957,10 @@ const fetchSMA = async (symbol, period = 20) => {
     });
     const ts = r.data?.['Technical Analysis: SMA'];
     if (!ts) return null;
-    const usdInr = await fetchLiveUSDINR();
+    const fx = await fxFactorFor(symbol);
     return Object.entries(ts).sort(([a], [b]) => new Date(a) - new Date(b)).slice(-50).map(([date, v]) => ({
       date,
-      sma: Math.round(parseFloat(v.SMA) * usdInr * 100) / 100,
+      sma: Math.round(parseFloat(v.SMA) * fx * 100) / 100,
     }));
   } catch { return null; }
 };
@@ -955,10 +976,10 @@ const fetchEMA = async (symbol, period = 20) => {
     });
     const ts = r.data?.['Technical Analysis: EMA'];
     if (!ts) return null;
-    const usdInr = await fetchLiveUSDINR();
+    const fx = await fxFactorFor(symbol);
     return Object.entries(ts).sort(([a], [b]) => new Date(a) - new Date(b)).slice(-50).map(([date, v]) => ({
       date,
-      ema: Math.round(parseFloat(v.EMA) * usdInr * 100) / 100,
+      ema: Math.round(parseFloat(v.EMA) * fx * 100) / 100,
     }));
   } catch { return null; }
 };
@@ -1014,14 +1035,109 @@ const fetchBBands = async (symbol, period = 20) => {
     if (!ts) return null;
     const latest = Object.entries(ts).sort(([a], [b]) => new Date(b) - new Date(a))[0];
     if (!latest) return null;
-    const usdInr = await fetchLiveUSDINR();
+    const fx = await fxFactorFor(symbol);
     return {
       date  : latest[0],
-      upper : Math.round(parseFloat(latest[1]['Real Upper Band']) * usdInr * 100) / 100,
-      middle: Math.round(parseFloat(latest[1]['Real Middle Band']) * usdInr * 100) / 100,
-      lower : Math.round(parseFloat(latest[1]['Real Lower Band']) * usdInr * 100) / 100,
+      upper : Math.round(parseFloat(latest[1]['Real Upper Band']) * fx * 100) / 100,
+      middle: Math.round(parseFloat(latest[1]['Real Middle Band']) * fx * 100) / 100,
+      lower : Math.round(parseFloat(latest[1]['Real Lower Band']) * fx * 100) / 100,
     };
   } catch { return null; }
+};
+
+// ── Technical indicator math (computed from live daily price history) ─────────
+// Yahoo returns closes in the instrument's own quote currency, so these results
+// line up with /market/quote and need no FX conversion.
+
+const round2 = (n) => Math.round(n * 100) / 100;
+
+const smaSeries = (values, period) => {
+  if (values.length < period) return null;
+  const out = [];
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    sum += values[i];
+    if (i >= period) sum -= values[i - period];
+    if (i >= period - 1) out.push(sum / period);
+  }
+  return out;
+};
+
+const emaSeries = (values, period) => {
+  if (values.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  const out = [ema];
+  for (let i = period; i < values.length; i++) {
+    ema = values[i] * k + ema * (1 - k);
+    out.push(ema);
+  }
+  return out;
+};
+
+// Wilder's smoothing RSI
+const rsiLast = (values, period = 14) => {
+  if (values.length < period + 1) return null;
+  let gain = 0;
+  let loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = values[i] - values[i - 1];
+    if (d >= 0) gain += d; else loss -= d;
+  }
+  let avgGain = gain / period;
+  let avgLoss = loss / period;
+  for (let i = period + 1; i < values.length; i++) {
+    const d = values[i] - values[i - 1];
+    avgGain = (avgGain * (period - 1) + (d > 0 ? d : 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + (d < 0 ? -d : 0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  return 100 - 100 / (1 + avgGain / avgLoss);
+};
+
+const macdLast = (values, fast = 12, slow = 26, signalPeriod = 9) => {
+  const ef = emaSeries(values, fast);
+  const es = emaSeries(values, slow);
+  if (!ef || !es) return null;
+  const offset = slow - fast;
+  const line = es.map((v, i) => ef[i + offset] - v);
+  const sig = emaSeries(line, signalPeriod);
+  if (!sig) return null;
+  const macd = line[line.length - 1];
+  const signal = sig[sig.length - 1];
+  return { macd, signal, histogram: macd - signal };
+};
+
+const bollingerLast = (values, period = 20, mult = 2) => {
+  if (values.length < period) return null;
+  const slice = values.slice(-period);
+  const mean = slice.reduce((a, b) => a + b, 0) / period;
+  const sd = Math.sqrt(slice.reduce((a, b) => a + (b - mean) ** 2, 0) / period);
+  return { middle: mean, upper: mean + mult * sd, lower: mean - mult * sd };
+};
+
+// Daily closes straight from the live Yahoo chart feed (no quota, INR or USD native).
+const fetchDailyCloses = async (rawSymbol) => {
+  const info = SYMBOL_MAP[rawSymbol] || {};
+  const candidates = [...new Set([info.yf, `${rawSymbol}.NS`, rawSymbol].filter(Boolean))];
+  for (const sym of candidates) {
+    try {
+      const res = await fetchYahooChart(sym, 'interval=1d&range=1y');
+      const ts = res?.timestamp || [];
+      const closes = res?.indicators?.quote?.[0]?.close || [];
+      const dates = [];
+      const values = [];
+      for (let i = 0; i < ts.length; i++) {
+        const c = closes[i];
+        if (typeof c === 'number' && isFinite(c) && c > 0) {
+          values.push(c);
+          dates.push(new Date(ts[i] * 1000).toISOString().split('T')[0]);
+        }
+      }
+      if (values.length >= 35) return { values, dates, yfSymbol: sym };
+    } catch {}
+  }
+  return null;
 };
 
 const getTechnicalIndicators = async (symbol) => {
@@ -1030,26 +1146,56 @@ const getTechnicalIndicators = async (symbol) => {
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
-  const [sma20, sma50, ema20, rsi, macd, bbands] = await Promise.all([
-    fetchSMA(rawSymbol, 20),
-    fetchSMA(rawSymbol, 50),
-    fetchEMA(rawSymbol, 20),
-    fetchRSI(rawSymbol, 14),
-    fetchMACD(rawSymbol),
-    fetchBBands(rawSymbol, 20),
-  ]);
+  // Primary: compute every indicator from the live daily price history. This is
+  // unlimited and covers NSE/BSE as well as US listings. Alpha Vantage (25
+  // requests/day on the free tier, and no Indian coverage) is only a fallback.
+  const history = await fetchDailyCloses(rawSymbol);
+  let indicators;
 
-  const indicators = {
-    symbol: rawSymbol,
-    sma20 : sma20 ? sma20[sma20.length - 1] : null,
-    sma50 : sma50 ? sma50[sma50.length - 1] : null,
-    ema20 : ema20 ? ema20[ema20.length - 1] : null,
-    rsi,
-    macd,
-    bollingerBands: bbands,
-    timestamp: getISTTimestamp(),
-    data_status: (rsi || macd || sma20) ? 'LIVE' : 'UNAVAILABLE',
-  };
+  if (history) {
+    const { values, dates } = history;
+    const lastDate = dates[dates.length - 1];
+    const s20 = smaSeries(values, 20);
+    const s50 = smaSeries(values, 50);
+    const e20 = emaSeries(values, 20);
+    const rsi = rsiLast(values, 14);
+    const macd = macdLast(values);
+    const bb = bollingerLast(values, 20, 2);
+    indicators = {
+      symbol: rawSymbol,
+      sma20 : s20 ? { date: lastDate, sma: round2(s20[s20.length - 1]) } : null,
+      sma50 : s50 ? { date: lastDate, sma: round2(s50[s50.length - 1]) } : null,
+      ema20 : e20 ? { date: lastDate, ema: round2(e20[e20.length - 1]) } : null,
+      rsi   : rsi !== null ? { date: lastDate, rsi: round2(rsi) } : null,
+      macd  : macd ? { date: lastDate, macd: round2(macd.macd), signal: round2(macd.signal), histogram: round2(macd.histogram) } : null,
+      bollingerBands: bb ? { date: lastDate, upper: round2(bb.upper), middle: round2(bb.middle), lower: round2(bb.lower) } : null,
+      price : round2(values[values.length - 1]),
+      source: `Computed from live price history (${history.yfSymbol})`,
+      timestamp: getISTTimestamp(),
+      data_status: 'LIVE',
+    };
+  } else {
+    const [sma20, sma50, ema20, rsi, macd, bbands] = await Promise.all([
+      fetchSMA(rawSymbol, 20),
+      fetchSMA(rawSymbol, 50),
+      fetchEMA(rawSymbol, 20),
+      fetchRSI(rawSymbol, 14),
+      fetchMACD(rawSymbol),
+      fetchBBands(rawSymbol, 20),
+    ]);
+    indicators = {
+      symbol: rawSymbol,
+      sma20 : sma20 ? sma20[sma20.length - 1] : null,
+      sma50 : sma50 ? sma50[sma50.length - 1] : null,
+      ema20 : ema20 ? ema20[ema20.length - 1] : null,
+      rsi,
+      macd,
+      bollingerBands: bbands,
+      source: 'Alpha Vantage',
+      timestamp: getISTTimestamp(),
+      data_status: (rsi || macd || sma20) ? 'LIVE' : 'UNAVAILABLE',
+    };
+  }
 
   if (indicators.data_status === 'LIVE') {
     setCached(cacheKey, indicators);
@@ -1168,33 +1314,38 @@ const fetchFXRate = async (fromCurrency = 'USD', toCurrency = 'INR') => {
 };
 
 const fetchCommodity = async (commodityFunction = 'WTI', interval = 'monthly') => {
-  const cacheKey = `COMMODITY_${commodityFunction}`;
+  const type = String(commodityFunction || 'WTI').toUpperCase();
+  const cacheKey = `COMMODITY_${type}`;
   const cached = getCached(cacheKey);
   if (cached && cached.is_fresh) return cached;
 
-  try {
-    const res = await fetchYahooChart('CL=F', 'interval=1d&range=5d');
-    const price = res?.meta?.regularMarketPrice;
-    if (price && price > 0) {
-      const result = {
-        name    : 'Crude Oil WTI',
-        unit    : 'USD/barrel',
-        interval: 'daily',
-        latest  : { date: new Date().toISOString().slice(0, 10), value: Math.round(price * 100) / 100 },
-        source  : 'NYMEX / Yahoo Finance (CL=F)',
-        data_status: 'LIVE',
-      };
-      setCached(cacheKey, result);
-      return result;
-    }
-  } catch {}
+  // Primary: live Yahoo Finance futures feed for THIS commodity (never a fixed symbol).
+  const meta = COMMODITY_MAP[type];
+  if (meta) {
+    try {
+      const res = await fetchYahooChart(meta.yf, 'interval=1d&range=5d');
+      const price = res?.meta?.regularMarketPrice;
+      if (price && price > 0) {
+        const result = {
+          name    : meta.name,
+          unit    : meta.unit,
+          interval: 'daily',
+          latest  : { date: new Date().toISOString().slice(0, 10), value: Math.round(price * 100) / 100 },
+          source  : `Yahoo Finance Futures (${meta.yf})`,
+          data_status: 'LIVE',
+        };
+        setCached(cacheKey, result);
+        return result;
+      }
+    } catch {}
+  }
 
   // Alpha Vantage fallback
   try {
     const avKey = process.env.ALPHA_VANTAGE_API_KEY;
     if (avKey) {
       const r = await axios.get('https://www.alphavantage.co/query', {
-        params: { function: commodityFunction, interval, apikey: avKey },
+        params: { function: type, interval, apikey: avKey },
         timeout: 8000,
       });
       const d = r.data;
@@ -1359,6 +1510,7 @@ const getMarketDashboard = async () => {
           symbol        : q.symbol,
           name          : q.name,
           price         : q.price,
+          open          : q.open,
           change        : q.change,
           changePercent : q.changePercent,
           high          : q.high,
@@ -1408,6 +1560,7 @@ module.exports = {
 
   // Technical Analysis
   getTechnicalIndicators,
+  fetchDailyCloses,
   fetchSMA,
   fetchEMA,
   fetchRSI,

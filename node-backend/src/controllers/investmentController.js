@@ -616,6 +616,23 @@ const getCompanyOverview = async (req, res, next) => {
         description: 'Company overview is currently unavailable for this instrument.',
       };
     }
+
+    // Alpha Vantage fundamentals don't cover NSE/BSE, so the 52-week range comes
+    // back empty. The live quote already knows it — fill it in rather than
+    // rendering "--". Copy first so a cached profile is never mutated.
+    if (data.week52High == null || data.week52Low == null) {
+      try {
+        const quote = await marketService.getQuote(symbol);
+        if (quote) {
+          data = { ...data };
+          if (data.week52High == null && quote.week52High != null) data.week52High = quote.week52High;
+          if (data.week52Low == null && quote.week52Low != null) data.week52Low = quote.week52Low;
+        }
+      } catch {
+        /* fundamentals enrichment is best-effort */
+      }
+    }
+
     return res.status(200).json({ success: true, data });
   } catch (error) {
     next(error);

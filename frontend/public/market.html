@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Live Market Dashboard — Stocks, Gold & Commodities | Jinay Finance AI</title>
-  <meta name="description" content="Real-time NSE stocks, 24K/22K Gold, Silver, Crude Oil, USD/INR and technical indicators powered by Alpha Vantage.">
+  <meta name="description" content="Real-time NSE stocks, 24K/22K Gold, Silver, Crude Oil, USD/INR and technical indicators computed from live price history.">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js" defer></script>
@@ -115,7 +115,7 @@
       <div>
         <div class="topbar-title" style="display:flex;align-items:center;gap:10px;">
           📈 Live Market Dashboard
-          <span class="av-badge"><i class="ri-flashlight-line"></i> Alpha Vantage</span>
+          <span class="av-badge"><i class="ri-flashlight-line"></i> Live Data</span>
           <span class="market-pill closed" id="marketStatusPill">
             <span class="pulse"></span> <span id="marketStatusText">Checking...</span>
           </span>
@@ -216,11 +216,11 @@
             </div>
           </div>
           <div id="stockDetailChart"></div>
-          <div style="margin-top:8px;font-size:11px;color:#6b7280;" id="chartMeta">Alpha Vantage Data</div>
+          <div style="margin-top:8px;font-size:11px;color:#6b7280;" id="chartMeta">Live Price Data</div>
         </div>
         <div class="card">
           <div class="sec-title" style="margin-bottom:8px;"><i class="ri-pulse-line"></i> Technical Indicators</div>
-          <div style="font-size:11px;color:#6b7280;margin-bottom:10px;" id="techSymLabel">RELIANCE · Daily</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:10px;" id="techSymLabel">RELIANCE · Daily · Live History</div>
           <div class="tech-grid" id="techGrid">
             <div class="tech-item"><div class="tech-lbl">RSI (14)</div><div class="tech-val" id="rsiVal" style="color:#e2e8f0;">--</div><div class="tech-sig" id="rsiSig">--</div></div>
             <div class="tech-item"><div class="tech-lbl">MACD</div><div class="tech-val" id="macdVal" style="font-size:14px;color:#e2e8f0;">--</div><div class="tech-sig" id="macdSig">--</div></div>
@@ -242,7 +242,7 @@
 
       <!-- Row 4: Commodities Strip -->
       <div class="card" style="margin-bottom:20px;">
-        <div class="sec-title" style="margin-bottom:14px;"><i class="ri-earth-line"></i> Global Commodities (Alpha Vantage)</div>
+        <div class="sec-title" style="margin-bottom:14px;"><i class="ri-earth-line"></i> Global Commodities (Live Futures)</div>
         <div class="commodity-strip">
           <div class="comm-card"><div class="comm-icon">🛢️</div><div class="comm-name">WTI Crude</div><div class="comm-val" id="c_wti">--</div><div class="comm-unit">USD/barrel</div></div>
           <div class="comm-card"><div class="comm-icon">⛽</div><div class="comm-name">Brent</div><div class="comm-val" id="c_brent">--</div><div class="comm-unit">USD/barrel</div></div>
@@ -286,9 +286,10 @@
       </div>
 
       <div class="av-footer">
-        Powered by <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a> &amp;
-        <a href="https://finnhub.io" target="_blank">Finnhub</a> APIs &middot;
-        NSE/BSE Stocks &middot; Gold (GLOBAL_PRICE_OF_GOLD) &middot; Silver &middot; WTI &middot; FX &middot; RSI &middot; MACD &middot; BBands &middot; Earnings &middot;
+        Live market data by <a href="https://finnhub.io" target="_blank">Finnhub</a> &amp;
+        <a href="https://finance.yahoo.com" target="_blank">Yahoo Finance</a> &middot;
+        Fundamental &amp; earnings data by <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a> &middot;
+        NSE/BSE Stocks &middot; Gold &amp; Silver &middot; WTI/Brent &middot; FX &middot; RSI &middot; MACD &middot; BBands &middot;
         Jinay Finance AI &copy; 2025 Jinay Golecha
       </div>
     </div>
@@ -408,7 +409,7 @@
     window.selectSymbol = async (sym) => {
       currentSym = sym;
       document.getElementById('chartTitle').innerHTML = `<i class="ri-line-chart-line"></i> ${sym} — Price Chart`;
-      document.getElementById('techSymLabel').textContent = `${sym} · Daily · Alpha Vantage`;
+      document.getElementById('techSymLabel').textContent = `${sym} · Daily · Live History`;
       loadChartForSym(sym, currentTf);
       loadTechnicals(sym);
       loadOverview(sym);
@@ -588,7 +589,7 @@
     document.getElementById('earningsSymSelect').addEventListener('change', e => loadEarnings(e.target.value));
     document.getElementById('refreshAllBtn').addEventListener('click', initAll);
 
-    const initAll = async () => {
+    async function initAll() {
       await loadDashboard();
       loadChartForSym('RELIANCE', '1M');
       loadTechnicals('RELIANCE');
@@ -598,7 +599,7 @@
       // Load commodities sequentially to avoid AV rate limits
       setTimeout(loadCommodities, 2000);
       setTimeout(loadFX, 1000);
-    };
+    }
 
     initAll();
     setInterval(loadDashboard, 3 * 60 * 1000);
