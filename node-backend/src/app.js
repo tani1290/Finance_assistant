@@ -18,17 +18,29 @@ const authRoutes = require('./routes/authRoutes');
 const apiRoutes = require('./routes/index');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const requestLogger = require('./middleware/requestLogger');
+const { securityHeaders, inputSanitizer, hppProtection } = require('./middleware/cybersecurity');
 const prisma = require('./config/database');
 
 const app = express();
 
+// Disable technology fingerprinting
+app.disable('x-powered-by');
+
 // ==================== SECURITY MIDDLEWARE ====================
 
+app.use(securityHeaders);
 app.use(requestLogger);
 
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
   contentSecurityPolicy: false,
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  dnsPrefetchControl: { allow: false },
+  frameguard: { action: 'sameorigin' },
+  hidePoweredBy: true,
+  ieNoOpen: true,
+  noSniff: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
 // CORS — allow frontend origin
@@ -95,6 +107,10 @@ if (process.env.NODE_ENV !== 'test') {
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Cybersecurity: Parameter pollution defense & input sanitization
+app.use(hppProtection);
+app.use(inputSanitizer);
 
 // Request logging
 if (process.env.NODE_ENV !== 'test') {
