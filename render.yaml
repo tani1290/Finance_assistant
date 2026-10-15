@@ -46,7 +46,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: AI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.5-flash-lite
 
       # Real Market Feeds
       - key: FINNHUB_API_KEY

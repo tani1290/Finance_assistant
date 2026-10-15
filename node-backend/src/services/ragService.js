@@ -507,11 +507,10 @@ const runRAGPipeline = async (userId, userMessage, chatHistory = []) => {
     const CANDIDATE_MODELS = Array.from(
       new Set([
         process.env.AI_MODEL,
-        'gemini-3.6-flash',
-        'gemini-2.5-flash',
-        'gemini-3.7-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
+        'gemini-3.5-flash-lite',
+        'gemini-3.8-flash',
+        'gemini-flash-latest',
+        'gemini-3.1-pro-preview',
       ].filter(Boolean))
     );
 
@@ -522,22 +521,21 @@ const runRAGPipeline = async (userId, userMessage, chatHistory = []) => {
 
     for (const modelName of CANDIDATE_MODELS) {
       try {
-        const model = client.getGenerativeModel({ model: modelName });
+        const model = client.getGenerativeModel({
+          model: modelName,
+          systemInstruction: ragContext.systemInstruction,
+        });
         const chatSession = model.startChat({
-          history: [
-            { role: 'user', parts: [{ text: ragContext.systemInstruction }] },
-            { role: 'model', parts: [{ text: "Understood. I will answer strictly using the retrieved financial data, distinguish facts from insights and recommendations, and cite all sources." }] },
-            ...history,
-          ],
+          history,
           generationConfig: {
-            maxOutputTokens: 600,
+            maxOutputTokens: 1200,
             temperature: 0.3, // Low temperature for factual grounding
           },
         });
 
         const callPromise = chatSession.sendMessage(userMessage);
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('AI response timeout (8s)')), 8000)
+          setTimeout(() => reject(new Error('AI response timeout (12s)')), 12000)
         );
 
         const result = await Promise.race([callPromise, timeoutPromise]);

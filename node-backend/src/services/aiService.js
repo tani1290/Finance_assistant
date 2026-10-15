@@ -225,7 +225,13 @@ const generateRuleBasedResponse = (userMessage, ctx) => {
 };
 
 const CANDIDATE_MODELS = Array.from(
-  new Set([process.env.AI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'].filter(Boolean))
+  new Set([
+    process.env.AI_MODEL,
+    'gemini-3.5-flash-lite',
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
+    'gemini-3.1-pro-preview',
+  ].filter(Boolean))
 );
 
 /**
@@ -233,7 +239,12 @@ const CANDIDATE_MODELS = Array.from(
  */
 const chat = async (userId, userMessage, chatHistory = []) => {
   const ctx = await getUserFinancialContext(userId);
-  const client = getGeminiClient();
+  let client = null;
+  try {
+    client = getGeminiClient();
+  } catch (err) {
+    console.warn('[AI] Gemini client init skipped, using rule-based fallback:', err.message);
+  }
 
   if (!client) {
     // Use rule-based fallback
@@ -258,22 +269,21 @@ const chat = async (userId, userMessage, chatHistory = []) => {
   // Try candidate models in order with timeout
   for (const modelName of CANDIDATE_MODELS) {
     try {
-      const model = client.getGenerativeModel({ model: modelName });
+      const model = client.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt,
+      });
       const chatSession = model.startChat({
-        history: [
-          { role: 'user', parts: [{ text: systemPrompt }] },
-          { role: 'model', parts: [{ text: "Understood. I'm ready to help with your personalized financial queries." }] },
-          ...history,
-        ],
+        history,
         generationConfig: {
-          maxOutputTokens: 600,
+          maxOutputTokens: 1200,
           temperature: 0.7,
         },
       });
 
       const callPromise = chatSession.sendMessage(userMessage);
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('AI response timeout (4s)')), 4000)
+        setTimeout(() => reject(new Error('AI response timeout (12s)')), 12000)
       );
 
       const result = await Promise.race([callPromise, timeoutPromise]);
