@@ -18,10 +18,9 @@ yarn-error.log*
 .gitignore
 .github
 
-# Legacy & Python Virtual Environments
+# Python Virtual Environments
 venv/
 __pycache__/
-legacy-django-backend/
 *.pyc
 
 # Local Logs & Documentation Artifacts
