@@ -95,11 +95,6 @@ async function runTests() {
     const expiredToken = jwt.sign({ userId: userA?.id || 'temp', jti: 'exp-test' }, process.env.JWT_SECRET || 'secret', { expiresIn: '0s' });
     const expiredAuth = await request(app).get('/api/v1/auth/me').set('Authorization', `Bearer ${expiredToken}`);
     assert(expiredAuth.status === 401 && expiredAuth.body?.error?.code === 'TOKEN_EXPIRED', 'GET /api/v1/auth/me rejects expired token with 401 TOKEN_EXPIRED');
-
-    // Google OAuth provider status endpoint
-    const providersRes = await request(app).get('/api/v1/auth/providers');
-    assert(providersRes.status === 200 && providersRes.body?.data?.password === true, 'GET /api/v1/auth/providers reports supported auth providers');
-
     // Refresh & Logout Flow
     const refreshRes = await request(app).post('/api/v1/auth/refresh').send({ refreshToken: regA.body?.data?.refreshToken });
     assert(refreshRes.status === 200 && refreshRes.body?.data?.accessToken, 'POST /api/v1/auth/refresh issues new token pair');

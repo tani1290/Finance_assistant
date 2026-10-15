@@ -4,7 +4,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../firebase_options.dart';
 import '../api/api_client.dart';
@@ -26,9 +25,7 @@ Future<void> _fcmBackgroundHandler(RemoteMessage message) async {
 ///
 /// Handles:
 /// - Firebase initialization
-/// - Google Sign-In
 /// - Email/password authentication
-/// - Phone OTP authentication
 /// - Firebase Messaging
 /// - Analytics and Crashlytics
 class FirebaseService {
@@ -44,10 +41,7 @@ class FirebaseService {
 
   FirebaseCrashlytics get crashlytics => FirebaseCrashlytics.instance;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
-
   bool _initialized = false;
-  bool _googleSignInInitialized = false;
   bool _fcmConfigured = false;
 
   /// Initialize Firebase before runApp().
@@ -89,102 +83,6 @@ class FirebaseService {
     } catch (e, stackTrace) {
       debugPrint('[Firebase] Initialization failed: $e');
       debugPrintStack(stackTrace: stackTrace);
-      rethrow;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Google Sign-In
-  // ---------------------------------------------------------------------------
-
-  Future<void> _initializeGoogleSignIn() async {
-    if (_googleSignInInitialized) return;
-
-    await _googleSignIn.initialize(
-      serverClientId:
-          '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
-    );
-
-    _googleSignInInitialized = true;
-  }
-
-  /// Authenticate with Google, then exchange credentials with the FinPro backend.
-  ///
-  /// Returns the backend response data, or null if the user cancels.
-  Future<Map<String, dynamic>?> signInWithGoogle() async {
-    try {
-      await initialize();
-      await _initializeGoogleSignIn();
-
-      final googleUser = await _googleSignIn.authenticate();
-
-      final googleAuth = googleUser.authentication;
-      final googleIdToken = googleAuth.idToken;
-
-      if (googleIdToken == null) {
-        throw Exception(
-          'Google did not return an ID token. '
-          'Check your OAuth client configuration.',
-        );
-      }
-
-      final credential = GoogleAuthProvider.credential(idToken: googleIdToken);
-
-      final userCredential = await auth.signInWithCredential(credential);
-
-      final firebaseUser = userCredential.user;
-
-      if (firebaseUser == null) {
-        throw Exception('Firebase did not return an authenticated user.');
-      }
-
-      final firebaseIdToken = await firebaseUser.getIdToken();
-
-      if (firebaseIdToken == null) {
-        throw Exception('Firebase did not return an ID token.');
-      }
-
-      final displayName = (googleUser.displayName ?? '').trim();
-
-      final nameParts = displayName.isEmpty
-          ? <String>[]
-          : displayName.split(RegExp(r'\s+'));
-
-      final firstName = nameParts.isNotEmpty ? nameParts.first : '';
-      final lastName = nameParts.length > 1
-          ? nameParts.sublist(1).join(' ')
-          : '';
-
-      final response = await apiClient.post(
-        ApiEndpoints.googleToken,
-        data: {
-          // Preserve the existing backend request contract.
-          'token': googleIdToken,
-          'idToken': googleIdToken,
-          'firebaseToken': firebaseIdToken,
-          'email': firebaseUser.email,
-          'firstName': firstName,
-          'lastName': lastName,
-          'avatarUrl': firebaseUser.photoURL ?? googleUser.photoUrl,
-          'googleId': googleUser.id,
-        },
-      );
-
-      if (response.statusCode == 200 && response.data['success'] == true) {
-        await logLogin(method: 'google');
-
-        return Map<String, dynamic>.from(response.data['data'] as Map);
-      }
-
-      throw Exception(
-        'FinPro backend rejected Google authentication: '
-        '${response.statusCode}',
-      );
-    } catch (e, stackTrace) {
-      debugPrint('[Firebase] Google Sign-In failed: $e');
-
-      recordError(e, stackTrace, reason: 'Google Sign-In');
-
       rethrow;
     }
   }
@@ -252,80 +150,6 @@ class FirebaseService {
   /// Send a password reset email.
   Future<void> sendPasswordResetEmail({required String email}) async {
     await auth.sendPasswordResetEmail(email: email.trim());
-  }
-
-  // ---------------------------------------------------------------------------
-  // Phone Number / SMS OTP Authentication
-  // ---------------------------------------------------------------------------
-
-  /// Request an SMS verification code.
-  ///
-  /// Provide the callbacks from your phone verification screen.
-  /// Phone numbers must include the country code, e.g. +919876543210.
-  Future<void> verifyPhoneNumber({
-    required String phoneNumber,
-    required void Function(String verificationId) onCodeSent,
-    required void Function(String error) onError,
-    void Function(UserCredential credential)? onAutoVerified,
-    int? resendToken,
-  }) async {
-    try {
-      await auth.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        forceResendingToken: resendToken,
-
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          try {
-            final userCredential = await auth.signInWithCredential(credential);
-
-            await logLogin(method: 'phone');
-
-            onAutoVerified?.call(userCredential);
-          } catch (e, stackTrace) {
-            recordError(e, stackTrace, reason: 'Automatic phone verification');
-            onError(e.toString());
-          }
-        },
-
-        verificationFailed: (FirebaseAuthException e) {
-          debugPrint('[Firebase] Phone verification failed: ${e.code}');
-          onError(e.message ?? 'Phone verification failed.');
-        },
-
-        codeSent: (String verificationId, int? newResendToken) {
-          onCodeSent(verificationId);
-        },
-
-        codeAutoRetrievalTimeout: (String verificationId) {
-          debugPrint('[Firebase] OTP auto-retrieval timed out.');
-        },
-      );
-    } catch (e, stackTrace) {
-      recordError(e, stackTrace, reason: 'Request phone OTP');
-      rethrow;
-    }
-  }
-
-  /// Verify an OTP entered by the user.
-  Future<UserCredential> verifyPhoneOtp({
-    required String verificationId,
-    required String smsCode,
-  }) async {
-    try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
-      );
-
-      final userCredential = await auth.signInWithCredential(credential);
-
-      await logLogin(method: 'phone');
-
-      return userCredential;
-    } catch (e, stackTrace) {
-      recordError(e, stackTrace, reason: 'Verify phone OTP');
-      rethrow;
-    }
   }
 
   // ---------------------------------------------------------------------------
@@ -442,12 +266,6 @@ class FirebaseService {
   // ---------------------------------------------------------------------------
 
   Future<void> signOut() async {
-    try {
-      await _googleSignIn.signOut();
-    } catch (e) {
-      debugPrint('[Firebase] Google sign-out failed: $e');
-    }
-
     try {
       await auth.signOut();
     } catch (e) {

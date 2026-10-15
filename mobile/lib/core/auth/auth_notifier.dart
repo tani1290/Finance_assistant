@@ -129,46 +129,6 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
-  /// Google Sign-In via Firebase Auth → FinPro backend JWT
-  Future<bool> loginWithGoogle() async {
-    state = AuthState.loading();
-    try {
-      final data = await FirebaseService.instance.signInWithGoogle();
-      if (data == null) {
-        state = AuthState.unauthenticated(
-          error: 'Google Sign-In was cancelled.',
-        );
-        return false;
-      }
-
-      final accessToken = data['accessToken'];
-      final refreshToken = data['refreshToken'];
-      final user = UserModel.fromJson(data['user']);
-
-      await TokenStorage.saveTokens(
-        accessToken: accessToken,
-        refreshToken: refreshToken ?? '',
-        userId: user.id,
-        email: user.email,
-        name: user.fullName,
-      );
-
-      state = AuthState.authenticated(user);
-
-      // Firebase post-login hooks
-      FirebaseService.instance.registerFcmToken();
-      FirebaseService.instance.setUserId(user.id);
-      FirebaseService.instance.logLogin(method: 'google');
-
-      return true;
-    } catch (e) {
-      state = AuthState.unauthenticated(
-        error: _extractErrorMessage(e, 'Google Sign-In failed. Please try again.'),
-      );
-      return false;
-    }
-  }
-
   Future<bool> register({
     required String username,
     required String email,
@@ -325,7 +285,7 @@ class AuthNotifier extends Notifier<AuthState> {
         );
       }
     } catch (_) {}
-    // Sign out of Firebase + Google
+    // Sign out of Firebase
     await FirebaseService.instance.signOut();
     await TokenStorage.clearAll();
     state = AuthState.unauthenticated();

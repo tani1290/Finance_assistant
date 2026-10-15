@@ -153,8 +153,6 @@ export const authAPI = {
   refresh: (refreshToken) => apiFetch('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
   logout: (refreshToken) => apiFetch('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
   getMe: () => apiFetch('/auth/me'),
-  googleToken: (token) => apiFetch('/auth/google/token', { method: 'POST', body: JSON.stringify({ token }) }),
-  googleRedirectUrl: () => `${API_BASE}/auth/google`,
 };
 
 // ===== Dashboard API =====

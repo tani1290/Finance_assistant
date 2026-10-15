@@ -54,7 +54,7 @@ const startServer = async () => {
       console.log('╚════════════════════════════════════════════════════════╝');
       console.log(`\n🚀 Server running at http://127.0.0.1:${PORT}`);
       console.log(`📋 Environment: ${NODE_ENV}`);
-      console.log(`🔒 Auth: JWT + Google OAuth`);
+      console.log(`🔒 Auth: JWT (email + password)`);
       console.log(`🤖 AI: ${process.env.GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY' ? 'Gemini (configured)' : 'Rule-based (configure GEMINI_API_KEY)'}`);
       console.log(`📈 Market: ${process.env.FINNHUB_API_KEY !== 'YOUR_FINNHUB_API_KEY' ? 'Finnhub (live)' : 'Reference prices (configure FINNHUB_API_KEY)'}`);
       console.log(`\n📡 API Endpoints:`);

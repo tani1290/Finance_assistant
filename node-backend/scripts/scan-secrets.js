@@ -6,12 +6,11 @@
  * 1. AWS / S3 Secret Access Keys & Access Key IDs
  * 2. Database connection strings containing plain passwords
  * 3. Gemini / Google AI API keys
- * 4. Google OAuth Client Secrets
- * 5. Private SSH keys / RSA keys
- * 6. Hardcoded JWT Secrets
- * 7. Finnhub / Marketaux API keys
- * 8. Ensures .env is strictly ignored by .gitignore
- * 9. Ensures .env.example contains strictly placeholders
+ * 4. Private SSH keys / RSA keys
+ * 5. Hardcoded JWT Secrets
+ * 6. Finnhub / Marketaux API keys
+ * 7. Ensures .env is strictly ignored by .gitignore
+ * 8. Ensures .env.example contains strictly placeholders
  */
 
 const fs = require('fs');
@@ -58,22 +57,25 @@ try {
       name: 'Hardcoded Remote DB Password in Code', 
       regex: /postgresql:\/\/(?!postgres:postgres@(?:localhost|127\.0\.0\.1|db|postgres))[a-zA-Z0-9_\.\-]+:([^@\s\/]{8,})@(?!localhost|127\.0\.0\.1|db|postgres)[a-zA-Z0-9_\.\-]+/ 
     },
-    { name: 'Google Client Secret in Code', regex: /GOCSPX-[a-zA-Z0-9_\-]{20,}/ },
     { name: 'Exposed Gemini API Key', regex: /AIzaSy[a-zA-Z0-9_\-]{30,}/ },
+    { name: 'Exposed Gemini API Key (AQ format)', regex: /AQ\.[a-zA-Z0-9_\-]{40,}/ },
   ];
 
   let scannedCount = 0;
   for (const relFile of trackedFiles) {
-    // Skip lockfiles, documentation, example templates, test mock fixtures, or binary assets
+    // Skip lockfiles, documentation, example templates, test mock fixtures, APKs, or public client configs
     if (
       relFile.endsWith('.lock') || 
       relFile.endsWith('package-lock.json') || 
       relFile.endsWith('.png') || 
       relFile.endsWith('.webp') || 
       relFile.endsWith('.jpg') || 
+      relFile.endsWith('.apk') ||
       relFile.endsWith('.md') ||
       relFile.endsWith('.env.example') ||
-      relFile.endsWith('google-services.json')
+      relFile.endsWith('google-services.json') ||
+      relFile.endsWith('GoogleService-Info.plist') ||
+      relFile.endsWith('firebase_options.dart')
     ) {
       continue;
     }

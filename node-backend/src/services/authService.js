@@ -1,7 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
-const axios = require('axios');
 const prisma = require('../config/database');
 
 const SALT_ROUNDS = 12;
@@ -40,7 +39,7 @@ const storeRefreshToken = async (userId, token) => {
 /**
  * Register a new user
  */
-const register = async ({ email, username, password, firstName = '', lastName = '', phone = '' }) => {
+const register = async ({ email, username, password, firstName = '', lastName = '' }) => {
   const normalizedEmail = (email || '').toLowerCase().trim();
   const normalizedUsername = (username || '').trim();
 
@@ -64,7 +63,6 @@ const register = async ({ email, username, password, firstName = '', lastName = 
       password: hashedPassword,
       firstName: (firstName || '').trim(),
       lastName: (lastName || '').trim(),
-      phone: phone || null,
     },
   });
 
@@ -179,152 +177,6 @@ const logout = async (refreshToken) => {
 };
 
 /**
- * Google OAuth & Firebase Auth token verification
- * Accepts token/idToken, firebaseToken, or verified client payload
- */
-const googleAuth = async (tokenPayload) => {
-  const payload = typeof tokenPayload === 'string' ? { idToken: tokenPayload } : (tokenPayload || {});
-  const idToken = payload.idToken || payload.token;
-  const firebaseToken = payload.firebaseToken;
-  let email = payload.email ? payload.email.toLowerCase().trim() : null;
-  let firstName = payload.firstName || '';
-  let lastName = payload.lastName || '';
-  let googleId = payload.googleId || null;
-  let avatarUrl = payload.avatarUrl || null;
-
-  // 1. Try Google OAuth tokeninfo endpoint
-  if (idToken) {
-    try {
-      const googleRes = await axios.get(
-        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,
-        { timeout: 7000 }
-      );
-      if (googleRes.data && googleRes.data.email) {
-        email = googleRes.data.email.toLowerCase().trim();
-        firstName = firstName || googleRes.data.given_name || '';
-        lastName = lastName || googleRes.data.family_name || '';
-        googleId = googleId || googleRes.data.sub;
-        avatarUrl = avatarUrl || googleRes.data.picture || null;
-      }
-    } catch (_) {}
-  }
-
-  // 2. Try Google Identity Toolkit lookup via Firebase Web API Key
-  const fbTokenToTry = firebaseToken || idToken;
-  if (!email && fbTokenToTry) {
-    try {
-      const apiKey = process.env.FIREBASE_WEB_API_KEY || 'AIzaSyCeTq5OQQUp2wAlvKE6VoNmOHBfJxC0sso';
-      const fbRes = await axios.post(
-        `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
-        { idToken: fbTokenToTry },
-        { timeout: 7000 }
-      );
-      if (fbRes.data?.users?.[0]) {
-        const fbUser = fbRes.data.users[0];
-        email = fbUser.email.toLowerCase().trim();
-        const parts = (fbUser.displayName || '').split(' ').filter(Boolean);
-        firstName = firstName || parts[0] || '';
-        lastName = lastName || parts.slice(1).join(' ');
-        googleId = googleId || fbUser.localId;
-        avatarUrl = avatarUrl || fbUser.photoUrl;
-      }
-    } catch (_) {}
-  }
-
-  // 3. Try Firebase Admin SDK verification if configured
-  if (!email && fbTokenToTry) {
-    const fcmService = require('./fcmService');
-    try {
-      const decoded = await fcmService.verifyIdToken(fbTokenToTry);
-      if (decoded && decoded.email) {
-        email = decoded.email.toLowerCase().trim();
-        const parts = (decoded.name || '').split(' ').filter(Boolean);
-        firstName = firstName || parts[0] || '';
-        lastName = lastName || parts.slice(1).join(' ');
-        googleId = googleId || decoded.uid || decoded.sub;
-        avatarUrl = avatarUrl || decoded.picture;
-      }
-    } catch (_) {}
-  }
-
-  // 4. Try JWT decode check for Firebase project minor-finance
-  if (!email && fbTokenToTry) {
-    try {
-      const decoded = jwt.decode(fbTokenToTry);
-      if (decoded && decoded.email && (decoded.aud === 'minor-finance' || decoded.iss?.includes('minor-finance'))) {
-        email = decoded.email.toLowerCase().trim();
-        const parts = (decoded.name || '').split(' ').filter(Boolean);
-        firstName = firstName || parts[0] || '';
-        lastName = lastName || parts.slice(1).join(' ');
-        googleId = googleId || decoded.user_id || decoded.sub;
-        avatarUrl = avatarUrl || decoded.picture;
-      }
-    } catch (_) {}
-  }
-
-  // 5. Fallback: verified client credentials if phone already authenticated with Firebase
-  if (!email && payload.email) {
-    email = payload.email.toLowerCase().trim();
-    firstName = payload.firstName || '';
-    lastName = payload.lastName || '';
-    googleId = payload.googleId || uuidv4().slice(0, 12);
-    avatarUrl = payload.avatarUrl || null;
-  }
-
-  if (!email) {
-    throw Object.assign(new Error('Unable to verify Google credentials. Please try again.'), { statusCode: 401, code: 'GOOGLE_INVALID_TOKEN' });
-  }
-
-  // Find or create user
-  let user = await prisma.user.findFirst({
-    where: { OR: [...(googleId ? [{ googleId }] : []), { email: email.toLowerCase() }] },
-  });
-
-  if (!user) {
-    const username = email.split('@')[0] + '_' + uuidv4().slice(0, 6);
-    user = await prisma.user.create({
-      data: {
-        email: email.toLowerCase(),
-        username,
-        googleId: googleId || uuidv4(),
-        firstName: firstName || '',
-        lastName: lastName || '',
-        avatarUrl: avatarUrl || null,
-        password: null, // No password for OAuth users
-      },
-    });
-
-    // Create default accounts & profiles
-    await prisma.profile.create({ data: { userId: user.id } }).catch(() => {});
-    await prisma.financialProfile.create({
-      data: {
-        userId: user.id,
-        monthlySalary: 0,
-        estimatedMonthlyExpenses: 0,
-        currentSavings: 0,
-        totalDebt: 0,
-      },
-    }).catch(() => {});
-    await prisma.financialAccount.create({
-      data: { userId: user.id, name: 'Primary Account', accountType: 'BANK', balance: 0, currency: 'INR' },
-    }).catch(() => {});
-  } else if (!user.googleId && googleId) {
-    // Link existing email account to Google
-    user = await prisma.user.update({
-      where: { id: user.id },
-      data: { googleId, avatarUrl: avatarUrl || user.avatarUrl },
-    });
-  }
-
-  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-
-  const { accessToken, refreshToken } = generateTokens(user.id);
-  await storeRefreshToken(user.id, refreshToken);
-
-  return { user: sanitizeUser(user), accessToken, refreshToken };
-};
-
-/**
  * Ensure the demo user (Arjun Sharma) exists in the database
  */
 const ensureDemoUserExists = async () => {
@@ -402,46 +254,6 @@ const ensureDemoUserExists = async () => {
 };
 
 /**
- * Get Google OAuth authorization URL
- */
-const getGoogleAuthUrl = () => {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || process.env.GOOGLE_CALLBACK_URL;
-
-  if (!clientId || clientId === 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com') {
-    throw Object.assign(new Error('Google OAuth is not configured. Please set GOOGLE_CLIENT_ID in .env'), { statusCode: 503, code: 'GOOGLE_NOT_CONFIGURED' });
-  }
-
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    response_type: 'code',
-    scope: 'openid email profile',
-    access_type: 'offline',
-    prompt: 'consent',
-  });
-
-  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-};
-
-/**
- * Exchange Google auth code for tokens
- */
-const handleGoogleCallback = async (code) => {
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || process.env.GOOGLE_CALLBACK_URL;
-  const tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
-    code,
-    client_id: process.env.GOOGLE_CLIENT_ID,
-    client_secret: process.env.GOOGLE_CLIENT_SECRET,
-    redirect_uri: redirectUri,
-    grant_type: 'authorization_code',
-  });
-
-  const { id_token } = tokenRes.data;
-  return await googleAuth(id_token);
-};
-
-/**
  * Strip sensitive fields from user object
  */
 const sanitizeUser = (user) => ({
@@ -464,9 +276,6 @@ module.exports = {
   login,
   refreshAccessToken,
   logout,
-  googleAuth,
-  getGoogleAuthUrl,
-  handleGoogleCallback,
   sanitizeUser,
   ensureDemoUserExists,
 };

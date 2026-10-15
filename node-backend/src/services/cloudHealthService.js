@@ -392,7 +392,6 @@ class CloudHealthService {
 
   async checkAuth() {
     const jwtConfigured = !!(process.env.JWT_SECRET && process.env.JWT_SECRET !== 'YOUR_JWT_SECRET');
-    const googleConfigured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com');
 
     return {
       status: jwtConfigured ? 'CONNECTED' : 'DEGRADED',
@@ -401,7 +400,6 @@ class CloudHealthService {
       lastChecked: new Date().toISOString(),
       details: {
         jwtAuth: jwtConfigured ? 'HMAC-SHA256 Active' : 'Default / Insecure Key',
-        googleOAuth: googleConfigured ? 'Configured' : 'Not Configured (Optional)',
         passwordHashing: 'bcrypt (Salt rounds 10)',
         userIsolation: 'Enforced via userId scoped queries',
       },

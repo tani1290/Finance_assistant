@@ -9,7 +9,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -248,48 +247,6 @@
       cursor: not-allowed;
     }
 
-    .btn-google {
-      width: 100%;
-      padding: 11px;
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-size: 13px;
-      font-weight: 600;
-      font-family: inherit;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      text-decoration: none;
-      margin-top: 12px;
-    }
-
-    .btn-google:hover {
-      background: var(--surface-subtle);
-      border-color: #94a3b8;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    }
-
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 20px 0;
-      color: var(--text-muted);
-      font-size: 12px;
-    }
-
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-
     .auth-footer {
       text-align: center;
       margin-top: 24px;
@@ -397,17 +354,6 @@
         </button>
       </form>
 
-      <div class="divider">or continue with</div>
-
-      <a href="/api/v1/auth/google" class="btn-google" id="googleLoginBtn">
-        <svg width="18" height="18" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-        </svg>
-        Continue with Google
-      </a>
     </div>
 
     <div class="auth-footer">
@@ -419,104 +365,15 @@
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const API_BASE = (!isLocal || window.location.origin.includes(':5001')) ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
 
-    // Google callback & hash fragment token handling (secure OAuth transfer)
-    const hashParams = new URLSearchParams(window.location.hash ? window.location.hash.substring(1) : '');
-    const searchParams = new URLSearchParams(window.location.search);
-    const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
-    const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
-
-    if (accessToken) {
-      localStorage.setItem('jf_access_token', accessToken);
-      if (refreshToken) localStorage.setItem('jf_refresh_token', refreshToken);
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      window.location.href = '/dashboard.html';
-    } else if (localStorage.getItem('jf_access_token')) {
-      // Redirect if already logged in
+    // Redirect if already logged in
+    if (localStorage.getItem('jf_access_token')) {
       window.location.href = '/dashboard.html';
     }
 
     // Show session expired message
-    if (searchParams.get('session_expired')) {
+    if (new URLSearchParams(window.location.search).get('session_expired')) {
       showAlert('error', 'Your session has expired. Please sign in again.');
     }
-    if (searchParams.get('error') === 'google_auth_failed') {
-      showAlert('error', 'Google Sign-In failed or is not configured. Please use email and password.');
-    }
-
-    // Check auth providers status
-    let googleOAuthEnabled = false;
-    let googleClientId = '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com';
-    fetch(`${API_BASE}/auth/providers`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.data?.google?.enabled) {
-          googleOAuthEnabled = true;
-          if (data.data.google.clientId) googleClientId = data.data.google.clientId;
-          initGoogleSignIn();
-        }
-      })
-      .catch(() => {});
-
-    function handleGoogleCredentialResponse(response) {
-      if (!response.credential) return;
-      setLoading(true);
-      clearAlert();
-      fetch(`${API_BASE}/auth/google/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: response.credential, idToken: response.credential }),
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          localStorage.setItem('jf_access_token', data.data.accessToken);
-          localStorage.setItem('jf_refresh_token', data.data.refreshToken);
-          localStorage.setItem('jf_user', JSON.stringify(data.data.user));
-          window.location.href = '/dashboard.html';
-        } else {
-          setLoading(false);
-          showAlert('error', data.error?.message || 'Google login failed.');
-        }
-      })
-      .catch(() => {
-        setLoading(false);
-        showAlert('error', 'Google login network error. Please try again.');
-      });
-    }
-
-    function initGoogleSignIn() {
-      if (window.google?.accounts?.id) {
-        google.accounts.id.initialize({
-          client_id: googleClientId,
-          callback: handleGoogleCredentialResponse,
-        });
-      }
-    }
-
-    window.addEventListener('load', () => {
-      setTimeout(initGoogleSignIn, 500);
-    });
-
-    document.getElementById('googleLoginBtn').addEventListener('click', async (e) => {
-      e.preventDefault();
-      if (window.google?.accounts?.id) {
-        initGoogleSignIn();
-        google.accounts.id.prompt((notification) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            if (googleOAuthEnabled) {
-              window.location.href = `${API_BASE}/auth/google`;
-            } else {
-              showAlert('error', 'Please select your Google account in the popup or sign in with email and password.');
-            }
-          }
-        });
-      } else if (googleOAuthEnabled) {
-        window.location.href = `${API_BASE}/auth/google`;
-      } else {
-        showAlert('error', 'Google Sign-In is initializing. Please try again or sign in with email and password.');
-      }
-    });
 
     // Toggle password visibility
     document.getElementById('togglePassword').addEventListener('click', () => {

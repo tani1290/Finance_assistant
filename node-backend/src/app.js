@@ -34,6 +34,9 @@ app.use(helmet({
 // CORS — allow frontend origin
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://127.0.0.1:3000',
+  'https://fin-pro-wheat.vercel.app',
+  'https://finpro-finance-ai.vercel.app',
+  'https://finpro-finance-ai.onrender.com',
   'http://127.0.0.1:5001',
   'http://localhost:5001',
   'http://127.0.0.1:5500',   // VS Code Live Server
@@ -46,16 +49,19 @@ const allowedOrigins = [
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'test') {
-      callback(null, true);
-    } else if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    // Allow any Vercel deployment preview/production URL
+    if (/\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+    if (process.env.NODE_ENV !== 'production') {
       // In development allow local loopback origins
       if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
-      callback(new Error(`CORS blocked for origin: ${origin}`));
-    } else {
-      callback(new Error(`CORS blocked for origin: ${origin}`));
     }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -226,14 +232,12 @@ app.get('/api/v1/health/auth', async (req, res) => {
   }
 
   const jwtConfigured = !!(process.env.JWT_SECRET && process.env.JWT_SECRET !== 'YOUR_JWT_SECRET');
-  const googleConfigured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com');
 
   res.json({
     success: true,
     authentication: 'healthy',
     database: dbStatus,
     jwt: jwtConfigured ? 'configured' : 'missing_secret',
-    googleOAuth: googleConfigured ? 'configured' : 'not_configured',
     timestamp: new Date().toISOString(),
   });
 });

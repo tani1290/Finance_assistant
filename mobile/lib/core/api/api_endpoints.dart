@@ -13,8 +13,6 @@ class ApiEndpoints {
   static String get refresh => '$baseUrl/auth/refresh';
   static String get me => '$baseUrl/auth/me';
   static String get logout => '$baseUrl/auth/logout';
-  static String get googleToken =>
-      '$baseUrl/auth/google/token'; // Firebase ID token exchange
 
   // Notifications / FCM
   static String get fcmToken => '$baseUrl/notifications/fcm-token';

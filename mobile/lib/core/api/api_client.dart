@@ -44,8 +44,7 @@ class ApiClient {
           // Transparent 401 token refresh loop — never treat login/register as expired JWT
           final path = error.requestOptions.path;
           final isCredentialAuth = path.contains('/auth/login') ||
-              path.contains('/auth/register') ||
-              path.contains('/auth/google');
+              path.contains('/auth/register');
           if (error.response?.statusCode == 401 &&
               !path.contains('/auth/refresh') &&
               !isCredentialAuth) {

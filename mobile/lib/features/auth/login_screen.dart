@@ -18,7 +18,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-  bool _googleLoading = false;
 
   @override
   void dispose() {
@@ -43,18 +42,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         .login(email, password);
     if (success && mounted) {
       context.go('/dashboard');
-    }
-  }
-
-  Future<void> _handleGoogleSignIn() async {
-    setState(() => _googleLoading = true);
-    try {
-      final success = await ref.read(authProvider.notifier).loginWithGoogle();
-      if (success && mounted) {
-        context.go('/dashboard');
-      }
-    } finally {
-      if (mounted) setState(() => _googleLoading = false);
     }
   }
 
@@ -188,93 +175,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         GradientButton(
                           text: 'Sign In',
                           isLoading:
-                              authState.status == AuthStatus.loading &&
-                              !_googleLoading,
+                              authState.status == AuthStatus.loading,
                           onPressed: _handleLogin,
-                        ),
-                        const SizedBox(height: 20),
-                        // ── Divider ──
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Divider(color: AppColors.border(isDark)),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              child: Text(
-                                'or continue with',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary(isDark),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Divider(color: AppColors.border(isDark)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        // ── Google Sign-In Button ──
-                        OutlinedButton(
-                          onPressed: _googleLoading
-                              ? null
-                              : _handleGoogleSignIn,
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: BorderSide(color: AppColors.border(isDark)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: _googleLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      width: 22,
-                                      height: 22,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            Color(0xFF4285F4),
-                                            Color(0xFF34A853),
-                                          ],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        ),
-                                      ),
-                                      child: const Center(
-                                        child: Text(
-                                          'G',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      'Sign in with Google',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
                         ),
                       ],
                     ),

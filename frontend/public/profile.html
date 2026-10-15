@@ -183,19 +183,14 @@
             </div>
           </div>
 
-          <div class="form-group" style="margin-bottom:14px">
-            <label>Email Address (Immutable)</label>
-            <input type="email" id="inputEmail" class="form-control" disabled>
-          </div>
-
           <div class="form-row">
             <div class="form-group">
-              <label>Username</label>
-              <input type="text" id="inputUsername" class="form-control" disabled>
+              <label>Email Address (Immutable)</label>
+              <input type="email" id="inputEmail" class="form-control" disabled>
             </div>
             <div class="form-group">
-              <label>Phone Number</label>
-              <input type="text" id="inputPhone" class="form-control" placeholder="+91 98765 43210">
+              <label>Username (Immutable)</label>
+              <input type="text" id="inputUsername" class="form-control" disabled>
             </div>
           </div>
 
@@ -344,7 +339,6 @@
       document.getElementById('inputLastName').value = user.lastName || '';
       document.getElementById('inputEmail').value = user.email || '';
       document.getElementById('inputUsername').value = user.username || '';
-      document.getElementById('inputPhone').value = user.phone || '';
       document.getElementById('inputOccupation').value = user.profile?.occupation || '';
       document.getElementById('inputBio').value = user.profile?.bio || '';
 
@@ -368,7 +362,6 @@
       const payload = {
         firstName: document.getElementById('inputFirstName').value.trim(),
         lastName: document.getElementById('inputLastName').value.trim(),
-        phone: document.getElementById('inputPhone').value.trim(),
         occupation: document.getElementById('inputOccupation').value.trim(),
         bio: document.getElementById('inputBio').value.trim(),
         monthlySalary: parseFloat(document.getElementById('inputSalary').value) || 0,

@@ -38,13 +38,9 @@ services:
       - key: JWT_REFRESH_EXPIRES_IN
         value: 7d
 
-      # Google OAuth & Firebase
-      - key: GOOGLE_CLIENT_ID
-        value: 1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com
-      - key: GOOGLE_WEB_CLIENT_ID
-        value: 1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com
+      # Firebase
       - key: FIREBASE_WEB_API_KEY
-        value: AIzaSyCeTq5OQQUp2wAlvKE6VoNmOHBfJxC0sso
+        sync: false
 
       # Google Gemini Generative AI
       - key: GEMINI_API_KEY

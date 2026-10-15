@@ -20,7 +20,7 @@ model User {
   id            String   @id @default(uuid())
   email         String   @unique
   username      String   @unique
-  password      String?  // null for Google OAuth users
+  password      String?  // null for accounts without a local password
   firstName     String   @default("")
   lastName      String   @default("")
   phone         String?

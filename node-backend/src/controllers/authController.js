@@ -6,7 +6,7 @@ const prisma = require('../config/database');
  */
 const register = async (req, res, next) => {
   try {
-    const { email, username, password, firstName, lastName, phone } = req.body;
+    const { email, username, password, firstName, lastName } = req.body;
 
     if (!email || !username || !password) {
       return res.status(400).json({
@@ -22,7 +22,7 @@ const register = async (req, res, next) => {
       });
     }
 
-    const result = await authService.register({ email, username, password, firstName, lastName, phone });
+    const result = await authService.register({ email, username, password, firstName, lastName });
 
     // Audit Log
     await prisma.auditLog.create({
@@ -189,14 +189,13 @@ const getMe = async (req, res, next) => {
 const updateProfile = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { firstName, lastName, phone, city, occupation, bio, monthlySalary, estimatedMonthlyExpenses, riskProfile } = req.body;
+    const { firstName, lastName, city, occupation, bio, monthlySalary, estimatedMonthlyExpenses, riskProfile } = req.body;
 
     await prisma.user.update({
       where: { id: userId },
       data: {
         ...(firstName !== undefined && { firstName: firstName.trim() }),
         ...(lastName !== undefined && { lastName: lastName.trim() }),
-        ...(phone !== undefined && { phone: phone ? phone.trim() : null }),
       },
     });
 
@@ -266,109 +265,6 @@ const updateProfile = async (req, res, next) => {
 };
 
 /**
- * GET /api/v1/auth/providers
- * Returns authentication providers configuration status
- */
-const getAuthProviders = (req, res) => {
-  const clientId = process.env.GOOGLE_CLIENT_ID || '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com';
-  const googleConfigured = !!(
-    clientId &&
-    clientId !== 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com'
-  );
-
-  return res.status(200).json({
-    success: true,
-    data: {
-      password: true,
-      google: {
-        enabled: googleConfigured,
-        clientId: googleConfigured ? clientId : null,
-      },
-    },
-  });
-};
-
-/**
- * GET /api/v1/auth/google
- * Redirects to Google OAuth
- */
-const googleAuthRedirect = (req, res, next) => {
-  try {
-    const url = authService.getGoogleAuthUrl();
-    return res.redirect(url);
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * GET /api/v1/auth/google/callback
- * Handles Google OAuth callback with code exchange
- */
-const googleAuthCallback = async (req, res, next) => {
-  const host = req.get('host') || '127.0.0.1:5001';
-  const protocol = req.protocol || 'http';
-  const frontendUrl = (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes(':3000'))
-    ? process.env.FRONTEND_URL
-    : `${protocol}://${host}`;
-
-  try {
-    const { code } = req.query;
-    if (!code) {
-      return res.redirect(`${frontendUrl}/login.html?error=google_auth_failed`);
-    }
-
-    const result = await authService.handleGoogleCallback(code);
-    const { accessToken, refreshToken } = result;
-
-    // Redirect to frontend with tokens in URL hash fragment for security (never exposed to server/logs)
-    return res.redirect(`${frontendUrl}/dashboard.html#access_token=${accessToken}&refresh_token=${refreshToken}&google=true`);
-  } catch (error) {
-    console.error('Google callback error:', error.message);
-    return res.redirect(`${frontendUrl}/login.html?error=google_auth_failed`);
-  }
-};
-
-/**
- * POST /api/v1/auth/google/token
- * For frontend & mobile that uses Google / Firebase Sign-In
- */
-const googleAuthWithToken = async (req, res, next) => {
-  try {
-    const { token, idToken, firebaseToken, email, firstName, lastName, avatarUrl, googleId } = req.body;
-    const googleToken = token || idToken || firebaseToken;
-    if (!googleToken && !email) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'Google ID token or email is required.' },
-      });
-    }
-
-    const result = await authService.googleAuth({
-      idToken: googleToken,
-      firebaseToken,
-      email,
-      firstName,
-      lastName,
-      avatarUrl,
-      googleId,
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-        message: 'Google login successful!',
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
  * POST /api/v1/auth/seed-demo & GET /api/v1/auth/seed-demo
  * Seeds demo user (demo@example.com / DemoPassword123!)
  */
@@ -399,9 +295,5 @@ module.exports = {
   logout,
   getMe,
   updateProfile,
-  getAuthProviders,
-  googleAuthRedirect,
-  googleAuthCallback,
-  googleAuthWithToken,
   seedDemo,
 };
