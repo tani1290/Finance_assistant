@@ -11,7 +11,11 @@ services:
     plan: free
     region: oregon
     buildCommand: npm --prefix node-backend install && npm --prefix node-backend run build
-    startCommand: cd node-backend && (npx prisma migrate deploy || npx prisma db push --accept-data-loss || true) && (node prisma/seed.js || true) && node src/server.js
+    # Reconciliation runs `prisma migrate deploy`, falling back to an additive
+    # `prisma db push` for this db-push-managed database. It reports the real
+    # outcome instead of swallowing failures behind `|| true`, and never uses
+    # --accept-data-loss. See node-backend/scripts/deploy-migrate.js.
+    startCommand: cd node-backend && node scripts/deploy-migrate.js && (node prisma/seed.js || true) && node src/server.js
     healthCheckPath: /api/v1/health
     autoDeploy: true
 
@@ -22,10 +26,21 @@ services:
       - key: PORT
         value: 5000
 
-      # Supabase PostgreSQL Database URL
-      # NOTE: For Supabase, use the pooled connection string (port 6543)
-      # e.g., postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true
+      # Supabase PostgreSQL Database URL — used by the running server.
+      # The transaction pooler (port 6543) is fine for queries:
+      #   postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true
+      # but Prisma CANNOT run schema migrations (DDL) through it, which is why
+      # a reconciliation connection is needed at deploy time (see DIRECT_URL).
       - key: DATABASE_URL
+        sync: false
+
+      # Migration-only connection (OPTIONAL, recommended for Supabase).
+      # Set this to the DIRECT connection (db.[ref].supabase.co:5432) or the
+      # SESSION pooler (same pooler host as above, but port 5432). Used only by
+      # scripts/deploy-migrate.js during deploy. If left unset, that script
+      # derives the session pooler from DATABASE_URL automatically. The running
+      # server never reads this variable.
+      - key: DIRECT_URL
         sync: false
 
       # Authentication Secrets

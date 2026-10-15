@@ -76,7 +76,17 @@ server {
 
 1. **Production Migration Policy:**
    - Development environments may use `prisma db push` during active schema experimentation.
-   - Production cloud deployments strictly utilize version-controlled migrations: `prisma migrate deploy`.
+   - Production runs `node scripts/deploy-migrate.js` on every deploy. It attempts
+     version-controlled migrations (`prisma migrate deploy`) first and, for this
+     Supabase database (created with `db push`, so it has no `_prisma_migrations`
+     history), falls back to an additive `prisma db push`.
+   - The fallback never passes `--accept-data-loss`: it can add missing tables and
+     indexes but can never drop data. Failures are logged loudly and never masked
+     behind `|| true`.
+   - Migrations need a connection that can execute DDL. Supabase's transaction
+     pooler (port 6543) cannot, so set the optional `DIRECT_URL` to a direct
+     (`db.<ref>.supabase.co:5432`) or session-pooler connection when reconciling the
+     cloud database.
 2. **Connection Pooling:**
    - Serverless pooling handles connection spikes without exhausting database limits (`connection_limit=20&pool_timeout=15`).
 3. **Tenant Security:**

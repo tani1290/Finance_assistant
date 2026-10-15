@@ -74,6 +74,13 @@ npx prisma generate
 npx prisma db push
 ```
 
+This project's database — local **and** production on Supabase — is maintained with
+`prisma db push`, so it has no `_prisma_migrations` history. Deployments therefore
+run `npm run db:reconcile` (`scripts/deploy-migrate.js`), which attempts
+`prisma migrate deploy` first and falls back to an additive `prisma db push` when the
+schema is non-empty and unrecorded. See `render.yaml` for the full start command and
+the optional `DIRECT_URL` migration connection.
+
 ### 2.4 Running the Application
 ```bash
 # Start backend (serves API on port 5001 and SPA at http://localhost:5001)

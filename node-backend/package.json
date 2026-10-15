@@ -16,6 +16,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
+    "db:reconcile": "node scripts/deploy-migrate.js",
+    "db:reconcile:strict": "node scripts/deploy-migrate.js --strict",
     "build": "node scripts/build.js",
     "lint": "node scripts/lint.js"
   },

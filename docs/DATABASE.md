@@ -85,3 +85,46 @@ npx prisma generate
 # Inspect tables via Prisma Studio
 npx prisma studio
 ```
+
+---
+
+## 5. Schema Reconciliation on Deploy
+
+Local development **and** the Supabase production database are both maintained with
+`prisma db push`. Neither has a `_prisma_migrations` history, so `prisma migrate
+deploy` cannot adopt them on its own (Prisma P3005: *"The database schema is not
+empty"*).
+
+Deployments therefore run:
+
+```bash
+npm --prefix node-backend run db:reconcile      # = node scripts/deploy-migrate.js
+```
+
+The script:
+
+1. Runs `prisma migrate deploy` — correct for a migration-managed database, and what
+   a brand-new database gets (all three migrations in `prisma/migrations`).
+2. If the schema is non-empty and unrecorded, falls back to an **additive**
+   `prisma db push`. `--accept-data-loss` is never passed, so this step can create
+   missing tables and indexes but can never drop a column or a table.
+3. Logs the real outcome. A failing Prisma exit is reported loudly but does not stop
+   the server from booting.
+
+A missing table surfaces to clients as a bare HTTP 500 (`P2021 The table does not
+exist`) or a feature-level `SYNC_ERROR`, so this script's output is the first place
+to look when a cloud feature misbehaves.
+
+**Connection caveat:** Prisma cannot execute DDL through Supabase's *transaction*
+pooler (port 6543) — the URL normally used for runtime queries. Set the optional
+`DIRECT_URL` environment variable to a direct (`db.<ref>.supabase.co:5432`) or
+session-pooler (`aws-0-<region>.pooler.supabase.com:5432`) connection so the
+reconciliation step has a connection it can migrate over. When `DIRECT_URL` is
+absent, `deploy-migrate.js` derives the session pooler from `DATABASE_URL`.
+
+Verify after a deploy:
+
+```bash
+cd node-backend
+npm run db:reconcile:strict     # exits 1 if the schema could not be reconciled
+```

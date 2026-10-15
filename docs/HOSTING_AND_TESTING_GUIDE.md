@@ -131,8 +131,22 @@ npm --prefix node-backend install && npm --prefix node-backend run build
 and starts with:
 
 ```bash
-cd node-backend && (npx prisma migrate deploy || npx prisma db push --accept-data-loss || true) && node src/server.js
+cd node-backend && node scripts/deploy-migrate.js && (node prisma/seed.js || true) && node src/server.js
 ```
+
+`scripts/deploy-migrate.js` reconciles the schema before the server binds:
+
+1. `prisma migrate deploy` — for a migration-managed database.
+2. Falls back to an **additive** `prisma db push` (never `--accept-data-loss`) when
+   the database has tables but no `_prisma_migrations` history (Prisma P3005) —
+   which is how this project's Supabase instance was created.
+3. Prints the real outcome. A failure is loud but never blocks the boot.
+
+Prisma cannot run DDL through Supabase's **transaction** pooler (port 6543). If
+migrations fail with a pooler error, set `DIRECT_URL` in the Render dashboard to
+your Supabase **direct** connection (`db.<ref>.supabase.co:5432`) or **session**
+pooler (`aws-0-<region>.pooler.supabase.com:5432`). When `DIRECT_URL` is unset the
+script derives the session pooler from `DATABASE_URL` on its own.
 
 After deployment, verify:
 
