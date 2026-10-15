@@ -5,82 +5,360 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+import '../../firebase_options.dart';
 import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 
-// Background message handler (top-level function required by FCM)
+/// Handles Firebase background notifications.
 @pragma('vm:entry-point')
 Future<void> _fcmBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
+
   debugPrint('[FCM] Background message: ${message.messageId}');
 }
 
-/// Firebase Service for FinPro Mobile
+/// Firebase integration for FinPro Mobile.
 ///
-/// Handles Firebase initialization, Auth (Google Sign-In),
-/// FCM token management, Crashlytics, and Analytics.
+/// Handles:
+/// - Firebase initialization
+/// - Google Sign-In
+/// - Email/password authentication
+/// - Phone OTP authentication
+/// - Firebase Messaging
+/// - Analytics and Crashlytics
 class FirebaseService {
   FirebaseService._();
+
   static final FirebaseService instance = FirebaseService._();
 
   FirebaseAuth get auth => FirebaseAuth.instance;
+
   FirebaseMessaging get messaging => FirebaseMessaging.instance;
+
   FirebaseAnalytics get analytics => FirebaseAnalytics.instance;
+
   FirebaseCrashlytics get crashlytics => FirebaseCrashlytics.instance;
 
-  bool _initialized = false;
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
-  /// Initialize Firebase — call once from main() before runApp().
+  bool _initialized = false;
+  bool _googleSignInInitialized = false;
+  bool _fcmConfigured = false;
+
+  /// Initialize Firebase before runApp().
   Future<void> initialize() async {
     if (_initialized) return;
+
     try {
-      await Firebase.initializeApp();
-
-      // Crashlytics — collect crashes in release only
-      await crashlytics.setCrashlyticsCollectionEnabled(!kDebugMode);
-      FlutterError.onError = crashlytics.recordFlutterFatalError;
-
-      // FCM background handler
-      FirebaseMessaging.onBackgroundMessage(_fcmBackgroundHandler);
-
-      await _setupFcm();
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+      }
 
       _initialized = true;
-      debugPrint('[Firebase] Initialized ✓');
-    } catch (e) {
-      debugPrint('[Firebase] Init skipped (no google-services.json): $e');
+
+      try {
+        await crashlytics.setCrashlyticsCollectionEnabled(!kDebugMode);
+
+        FlutterError.onError = (errorDetails) {
+          recordError(
+            errorDetails.exception,
+            errorDetails.stack,
+            reason: 'FlutterError',
+          );
+        };
+      } catch (e) {
+        debugPrint('[Firebase] Crashlytics setup failed: $e');
+      }
+
+      FirebaseMessaging.onBackgroundMessage(_fcmBackgroundHandler);
+
+      try {
+        await _setupFcm();
+      } catch (e) {
+        debugPrint('[Firebase] FCM setup failed: $e');
+      }
+
+      debugPrint('[Firebase] Initialized successfully');
+    } catch (e, stackTrace) {
+      debugPrint('[Firebase] Initialization failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
     }
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // FCM Setup
-  // ──────────────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Google Sign-In
+  // ---------------------------------------------------------------------------
+
+  Future<void> _initializeGoogleSignIn() async {
+    if (_googleSignInInitialized) return;
+
+    await _googleSignIn.initialize(
+      serverClientId:
+          '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
+    );
+
+    _googleSignInInitialized = true;
+  }
+
+  /// Authenticate with Google, then exchange credentials with the FinPro backend.
+  ///
+  /// Returns the backend response data, or null if the user cancels.
+  Future<Map<String, dynamic>?> signInWithGoogle() async {
+    try {
+      await initialize();
+      await _initializeGoogleSignIn();
+
+      final googleUser = await _googleSignIn.authenticate();
+
+      final googleAuth = googleUser.authentication;
+      final googleIdToken = googleAuth.idToken;
+
+      if (googleIdToken == null) {
+        throw Exception(
+          'Google did not return an ID token. '
+          'Check your OAuth client configuration.',
+        );
+      }
+
+      final credential = GoogleAuthProvider.credential(idToken: googleIdToken);
+
+      final userCredential = await auth.signInWithCredential(credential);
+
+      final firebaseUser = userCredential.user;
+
+      if (firebaseUser == null) {
+        throw Exception('Firebase did not return an authenticated user.');
+      }
+
+      final firebaseIdToken = await firebaseUser.getIdToken();
+
+      if (firebaseIdToken == null) {
+        throw Exception('Firebase did not return an ID token.');
+      }
+
+      final displayName = (googleUser.displayName ?? '').trim();
+
+      final nameParts = displayName.isEmpty
+          ? <String>[]
+          : displayName.split(RegExp(r'\s+'));
+
+      final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+      final lastName = nameParts.length > 1
+          ? nameParts.sublist(1).join(' ')
+          : '';
+
+      final response = await apiClient.post(
+        ApiEndpoints.googleToken,
+        data: {
+          // Preserve the existing backend request contract.
+          'token': googleIdToken,
+          'idToken': googleIdToken,
+          'firebaseToken': firebaseIdToken,
+          'email': firebaseUser.email,
+          'firstName': firstName,
+          'lastName': lastName,
+          'avatarUrl': firebaseUser.photoURL ?? googleUser.photoUrl,
+          'googleId': googleUser.id,
+        },
+      );
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        await logLogin(method: 'google');
+
+        return Map<String, dynamic>.from(response.data['data'] as Map);
+      }
+
+      throw Exception(
+        'FinPro backend rejected Google authentication: '
+        '${response.statusCode}',
+      );
+    } catch (e, stackTrace) {
+      debugPrint('[Firebase] Google Sign-In failed: $e');
+
+      recordError(e, stackTrace, reason: 'Google Sign-In');
+
+      rethrow;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Email and Password Authentication
+  // ---------------------------------------------------------------------------
+
+  /// Register an account with Firebase.
+  ///
+  /// This creates a Firebase account. It does not automatically create
+  /// the corresponding FinPro backend account.
+  Future<UserCredential> registerWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final credential = await auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      await logSignUp(method: 'email');
+
+      return credential;
+    } catch (e, stackTrace) {
+      recordError(e, stackTrace, reason: 'Email registration');
+      rethrow;
+    }
+  }
+
+  /// Sign in using email and password.
+  Future<UserCredential> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final credential = await auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      await logLogin(method: 'email');
+
+      return credential;
+    } catch (e, stackTrace) {
+      recordError(e, stackTrace, reason: 'Email sign-in');
+      rethrow;
+    }
+  }
+
+  /// Send an email verification link to the currently signed-in user.
+  Future<void> sendEmailVerification() async {
+    final user = auth.currentUser;
+
+    if (user == null) {
+      throw Exception('No signed-in user.');
+    }
+
+    if (!user.emailVerified) {
+      await user.sendEmailVerification();
+    }
+  }
+
+  /// Send a password reset email.
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    await auth.sendPasswordResetEmail(email: email.trim());
+  }
+
+  // ---------------------------------------------------------------------------
+  // Phone Number / SMS OTP Authentication
+  // ---------------------------------------------------------------------------
+
+  /// Request an SMS verification code.
+  ///
+  /// Provide the callbacks from your phone verification screen.
+  /// Phone numbers must include the country code, e.g. +919876543210.
+  Future<void> verifyPhoneNumber({
+    required String phoneNumber,
+    required void Function(String verificationId) onCodeSent,
+    required void Function(String error) onError,
+    void Function(UserCredential credential)? onAutoVerified,
+    int? resendToken,
+  }) async {
+    try {
+      await auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        forceResendingToken: resendToken,
+
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          try {
+            final userCredential = await auth.signInWithCredential(credential);
+
+            await logLogin(method: 'phone');
+
+            onAutoVerified?.call(userCredential);
+          } catch (e, stackTrace) {
+            recordError(e, stackTrace, reason: 'Automatic phone verification');
+            onError(e.toString());
+          }
+        },
+
+        verificationFailed: (FirebaseAuthException e) {
+          debugPrint('[Firebase] Phone verification failed: ${e.code}');
+          onError(e.message ?? 'Phone verification failed.');
+        },
+
+        codeSent: (String verificationId, int? newResendToken) {
+          onCodeSent(verificationId);
+        },
+
+        codeAutoRetrievalTimeout: (String verificationId) {
+          debugPrint('[Firebase] OTP auto-retrieval timed out.');
+        },
+      );
+    } catch (e, stackTrace) {
+      recordError(e, stackTrace, reason: 'Request phone OTP');
+      rethrow;
+    }
+  }
+
+  /// Verify an OTP entered by the user.
+  Future<UserCredential> verifyPhoneOtp({
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+
+      final userCredential = await auth.signInWithCredential(credential);
+
+      await logLogin(method: 'phone');
+
+      return userCredential;
+    } catch (e, stackTrace) {
+      recordError(e, stackTrace, reason: 'Verify phone OTP');
+      rethrow;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Firebase Messaging
+  // ---------------------------------------------------------------------------
 
   Future<void> _setupFcm() async {
-    // Request permission (needed for iOS, no-op on Android 12-)
+    if (_fcmConfigured) return;
+
     final settings = await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
+
     debugPrint('[FCM] Permission: ${settings.authorizationStatus}');
 
-    // Foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('[FCM] Foreground: ${message.notification?.title}');
+      debugPrint('[FCM] Foreground message: ${message.notification?.title}');
     });
 
-    // App opened from notification
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       debugPrint('[FCM] Opened from notification: ${message.data}');
       _handleNotificationNavigation(message.data);
     });
 
-    // Check if app was opened from a terminated state via notification
     final initialMessage = await messaging.getInitialMessage();
+
     if (initialMessage != null) {
       _handleNotificationNavigation(initialMessage.data);
     }
+
+    _fcmConfigured = true;
   }
 
   void _handleNotificationNavigation(Map<String, dynamic> data) {
@@ -88,94 +366,41 @@ class FirebaseService {
     debugPrint('[FCM] Navigate to: $screen');
   }
 
-  /// Get the current FCM token and register it with the FinPro backend.
+  /// Register the current FCM token with the FinPro backend.
   Future<void> registerFcmToken() async {
     try {
       final token = await messaging.getToken();
+
       if (token == null) return;
-      debugPrint('[FCM] Token: ${token.substring(0, 20)}…');
+
       await apiClient.post(
         ApiEndpoints.fcmToken,
-        data: {'fcmToken': token, 'platform': 'android'},
+        data: {'fcmToken': token, 'platform': defaultTargetPlatform.name},
       );
-      debugPrint('[FCM] Token registered with backend ✓');
 
-      // Listen for token refresh
-      messaging.onTokenRefresh.listen((newToken) {
-        apiClient.post(
-          ApiEndpoints.fcmToken,
-          data: {'fcmToken': newToken, 'platform': 'android'},
-        );
+      debugPrint('[FCM] Token registered with backend');
+
+      messaging.onTokenRefresh.listen((newToken) async {
+        try {
+          await apiClient.post(
+            ApiEndpoints.fcmToken,
+            data: {
+              'fcmToken': newToken,
+              'platform': defaultTargetPlatform.name,
+            },
+          );
+        } catch (e) {
+          debugPrint('[FCM] Token refresh registration failed: $e');
+        }
       });
     } catch (e) {
       debugPrint('[FCM] Token registration failed: $e');
     }
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Google Sign-In
-  // ──────────────────────────────────────────────────────────────────────────
-
-  /// Perform Google Sign-In and return { user, accessToken, refreshToken } from FinPro backend.
-  Future<Map<String, dynamic>?> signInWithGoogle() async {
-    try {
-      final googleSignIn = GoogleSignIn(
-        scopes: ['email', 'profile'],
-        // Web client ID so Android returns a Google ID token the backend can verify
-        serverClientId:
-            '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
-      );
-      final googleUser = await googleSignIn.signIn();
-      if (googleUser == null) return null; // user cancelled
-
-      final googleAuth = await googleUser.authentication;
-      final googleIdToken = googleAuth.idToken;
-
-      // Authenticate with Firebase on device
-      String? firebaseIdToken;
-      if (googleIdToken != null) {
-        final credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken: googleIdToken,
-        );
-        final userCredential = await auth.signInWithCredential(credential);
-        firebaseIdToken = await userCredential.user?.getIdToken();
-      }
-      firebaseIdToken ??= await auth.currentUser?.getIdToken();
-
-      final parts = (googleUser.displayName ?? '').trim().split(' ');
-      final firstName = parts.isNotEmpty ? parts.first : '';
-      final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
-
-      // Backend expects `token` (frontend contract). Also send `idToken`, `firebaseToken`, and metadata.
-      final response = await apiClient.post(
-        ApiEndpoints.googleToken,
-        data: {
-          'token': googleIdToken ?? firebaseIdToken,
-          'idToken': googleIdToken ?? firebaseIdToken,
-          'firebaseToken': firebaseIdToken,
-          'email': googleUser.email,
-          'firstName': firstName,
-          'lastName': lastName,
-          'avatarUrl': googleUser.photoUrl,
-          'googleId': auth.currentUser?.uid,
-        },
-      );
-
-      if (response.statusCode == 200 && response.data['success'] == true) {
-        return response.data['data'] as Map<String, dynamic>;
-      }
-      throw Exception('Google token exchange failed');
-    } catch (e) {
-      debugPrint('[Firebase] Google Sign-In failed: $e');
-      crashlytics.recordError(e, StackTrace.current, reason: 'Google Sign-In');
-      rethrow;
-    }
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
   // Analytics
-  // ──────────────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
 
   Future<void> logLogin({String method = 'email'}) async {
     try {
@@ -195,9 +420,9 @@ class FirebaseService {
     } catch (_) {}
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Crashlytics helpers
-  // ──────────────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Crashlytics
+  // ---------------------------------------------------------------------------
 
   void recordError(dynamic error, StackTrace? stack, {String? reason}) {
     try {
@@ -212,10 +437,22 @@ class FirebaseService {
     } catch (_) {}
   }
 
+  // ---------------------------------------------------------------------------
+  // Sign Out
+  // ---------------------------------------------------------------------------
+
   Future<void> signOut() async {
     try {
-      await GoogleSignIn().signOut();
+      await _googleSignIn.signOut();
+    } catch (e) {
+      debugPrint('[Firebase] Google sign-out failed: $e');
+    }
+
+    try {
       await auth.signOut();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Firebase] Firebase sign-out failed: $e');
+      rethrow;
+    }
   }
 }

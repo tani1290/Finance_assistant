@@ -8,9 +8,13 @@ import '../debug_agent_log.dart';
 import 'auth_state.dart';
 import 'token_storage.dart';
 
-class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(AuthState.initial()) {
-    checkAuthStatus();
+class AuthNotifier extends Notifier<AuthState> {
+  @override
+  AuthState build() {
+    // Restore the persisted session asynchronously, after the initial
+    // synchronous state has been produced.
+    Future.microtask(checkAuthStatus);
+    return AuthState.initial();
   }
 
   Future<void> checkAuthStatus() async {
@@ -328,6 +332,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
-});
+final authProvider = NotifierProvider<AuthNotifier, AuthState>(
+  AuthNotifier.new,
+);

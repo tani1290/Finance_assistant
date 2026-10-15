@@ -6,6 +6,8 @@ import '../../core/models/goal_model.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
+import '../../shared/widgets/pressable.dart';
+import '../../shared/widgets/skeleton_loader.dart';
 
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({super.key});
@@ -36,6 +38,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
           _goals = list;
           _isLoading = false;
         });
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (_) {
       setState(() => _isLoading = false);
@@ -92,11 +96,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 _fetchGoals();
               } catch (_) {}
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text(
-              'Create Goal',
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text('Create Goal'),
           ),
         ],
       ),
@@ -138,11 +138,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 _fetchGoals();
               } catch (_) {}
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text(
-              'Contribute',
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text('Contribute'),
           ),
         ],
       ),
@@ -166,7 +162,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? _buildSkeleton()
           : _goals.isEmpty
           ? EmptyStateView(
               icon: Icons.flag_rounded,
@@ -176,98 +172,183 @@ class _GoalsScreenState extends State<GoalsScreen> {
               actionLabel: 'Create a Goal',
               onAction: _showAddGoalDialog,
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(18),
-              itemCount: _goals.length,
-              itemBuilder: (context, index) {
-                final goal = _goals[index];
-                final progress = goal.progress;
-
-                return Padding(
+          : RefreshIndicator(
+              onRefresh: _fetchGoals,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
+                itemCount: _goals.length,
+                itemBuilder: (context, index) => Padding(
                   padding: const EdgeInsets.only(bottom: 14),
-                  child: FinancialCard(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              goal.name,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            Text(
-                              '${(progress * 100).toStringAsFixed(0)}%',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primaryLight,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 8,
-                            backgroundColor: AppColors.darkBorderSubtle,
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppColors.primaryLight,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Saved: ${CurrencyFormatter.format(goal.currentAmount)}',
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                color: AppColors.darkTextSecondary,
-                              ),
-                            ),
-                            Text(
-                              'Target: ${CurrencyFormatter.format(goal.targetAmount)}',
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            icon: const Icon(
-                              Icons.add_circle_outline_rounded,
-                              size: 16,
-                            ),
-                            label: const Text('Add Funds to Goal'),
-                            onPressed: () => _showContributeDialog(goal),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                color: AppColors.darkBorder,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                  child: _GoalCard(
+                    goal: _goals[index],
+                    onContribute: () => _showContributeDialog(_goals[index]),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
+      itemCount: 4,
+      itemBuilder: (context, index) => Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: const FinancialCard(
+          padding: EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  SkeletonLoader(width: 150, height: 16),
+                  SkeletonLoader(width: 40, height: 16),
+                ],
+              ),
+              SizedBox(height: 16),
+              SkeletonLoader(width: double.infinity, height: 8, borderRadius: 6),
+              SizedBox(height: 16),
+              SkeletonLoader(width: 100, height: 12),
+              SizedBox(height: 18),
+              SkeletonLoader(width: double.infinity, height: 42, borderRadius: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GoalCard extends StatelessWidget {
+  final GoalModel goal;
+  final VoidCallback onContribute;
+
+  const _GoalCard({required this.goal, required this.onContribute});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final progress = goal.progress.clamp(0.0, 1.0);
+    final isComplete = goal.progress >= 1.0;
+
+    return FinancialCard(
+      padding: const EdgeInsets.all(18),
+      accent: isComplete ? AppColors.income : AppColors.primary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  goal.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary(isDark),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (isComplete ? AppColors.income : AppColors.primaryLight)
+                      .withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${(goal.progress * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: isComplete
+                        ? AppColors.income
+                        : AppColors.primaryLight,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: progress),
+              duration: const Duration(milliseconds: 650),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) => LinearProgressIndicator(
+                value: value,
+                minHeight: 8,
+                backgroundColor: AppColors.surfaceSubtle(isDark),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  isComplete ? AppColors.income : AppColors.primaryLight,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Saved ${CurrencyFormatter.format(goal.currentAmount)}',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: AppColors.textSecondary(isDark),
+                ),
+              ),
+              Text(
+                'Target ${CurrencyFormatter.format(goal.targetAmount)}',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary(isDark),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Pressable(
+            onTap: onContribute,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.35),
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_circle_outline_rounded,
+                    size: 17,
+                    color: AppColors.primaryLight,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Add Funds to Goal',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primaryLight,
                     ),
                   ),
-                );
-              },
+                ],
+              ),
             ),
+          ),
+        ],
+      ),
     );
   }
 }

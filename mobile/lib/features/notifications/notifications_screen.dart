@@ -4,6 +4,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../shared/widgets/empty_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
+import '../../shared/widgets/skeleton_loader.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -34,9 +35,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           _notifications = list;
           _isLoading = false;
         });
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (_) {
-      // Sample fallback notifications
+      // Sample fallback notifications so the screen never feels broken.
       setState(() {
         _notifications = [
           {
@@ -68,6 +71,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
@@ -79,71 +84,147 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? _buildSkeleton()
           : _notifications.isEmpty
-          ? EmptyStateView(
+          ? const EmptyStateView(
               icon: Icons.notifications_none_rounded,
               title: 'No New Notifications',
               description:
                   'All your alerts, budget warnings, and payment reminders are up to date.',
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(18),
-              itemCount: _notifications.length,
-              itemBuilder: (context, index) {
-                final item = _notifications[index];
-                final title = item['title'] ?? item['subject'] ?? 'Notice';
-                final message = item['message'] ?? item['body'] ?? '';
-
-                return Padding(
+          : RefreshIndicator(
+              onRefresh: _fetchNotifications,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
+                itemCount: _notifications.length,
+                itemBuilder: (context, index) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: FinancialCard(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.notifications_active_rounded,
-                            color: AppColors.primaryLight,
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                message,
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  color: AppColors.darkTextSecondary,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                  child: _NotificationTile(
+                    item: _notifications[index],
+                    isDark: isDark,
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
+      itemCount: 4,
+      itemBuilder: (context, index) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: const FinancialCard(
+          padding: EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SkeletonLoader(width: 34, height: 34, borderRadius: 17),
+              SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonLoader(width: 180, height: 14),
+                    SizedBox(height: 8),
+                    SkeletonLoader(width: double.infinity, height: 11),
+                    SizedBox(height: 6),
+                    SkeletonLoader(width: 220, height: 11),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationTile extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final bool isDark;
+
+  const _NotificationTile({required this.item, required this.isDark});
+
+  ({IconData icon, Color color}) get _style {
+    switch ((item['type'] ?? '').toString().toUpperCase()) {
+      case 'CREDIT':
+      case 'INCOME':
+        return (icon: Icons.south_west_rounded, color: AppColors.income);
+      case 'WARNING':
+      case 'ALERT':
+        return (icon: Icons.warning_amber_rounded, color: AppColors.warning);
+      case 'REMINDER':
+        return (icon: Icons.alarm_rounded, color: AppColors.info);
+      default:
+        return (
+          icon: Icons.notifications_active_rounded,
+          color: AppColors.primaryLight,
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = _style;
+    final title = item['title'] ?? item['subject'] ?? 'Notice';
+    final message = item['message'] ?? item['body'] ?? '';
+    final time = item['time'] ?? item['createdAt'];
+
+    return FinancialCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: style.color.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(style.icon, color: style.color, size: 18),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title.toString(),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: AppColors.textPrimary(isDark),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message.toString(),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary(isDark),
+                    height: 1.4,
+                  ),
+                ),
+                if (time != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    time.toString(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textMuted(isDark),
                     ),
                   ),
-                );
-              },
+                ],
+              ],
             ),
+          ),
+        ],
+      ),
     );
   }
 }

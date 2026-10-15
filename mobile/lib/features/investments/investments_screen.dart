@@ -6,7 +6,9 @@ import '../../core/models/investment_model.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
+import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/status_badge.dart';
+import '../../shared/widgets/summary_hero_card.dart';
 
 class InvestmentsScreen extends StatefulWidget {
   const InvestmentsScreen({super.key});
@@ -101,6 +103,9 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isGain = _returnsPercent >= 0;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Investment Portfolio'),
@@ -112,154 +117,178 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Portfolio Summary Card
-                  FinancialCard(
-                    padding: const EdgeInsets.all(22),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'TOTAL PORTFOLIO VALUE',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.8,
-                            color: AppColors.darkTextSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          CurrencyFormatter.format(_totalPortfolioValue),
-                          style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            StatusBadge(
-                              label:
-                                  '+${_returnsPercent.toStringAsFixed(1)}% Overall Gain',
-                              color: AppColors.income,
-                              icon: Icons.trending_up_rounded,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Invested: ${CurrencyFormatter.format(_totalInvested)}',
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                color: AppColors.darkTextSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  const Text(
-                    'Holdings & Asset Breakdown',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-
-                  if (_holdings.isEmpty)
-                    EmptyStateView(
-                      icon: Icons.show_chart_rounded,
-                      title: 'No Investments Found',
-                      description:
-                          'Track mutual funds, equity holdings, and gold in one place.',
-                    )
-                  else
-                    ..._holdings.map(
-                      (h) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: FinancialCard(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color:
-                                      (h.assetType == 'GOLD'
-                                              ? AppColors.gold
-                                              : AppColors.primary)
-                                          .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(
-                                  h.assetType == 'GOLD'
-                                      ? Icons.monetization_on_rounded
-                                      : Icons.candlestick_chart_rounded,
-                                  size: 20,
-                                  color: h.assetType == 'GOLD'
-                                      ? AppColors.gold
-                                      : AppColors.primaryLight,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      h.symbol,
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    Text(
-                                      h.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.darkTextSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    CurrencyFormatter.format(h.currentValue),
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${h.returnsPercent >= 0 ? "+" : ""}${h.returnsPercent.toStringAsFixed(1)}%',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: h.returnsPercent >= 0
-                                          ? AppColors.income
-                                          : AppColors.expense,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+          ? _buildSkeleton()
+          : RefreshIndicator(
+              onRefresh: _fetchPortfolio,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SummaryHeroCard(
+                      label: 'Total Portfolio Value',
+                      value: CurrencyFormatter.format(_totalPortfolioValue),
+                      icon: Icons.pie_chart_rounded,
+                      subtitle:
+                          'Invested ${CurrencyFormatter.format(_totalInvested)}',
+                      badge: StatusBadge(
+                        label:
+                            '${isGain ? "+" : ""}${_returnsPercent.toStringAsFixed(1)}% overall ${isGain ? "gain" : "change"}',
+                        color: isGain ? AppColors.income : AppColors.expense,
+                        icon: isGain
+                            ? Icons.trending_up_rounded
+                            : Icons.trending_down_rounded,
                       ),
                     ),
-                ],
+                    const SizedBox(height: 24),
+
+                    Text(
+                      'Holdings & Asset Breakdown',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary(isDark),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    if (_holdings.isEmpty)
+                      EmptyStateView(
+                        icon: Icons.show_chart_rounded,
+                        title: 'No Investments Found',
+                        description:
+                            'Track mutual funds, equity holdings, and gold in one place.',
+                      )
+                    else
+                      ..._holdings.map(
+                        (h) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _HoldingTile(holding: h, isDark: isDark),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      children: [
+        const SkeletonLoader(width: double.infinity, height: 186, borderRadius: 18),
+        const SizedBox(height: 24),
+        const SkeletonLoader(width: 190, height: 18),
+        const SizedBox(height: 14),
+        for (var i = 0; i < 3; i++) ...[
+          FinancialCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: const [
+                SkeletonLoader(width: 40, height: 40, borderRadius: 10),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonLoader(width: 80, height: 14),
+                      SizedBox(height: 8),
+                      SkeletonLoader(width: 140, height: 11),
+                    ],
+                  ),
+                ),
+                SkeletonLoader(width: 64, height: 15),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+}
+
+class _HoldingTile extends StatelessWidget {
+  final InvestmentModel holding;
+  final bool isDark;
+
+  const _HoldingTile({required this.holding, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final isGold = holding.assetType == 'GOLD';
+    final accent = isGold ? AppColors.gold : AppColors.primary;
+    final isGain = holding.returnsPercent >= 0;
+
+    return FinancialCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isGold
+                  ? Icons.monetization_on_rounded
+                  : Icons.candlestick_chart_rounded,
+              size: 20,
+              color: isGold ? AppColors.gold : AppColors.primaryLight,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  holding.symbol,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary(isDark),
+                  ),
+                ),
+                Text(
+                  holding.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary(isDark),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                CurrencyFormatter.format(holding.currentValue),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary(isDark),
+                ),
+              ),
+              Text(
+                '${isGain ? "+" : ""}${holding.returnsPercent.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isGain ? AppColors.income : AppColors.expense,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

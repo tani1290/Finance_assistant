@@ -33,6 +33,7 @@
     .tf-btn.active { background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #6ee7b7; }
     #stockChart { width: 100%; height: 280px; }
     .chart-empty { display: flex; align-items: center; justify-content: center; height: 280px; color: #94a3b8; font-size: 13px; text-align: center; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -44,6 +45,7 @@
         <div class="topbar-sub">Verified Valuation with Real-Time NSE Equities, COMEX Continuous Futures & Interbank FX Feeds</div>
       </div>
       <div class="topbar-actions">
+        <button class="btn btn-secondary" id="refreshMarketBtn" title="Refresh Live Market Data"><i class="ri-refresh-line" id="refreshMarketIcon"></i> Refresh Data</button>
         <button class="btn btn-secondary" id="exportInvestBtn"><i class="ri-download-line"></i> Export CSV</button>
         <button class="btn btn-primary" id="addInvestBtn"><i class="ri-add-line"></i> Add Investment</button>
       </div>
@@ -480,10 +482,24 @@
       api.exportAPI.investments();
     });
 
-    // Init Page
-    loadMetals();
-    loadStockChart('RELIANCE', '1M');
-    loadPortfolio();
+    // Init Page with Auto-Refresh
+    const refreshAllMarketData = async () => {
+      const icon = document.getElementById('refreshMarketIcon');
+      if (icon) icon.style.display = 'inline-block', icon.style.animation = 'spin 1s linear infinite';
+      try {
+        await Promise.all([
+          loadMetals(),
+          loadStockChart(currentSymbol, currentTf),
+          loadPortfolio()
+        ]);
+      } finally {
+        if (icon) icon.style.animation = '';
+      }
+    };
+
+    document.getElementById('refreshMarketBtn')?.addEventListener('click', refreshAllMarketData);
+    setInterval(refreshAllMarketData, 30000);
+    refreshAllMarketData();
   </script>
 </body>
 </html>

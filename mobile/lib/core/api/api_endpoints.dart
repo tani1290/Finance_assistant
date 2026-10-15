@@ -22,6 +22,7 @@ class ApiEndpoints {
   // Core Financial Modules
   static String get onboarding => '$baseUrl/onboarding';
   static String get dashboard => '$baseUrl/dashboard';
+  static String get analytics => '$baseUrl/analytics';
   static String get accounts => '$baseUrl/accounts';
   static String get transactions => '$baseUrl/transactions';
   static String get budgets => '$baseUrl/budgets';

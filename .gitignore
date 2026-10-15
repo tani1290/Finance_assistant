@@ -74,3 +74,5 @@ data/raw/
 data/private/api_key.txt
 api_key.txt
 replace_port.py
+.vercel
+.env*

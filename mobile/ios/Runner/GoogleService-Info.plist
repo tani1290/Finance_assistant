@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>1024776311502-p48ego8rv07r8oe9d8p5g5n8jirb9kkh.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.1024776311502-p48ego8rv07r8oe9d8p5g5n8jirb9kkh</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>1024776311502-02qf5999j49r784gao2nvqjjoi2avvbg.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyAzVoYnd7x428qkqsFtbmrv2GwFnkIrQOA</string>
+	<key>GCM_SENDER_ID</key>
+	<string>1024776311502</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.finpro.app.finproMobile</string>
+	<key>PROJECT_ID</key>
+	<string>minor-finance</string>
+	<key>STORAGE_BUCKET</key>
+	<string>minor-finance.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:1024776311502:ios:914506384fa2f357fe369f</string>
+</dict>
+</plist>

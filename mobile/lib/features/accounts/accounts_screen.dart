@@ -7,6 +7,8 @@ import '../../core/utils/currency_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/gradient_button.dart';
+import '../../shared/widgets/skeleton_loader.dart';
+import '../../shared/widgets/summary_hero_card.dart';
 
 class AccountsScreen extends StatefulWidget {
   const AccountsScreen({super.key});
@@ -42,6 +44,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
               double.tryParse(data['totalBalance']?.toString() ?? '0') ?? 0.0;
           _isLoading = false;
         });
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (_) {
       setState(() => _isLoading = false);
@@ -53,11 +57,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
     final instController = TextEditingController(text: 'HDFC Bank');
     final maskedController = TextEditingController(text: '1234');
     final balanceController = TextEditingController(text: '10000');
-    String type = 'BANK';
+    const type = 'BANK';
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -136,6 +141,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Accounts & Balances'),
@@ -151,136 +158,172 @@ class _AccountsScreenState extends State<AccountsScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Total balance summary card
-                  FinancialCard(
-                    padding: const EdgeInsets.all(22),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          ? _buildSkeleton()
+          : RefreshIndicator(
+              onRefresh: _fetchAccounts,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SummaryHeroCard(
+                      label: 'Total Liquid Assets',
+                      value: CurrencyFormatter.format(_totalBalance),
+                      subtitle:
+                          'Across ${_accounts.length} active ${_accounts.length == 1 ? "account" : "accounts"}',
+                      icon: Icons.account_balance_wallet_rounded,
+                    ),
+                    const SizedBox(height: 24),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'TOTAL LIQUID ASSETS',
+                        Text(
+                          'Your Accounts',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: 0.8,
-                            color: AppColors.darkTextSecondary,
+                            color: AppColors.textPrimary(isDark),
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          CurrencyFormatter.format(_totalBalance),
-                          style: const TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Across ${_accounts.length} active Indian accounts',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            color: AppColors.darkTextSecondary,
-                          ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.add_rounded, size: 16),
+                          label: const Text('Add Account'),
+                          onPressed: _showAddAccountDialog,
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 12),
 
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Your Accounts',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                    if (_accounts.isEmpty)
+                      EmptyStateView(
+                        icon: Icons.account_balance_rounded,
+                        title: 'No Accounts Connected',
+                        description:
+                            'Add your bank account or wallet to track balances.',
+                        actionLabel: 'Add First Account',
+                        onAction: _showAddAccountDialog,
+                      )
+                    else
+                      ..._accounts.map(
+                        (acc) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _AccountTile(account: acc, isDark: isDark),
                         ),
                       ),
-                      TextButton.icon(
-                        icon: const Icon(Icons.add_rounded, size: 16),
-                        label: const Text('Add Account'),
-                        onPressed: _showAddAccountDialog,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  if (_accounts.isEmpty)
-                    EmptyStateView(
-                      icon: Icons.account_balance_rounded,
-                      title: 'No Accounts Connected',
-                      description:
-                          'Add your bank account or wallet to track balances.',
-                      actionLabel: 'Add First Account',
-                      onAction: _showAddAccountDialog,
-                    )
-                  else
-                    ..._accounts.map(
-                      (acc) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: FinancialCard(
-                          padding: const EdgeInsets.all(18),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(
-                                    alpha: 0.12,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.account_balance_rounded,
-                                  color: AppColors.primaryLight,
-                                  size: 22,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      acc.name,
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${acc.institution ?? "Bank"} • ${acc.accountNumberMasked != null ? "•••• ${acc.accountNumberMasked!}" : acc.accountType}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.darkTextSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Text(
-                                CurrencyFormatter.format(acc.balance),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      children: [
+        const SkeletonLoader(width: double.infinity, height: 158, borderRadius: 18),
+        const SizedBox(height: 24),
+        const SkeletonLoader(width: 140, height: 18),
+        const SizedBox(height: 14),
+        for (var i = 0; i < 3; i++) ...[
+          FinancialCard(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: const [
+                SkeletonLoader(width: 42, height: 42, borderRadius: 12),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonLoader(width: 130, height: 14),
+                      SizedBox(height: 8),
+                      SkeletonLoader(width: 90, height: 11),
+                    ],
+                  ),
+                ),
+                SkeletonLoader(width: 72, height: 15),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+}
+
+class _AccountTile extends StatelessWidget {
+  final AccountModel account;
+  final bool isDark;
+
+  const _AccountTile({required this.account, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = account.accountNumberMasked != null &&
+            account.accountNumberMasked!.isNotEmpty
+        ? '${account.institution ?? "Bank"} • •••• ${account.accountNumberMasked}'
+        : '${account.institution ?? "Bank"} • ${account.accountType}';
+
+    return FinancialCard(
+      padding: const EdgeInsets.all(18),
+      accent: AppColors.primary,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.account_balance_rounded,
+              color: AppColors.primaryLight,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  account.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary(isDark),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary(isDark),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            CurrencyFormatter.format(account.balance),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary(isDark),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

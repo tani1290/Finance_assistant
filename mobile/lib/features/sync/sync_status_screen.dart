@@ -21,6 +21,8 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
   int _pendingSmsCount = 0;
   final _baseUrlController = TextEditingController(text: ApiEndpoints.baseUrl);
 
+  bool get _isOnline => _serverStatus.contains('Online');
+
   @override
   void initState() {
     super.initState();
@@ -93,6 +95,8 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Synchronization Status')),
       body: SingleChildScrollView(
@@ -107,91 +111,57 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Backend API Status',
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary(isDark),
+                        ),
                       ),
-                      Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: _serverStatus.contains('Online')
-                                  ? AppColors.primaryLight
-                                  : AppColors.warning,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _serverStatus,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: _serverStatus.contains('Online')
-                                  ? AppColors.primaryLight
-                                  : AppColors.warning,
-                            ),
-                          ),
-                        ],
+                      _StatusPill(
+                        label: _serverStatus,
+                        color: _isOnline ? AppColors.primaryLight : AppColors.warning,
                       ),
                     ],
                   ),
-                  const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Last Synchronized',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.darkTextSecondary,
-                        ),
-                      ),
-                      Text(
-                        DateFormatter.relative(_lastSyncTime),
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ],
+                  _divider(isDark),
+                  _InfoRow(
+                    label: 'Last Synchronized',
+                    value: DateFormatter.relative(_lastSyncTime),
+                    isDark: isDark,
                   ),
-                  const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Pending SMS for Review',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.darkTextSecondary,
-                        ),
-                      ),
-                      Text(
-                        '$_pendingSmsCount items',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ],
+                  _divider(isDark),
+                  _InfoRow(
+                    label: 'Pending SMS for Review',
+                    value: '$_pendingSmsCount items',
+                    isDark: isDark,
+                    valueColor: _pendingSmsCount > 0
+                        ? AppColors.warning
+                        : null,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-
             FinancialCard(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'API Host Configuration',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary(isDark),
+                    ),
                   ),
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     'Default for Android Emulator is 10.0.2.2:5001. If testing on a physical phone, enter your computer LAN IP (e.g. http://192.168.1.5:5001/api/v1):',
                     style: TextStyle(
                       fontSize: 12.5,
-                      color: AppColors.darkTextSecondary,
+                      color: AppColors.textSecondary(isDark),
                       height: 1.4,
                     ),
                   ),
@@ -213,7 +183,8 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
                       _checkSyncState();
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.darkSurfaceSubtle,
+                      backgroundColor: AppColors.surfaceSubtle(isDark),
+                      foregroundColor: AppColors.textPrimary(isDark),
                     ),
                     child: const Text('Update Host URL'),
                   ),
@@ -221,7 +192,6 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
               ),
             ),
             const SizedBox(height: 28),
-
             GradientButton(
               text: 'Sync All Records Now',
               icon: Icons.sync_rounded,
@@ -231,6 +201,84 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _divider(bool isDark) =>
+      Divider(height: 24, color: AppColors.border(isDark).withValues(alpha: 0.6));
+}
+
+/// A compact pill showing a coloured status dot alongside a label.
+class _StatusPill extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _StatusPill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isDark;
+  final Color? valueColor;
+
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    required this.isDark,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary(isDark),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: valueColor ?? AppColors.textPrimary(isDark),
+          ),
+        ),
+      ],
     );
   }
 }

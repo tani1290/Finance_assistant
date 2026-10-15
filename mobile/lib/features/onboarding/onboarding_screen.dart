@@ -5,6 +5,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/gradient_button.dart';
+import '../../shared/widgets/pressable.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -72,6 +73,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 12),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: AppColors.primaryGradient,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: AppColors.glow(AppColors.primary, strength: 0.5),
+                ),
+                child: const Icon(
+                  Icons.tune_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(height: 20),
               Text(
                 'Personalize Your Plan',
                 style: Theme.of(context).textTheme.displaySmall,
@@ -81,9 +101,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 'Help FinPro calculate your financial baseline and custom 50/30/20 budget allocations.',
                 style: TextStyle(
                   fontSize: 14,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
+                  color: AppColors.textSecondary(isDark),
                   height: 1.5,
                 ),
               ),
@@ -159,11 +177,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        _buildChoiceChip('CONSERVATIVE', 'Calm'),
+                        _buildChoiceChip(isDark, 'CONSERVATIVE', 'Calm'),
                         const SizedBox(width: 8),
-                        _buildChoiceChip('MODERATE', 'Balanced'),
+                        _buildChoiceChip(isDark, 'MODERATE', 'Balanced'),
                         const SizedBox(width: 8),
-                        _buildChoiceChip('AGGRESSIVE', 'Growth'),
+                        _buildChoiceChip(isDark, 'AGGRESSIVE', 'Growth'),
                       ],
                     ),
                   ],
@@ -189,20 +207,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildChoiceChip(String value, String label) {
+  Widget _buildChoiceChip(bool isDark, String value, String label) {
     final isSelected = _riskTolerance == value;
     return Expanded(
-      child: InkWell(
+      child: Pressable(
         onTap: () => setState(() => _riskTolerance = value),
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.transparent,
+            gradient: isSelected
+                ? const LinearGradient(
+                    colors: AppColors.primaryGradient,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: isSelected ? null : AppColors.surfaceSubtle(isDark),
             border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.darkBorder,
+              color: isSelected ? AppColors.primary : AppColors.border(isDark),
             ),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             label,
@@ -210,7 +235,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? Colors.white : AppColors.darkTextSecondary,
+              color: isSelected ? Colors.white : AppColors.textSecondary(isDark),
             ),
           ),
         ),

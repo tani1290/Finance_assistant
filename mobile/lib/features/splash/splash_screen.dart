@@ -12,15 +12,44 @@ class SplashScreen extends ConsumerStatefulWidget {
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  )..forward();
+
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _controller,
+    curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+  );
+
+  late final Animation<double> _scale = Tween<double>(begin: 0.85, end: 1.0)
+      .animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+      );
+
+  late final Animation<double> _rise = Tween<double>(begin: 16, end: 0).animate(
+    CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
+    ),
+  );
+
   @override
   void initState() {
     super.initState();
     _checkInit();
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   Future<void> _checkInit() async {
-    await Future.delayed(const Duration(milliseconds: 1200));
+    await Future.delayed(const Duration(milliseconds: 1400));
     if (!mounted) return;
 
     final authState = ref.read(authProvider);
@@ -43,59 +72,108 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.darkBg,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.darkBg, Color(0xFF0C1B2A), Color(0xFF0A1F1A)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Stack(
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.primary, AppColors.primaryLight],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.4),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
+            // Soft brand glow behind the mark.
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.32,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, _) => Container(
+                    width: 220,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppColors.primaryLight.withValues(alpha: 0.20 * _fade.value),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
                   ),
-                ],
-              ),
-              child: const Icon(
-                Icons.account_balance_wallet_rounded,
-                size: 42,
-                color: Colors.white,
+                ),
               ),
             ),
-            const SizedBox(height: 24),
-            const Text(
-              'FinPro',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: AppColors.darkTextPrimary,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Calm, Intelligent Personal Finance',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.darkTextSecondary,
-              ),
-            ),
-            const SizedBox(height: 48),
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: AppColors.primaryLight,
+            Center(
+              child: FadeTransition(
+                opacity: _fade,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ScaleTransition(
+                      scale: _scale,
+                      child: Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: AppColors.brandGradient,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: AppColors.glow(AppColors.primaryLight, strength: 1.4),
+                        ),
+                        child: const Icon(
+                          Icons.account_balance_wallet_rounded,
+                          size: 44,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 26),
+                    AnimatedBuilder(
+                      animation: _rise,
+                      builder: (context, child) => Transform.translate(
+                        offset: Offset(0, _rise.value),
+                        child: child,
+                      ),
+                      child: const Column(
+                        children: [
+                          Text(
+                            'FinPro',
+                            style: TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.darkTextPrimary,
+                              letterSpacing: -0.6,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Calm, Intelligent Personal Finance',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.darkTextSecondary,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 52),
+                    const SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: AppColors.primaryLight,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

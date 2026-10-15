@@ -294,6 +294,52 @@
       .sidebar { transform: translateX(-100%); }
       .main-content { margin-left: 0; }
     }
+
+    /* Dashboard Dark Mode */
+    @media (prefers-color-scheme: dark) {
+      :root:not(.light-mode) {
+        --bg: #0c0f1a; --surface: #141825; --surface-2: #1c2035;
+        --border: #2a2f45; --text: #e8ecf4; --text-muted: #8b95b0;
+        --primary-light: rgba(16,185,129,0.12);
+      }
+      :root:not(.light-mode) .topbar { background: rgba(20,24,37,0.85); }
+      :root:not(.light-mode) .health-ring circle[stroke="rgba(255,255,255,0.08)"] { stroke: rgba(255,255,255,0.08); }
+    }
+    :root.light-mode {
+      --bg: #f8fafb; --surface: #ffffff; --surface-2: #f1f5f9;
+      --border: #e2e8f0; --text: #0f172a; --text-muted: #64748b;
+      --primary-light: #ecfdf5;
+    }
+    :root.light-mode .topbar { background: rgba(255,255,255,0.85); }
+    :root.light-mode .health-ring circle[stroke="rgba(255,255,255,0.08)"] { stroke: rgba(0,0,0,0.06); }
+    :root.light-mode .metric-card.blue .metric-icon { background: rgba(37,99,235,0.08); }
+    :root.light-mode .metric-card.green .metric-icon { background: rgba(5,150,105,0.08); }
+    :root.light-mode .metric-card.red .metric-icon { background: rgba(220,38,38,0.08); }
+    :root.light-mode .metric-card.orange .metric-icon { background: rgba(217,119,6,0.08); }
+    :root.light-mode .ticker-status-tag { background: #ecfdf5; border-color: #a7f3d0; }
+    :root.light-mode .ticker-status-tag.closed { background: #fffbeb; border-color: #fde68a; }
+    :root.light-mode .modal-overlay { background: rgba(15,23,42,0.4); }
+    :root.light-mode .modal { background: #ffffff; border-color: #e2e8f0; }
+    .dark-mode {
+      --bg: #0c0f1a; --surface: #141825; --surface-2: #1c2035;
+      --border: #2a2f45; --text: #e8ecf4; --text-muted: #8b95b0;
+      --primary-light: rgba(16,185,129,0.12);
+    }
+    .dark-mode .topbar { background: rgba(20,24,37,0.85); }
+    .dark-mode .anomaly-banner { background: rgba(127,29,29,0.2); border-color: rgba(239,68,68,0.3); }
+    .dark-mode .anomaly-title { color: #fca5a5; }
+    .dark-mode .anomaly-desc { color: #f87171; }
+    .dark-mode .btn-anomaly.confirm { background: rgba(239,68,68,0.15); color: #fca5a5; border-color: rgba(239,68,68,0.3); }
+    .dark-mode .btn-anomaly.ignore { background: var(--surface-2); color: var(--text-muted); border-color: var(--border); }
+    .dark-mode .user-info:hover { background: #252a40; }
+    .dark-mode .metric-card.blue .metric-icon { background: rgba(16,185,129,0.12); }
+    .dark-mode .metric-card.green .metric-icon { background: rgba(5,150,105,0.12); }
+    .dark-mode .metric-card.red .metric-icon { background: rgba(220,38,38,0.12); }
+    .dark-mode .metric-card.orange .metric-icon { background: rgba(217,119,6,0.12); }
+    .dark-mode .ticker-status-tag { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); }
+    .dark-mode .ticker-status-tag.closed { background: rgba(217,119,6,0.12); border-color: rgba(217,119,6,0.3); }
+    .dark-mode .modal-overlay { background: rgba(0,0,0,0.6); }
+    .dark-mode .modal { background: var(--surface); border-color: var(--border); }
   </style>
 </head>
 <body>
@@ -328,6 +374,12 @@
     </div>
     
     <div class="sidebar-footer">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px 10px;margin-bottom:8px;">
+        <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;">Theme</span>
+        <button class="dark-mode-toggle" id="darkModeToggle" title="Toggle Dark Mode" style="width:36px;height:36px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all 0.2s;">
+          <i class="ri-moon-line" id="darkModeIcon"></i>
+        </button>
+      </div>
       <div class="user-info" id="userMenuBtn" style="cursor:pointer;" title="View Profile" onclick="window.location.href='/profile.html'">
         <div class="avatar" id="userAvatar">J</div>
         <div>
@@ -560,6 +612,50 @@
       </div>
     </div>
   </div>
+
+  <script>
+    // Dark mode toggle for dashboard (inline since it doesn't use sidebar.js)
+    (function() {
+      function initDarkMode() {
+        const saved = localStorage.getItem('jf_dark_mode');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark = saved === 'true' || (saved === null && prefersDark);
+        if (isDark) {
+          document.documentElement.classList.add('dark-mode');
+          document.documentElement.classList.remove('light-mode');
+        } else {
+          document.documentElement.classList.remove('dark-mode');
+          document.documentElement.classList.add('light-mode');
+        }
+        requestAnimationFrame(() => updateDarkModeIcon(isDark));
+      }
+      function updateDarkModeIcon(isDark) {
+        document.querySelectorAll('#darkModeIcon, .dark-mode-icon').forEach(iconEl => {
+          iconEl.className = isDark ? 'ri-sun-line' : 'ri-moon-line';
+        });
+        document.querySelectorAll('#darkModeToggle, .dark-mode-toggle').forEach(btn => {
+          btn.title = isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+        });
+      }
+      window.toggleDarkMode = function() {
+        const isCurrentlyDark = document.documentElement.classList.contains('dark-mode') || 
+          (!document.documentElement.classList.contains('light-mode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        const willBeDark = !isCurrentlyDark;
+        if (willBeDark) {
+          document.documentElement.classList.add('dark-mode');
+          document.documentElement.classList.remove('light-mode');
+          localStorage.setItem('jf_dark_mode', 'true');
+        } else {
+          document.documentElement.classList.remove('dark-mode');
+          document.documentElement.classList.add('light-mode');
+          localStorage.setItem('jf_dark_mode', 'false');
+        }
+        updateDarkModeIcon(willBeDark);
+      };
+      initDarkMode();
+      document.getElementById('darkModeToggle')?.addEventListener('click', window.toggleDarkMode);
+    })();
+  </script>
 
   <script type="module">
     import api, { formatINR, requireAuth, getUser } from '/assets/js/api.js';
@@ -863,12 +959,12 @@
         }
 
         list.innerHTML = notifs.map(n => `
-          <div style="padding:10px 12px;background:${n.isRead ? 'var(--surface-2, #f1f5f9)' : '#ffffff'};border:1px solid var(--border, #e2e8f0);border-radius:8px;border-left:4px solid ${n.type==='ERROR'?'#ef4444':n.type==='WARNING'?'#f59e0b':'#10b981'};display:flex;flex-direction:column;gap:3px;margin-bottom:8px;">
+          <div style="padding:10px 12px;background:${n.isRead ? 'var(--surface-2, #f1f5f9)' : 'var(--surface, #ffffff)'};border:1px solid var(--border, #e2e8f0);border-radius:8px;border-left:4px solid ${n.type==='ERROR'?'#ef4444':n.type==='WARNING'?'#f59e0b':'#10b981'};display:flex;flex-direction:column;gap:3px;margin-bottom:8px;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-weight:700;font-size:13px;color:${n.isRead?'#64748b':'#0f172a'}">${n.title}</span>
-              <span style="font-size:10px;color:#64748b;font-weight:500;">${new Date(n.createdAt).toLocaleDateString('en-IN', {month:'short', day:'numeric'})}</span>
+              <span style="font-weight:700;font-size:13px;color:${n.isRead?'var(--text-muted,#64748b)':'var(--text,#0f172a)'}">${n.title}</span>
+              <span style="font-size:10px;color:var(--text-muted,#64748b);font-weight:500;">${new Date(n.createdAt).toLocaleDateString('en-IN', {month:'short', day:'numeric'})}</span>
             </div>
-            <div style="font-size:12px;color:#334155;line-height:1.4;">${n.message}</div>
+            <div style="font-size:12px;color:var(--text-muted,#334155);line-height:1.4;">${n.message}</div>
           </div>
         `).join('');
       } catch (err) {
@@ -916,6 +1012,9 @@
     loadMarketTicker();
     window.loadCashFlow(30);
     loadAnomalies();
+
+    // Auto-refresh market ticker every 30 seconds
+    setInterval(loadMarketTicker, 30000);
   </script>
 </body>
 </html>

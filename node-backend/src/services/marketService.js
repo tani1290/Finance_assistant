@@ -93,6 +93,81 @@ const getISTTimestamp = (d = new Date()) =>
     year     : 'numeric',
   }) + ' IST';
 
+// ── Yahoo Finance Session & Crumb Engine ──────────────────────────────────────
+let yahooSession = { cookie: null, crumb: null, expiresAt: 0 };
+
+const getYahooSession = async () => {
+  if (yahooSession.cookie && yahooSession.crumb && Date.now() < yahooSession.expiresAt) {
+    return yahooSession;
+  }
+  try {
+    const res1 = await axios.get('https://fc.yahoo.com', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      },
+      timeout: 6000,
+      validateStatus: () => true,
+    });
+    const cookie = res1.headers['set-cookie']?.join('; ');
+    if (cookie) {
+      const res2 = await axios.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+          'Cookie': cookie,
+        },
+        timeout: 6000,
+      });
+      const crumb = typeof res2.data === 'string' ? res2.data.trim() : null;
+      if (crumb && crumb.length > 0 && !crumb.includes('<')) {
+        yahooSession = {
+          cookie,
+          crumb,
+          expiresAt: Date.now() + 60 * 60 * 1000, // valid for 1 hour
+        };
+        return yahooSession;
+      }
+    }
+  } catch (err) {
+    console.debug('[MarketService] Yahoo session init notice:', err.message);
+  }
+  return yahooSession;
+};
+
+const fetchYahooChart = async (symbol, queryParam = 'interval=1d&range=1d') => {
+  const session = await getYahooSession();
+  const hosts = ['https://query2.finance.yahoo.com', 'https://query1.finance.yahoo.com'];
+  let lastError = null;
+  for (const host of hosts) {
+    try {
+      const crumbPart = session.crumb ? (queryParam ? `&crumb=${encodeURIComponent(session.crumb)}` : `crumb=${encodeURIComponent(session.crumb)}`) : '';
+      const url = `${host}/v8/finance/chart/${encodeURIComponent(symbol)}?${queryParam}${crumbPart}`;
+      const res = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+          ...(session.cookie ? { 'Cookie': session.cookie } : {}),
+        },
+        timeout: 7000,
+      });
+      const result = res.data?.chart?.result?.[0];
+      if (result) return result;
+    } catch (err) {
+      lastError = err;
+      if (err.response?.status === 429) {
+        yahooSession.expiresAt = 0; // invalidate session on rate limit
+        continue; // try next host or return stale
+      }
+      if (err.response?.status === 401 || err.code === 'ECONNABORTED') {
+        // Authentication or connection error - invalidate and retry
+        yahooSession.expiresAt = 0;
+        continue;
+      }
+    }
+  }
+  // Return null on all failures; caller can decide to use cached/stale data
+  return null;
+};
+
 // ── Real-Time USD/INR FX Engine ───────────────────────────────────────────────
 let liveUsdToInr = 84.50;
 let lastFxFetch = 0;
@@ -102,11 +177,8 @@ const fetchLiveUSDINR = async () => {
     return liveUsdToInr;
   }
   try {
-    const r = await axios.get('https://query1.finance.yahoo.com/v8/finance/chart/USDINR=X?interval=1d&range=1d', {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-      timeout: 6000,
-    });
-    const price = r.data?.chart?.result?.[0]?.meta?.regularMarketPrice;
+    const res = await fetchYahooChart('USDINR=X', 'interval=1d&range=1d');
+    const price = res?.meta?.regularMarketPrice;
     if (price && typeof price === 'number' && price > 0) {
       liveUsdToInr = Math.round(price * 100) / 100;
       lastFxFetch = Date.now();
@@ -194,11 +266,11 @@ const getQuote = async (symbol) => {
 
   const cacheKey = `QUOTE_${rawSymbol}`;
   const cached = getCached(cacheKey);
-  if (cached) {
-    const dataStatus = cached.is_fresh ? 'LIVE' : (cached.cache_age_seconds < 15 * 60 ? 'CACHED' : 'STALE');
+  // Return immediately only if cache is fresh (< LIVE_TTL_MS)
+  if (cached && cached.is_fresh) {
     return {
       ...cached,
-      data_status: dataStatus,
+      data_status: 'LIVE',
       market_status: isMarketOpen() ? 'OPEN' : 'CLOSED',
     };
   }
@@ -206,14 +278,10 @@ const getQuote = async (symbol) => {
   const now = new Date();
   const serverTimestamp = now.toISOString();
 
-  // 1. Primary Live Engine (Yahoo Finance Engine)
+  // 1. Primary Live Engine (Yahoo Finance Engine with Session & Crumb)
   try {
     const yfSymbol = symbolInfo.yf;
-    const r = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSymbol)}?interval=1d&range=1d`, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-      timeout: 7000,
-    });
-    const res = r.data?.chart?.result?.[0];
+    const res = await fetchYahooChart(yfSymbol, 'interval=1d&range=1d');
     const meta = res?.meta;
 
     if (meta && typeof meta.regularMarketPrice === 'number' && meta.regularMarketPrice > 0) {
@@ -391,6 +459,16 @@ const getQuote = async (symbol) => {
     console.debug(`[MarketService] Finnhub quote notice for ${rawSymbol}:`, err.message);
   }
 
+  // Fallback to memory cache if available
+  if (cached) {
+    const dataStatus = cached.cache_age_seconds < 15 * 60 ? 'CACHED' : 'STALE';
+    return {
+      ...cached,
+      data_status: dataStatus,
+      market_status: isMarketOpen() ? 'OPEN' : 'CLOSED',
+    };
+  }
+
   // 4. PostgreSQL Historical Observation Cache Lookup
   try {
     if (prisma?.marketPriceHistory) {
@@ -482,7 +560,7 @@ const getStockHistory = async (symbol, timeframe = '1M') => {
 
   const cacheKey = `HIST_${rawSymbol}_${timeframe}`;
   const cached = getCached(cacheKey);
-  if (cached) return cached;
+  if (cached && cached.is_fresh) return cached;
 
   const tfQueryMap = {
     '1D': 'interval=5m&range=1d',
@@ -501,12 +579,8 @@ const getStockHistory = async (symbol, timeframe = '1M') => {
 
   try {
     const yfSymbol = symbolInfo.yf;
-    const r = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSymbol)}?${queryParam}`, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-      timeout: 9000,
-    });
+    const res = await fetchYahooChart(yfSymbol, queryParam);
 
-    const res = r.data?.chart?.result?.[0];
     const timestamps = res?.timestamp || [];
     const quotes = res?.indicators?.quote?.[0] || {};
     const closes = quotes.close || [];
@@ -609,7 +683,7 @@ const getStockHistory = async (symbol, timeframe = '1M') => {
 const getPreciousMetals = async () => {
   const cacheKey = 'PRECIOUS_METALS';
   const cached = getCached(cacheKey);
-  if (cached) return cached;
+  if (cached && cached.is_fresh) return cached;
 
   const now = new Date();
   const serverTimestamp = now.toISOString();
@@ -622,20 +696,16 @@ const getPreciousMetals = async () => {
 
   const usdToInr = await fetchLiveUSDINR();
 
-  // 1. Fetch Gold Futures (GC=F) and Silver Futures (SI=F)
+  // 1. Fetch Gold Futures (GC=F) and Silver Futures (SI=F) with Session & Crumb
   try {
     const [goldRes, silverRes] = await Promise.all([
-      axios.get('https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=1d', {
-        headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 7000,
-      }),
-      axios.get('https://query1.finance.yahoo.com/v8/finance/chart/SI=F?interval=1d&range=1d', {
-        headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 7000,
-      }),
+      fetchYahooChart('GC=F', 'interval=1d&range=1d'),
+      fetchYahooChart('SI=F', 'interval=1d&range=1d'),
     ]);
 
-    const gPrice = goldRes.data?.chart?.result?.[0]?.meta?.regularMarketPrice;
-    const sPrice = silverRes.data?.chart?.result?.[0]?.meta?.regularMarketPrice;
-    const gTime = goldRes.data?.chart?.result?.[0]?.meta?.regularMarketTime;
+    const gPrice = goldRes?.meta?.regularMarketPrice;
+    const sPrice = silverRes?.meta?.regularMarketPrice;
+    const gTime = goldRes?.meta?.regularMarketTime;
 
     if (gPrice && gPrice > 0 && sPrice && sPrice > 0) {
       goldUSDPerOz = gPrice;
@@ -1100,13 +1170,11 @@ const fetchFXRate = async (fromCurrency = 'USD', toCurrency = 'INR') => {
 const fetchCommodity = async (commodityFunction = 'WTI', interval = 'monthly') => {
   const cacheKey = `COMMODITY_${commodityFunction}`;
   const cached = getCached(cacheKey);
-  if (cached) return cached;
+  if (cached && cached.is_fresh) return cached;
 
   try {
-    const r = await axios.get('https://query1.finance.yahoo.com/v8/finance/chart/CL=F?interval=1d&range=5d', {
-      headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 7000,
-    });
-    const price = r.data?.chart?.result?.[0]?.meta?.regularMarketPrice;
+    const res = await fetchYahooChart('CL=F', 'interval=1d&range=5d');
+    const price = res?.meta?.regularMarketPrice;
     if (price && price > 0) {
       const result = {
         name    : 'Crude Oil WTI',
@@ -1279,7 +1347,7 @@ const getPopularStocks = () =>
 const getMarketDashboard = async () => {
   const cacheKey = 'MARKET_DASHBOARD';
   const cached = getCached(cacheKey);
-  if (cached) return cached;
+  if (cached && cached.is_fresh) return cached;
 
   const [metals, fx, wti, popularQuotes] = await Promise.all([
     getPreciousMetals(),

@@ -50,6 +50,12 @@ function renderSidebar(activePage = '') {
       </div>
       ${navHTML}
       <div class="sidebar-footer">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px 10px;margin-bottom:8px;">
+          <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">Theme</span>
+          <button class="dark-mode-toggle" id="darkModeToggle" title="Toggle Dark Mode" onclick="toggleDarkMode()">
+            <i class="ri-moon-line" id="darkModeIcon"></i>
+          </button>
+        </div>
         <div class="user-info" id="sidebarUserCard" style="cursor:pointer;" title="View Profile" onclick="window.location.href='/profile.html'">
           <div class="avatar" id="sidebarAvatar">J</div>
           <div>
@@ -99,4 +105,55 @@ if (typeof window !== 'undefined') {
   window.renderSidebar = renderSidebar;
   window.getSidebar = renderSidebar;
   window.initSidebarUser = initSidebarUser;
+  window.toggleDarkMode = toggleDarkMode;
+  window.initDarkMode = initDarkMode;
+
+  // Auto-init dark mode on page load
+  initDarkMode();
 }
+
+function toggleDarkMode() {
+  const isCurrentlyDark = document.documentElement.classList.contains('dark-mode') || 
+    (!document.documentElement.classList.contains('light-mode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  
+  const willBeDark = !isCurrentlyDark;
+
+  if (willBeDark) {
+    document.documentElement.classList.add('dark-mode');
+    document.documentElement.classList.remove('light-mode');
+    localStorage.setItem('jf_dark_mode', 'true');
+  } else {
+    document.documentElement.classList.remove('dark-mode');
+    document.documentElement.classList.add('light-mode');
+    localStorage.setItem('jf_dark_mode', 'false');
+  }
+
+  updateDarkModeIcon(willBeDark);
+}
+
+function initDarkMode() {
+  const saved = localStorage.getItem('jf_dark_mode');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDark = saved === 'true' || (saved === null && prefersDark);
+
+  if (isDark) {
+    document.documentElement.classList.add('dark-mode');
+    document.documentElement.classList.remove('light-mode');
+  } else {
+    document.documentElement.classList.remove('dark-mode');
+    document.documentElement.classList.add('light-mode');
+  }
+
+  // Defer icon update to after sidebar is rendered
+  requestAnimationFrame(() => updateDarkModeIcon(isDark));
+}
+
+function updateDarkModeIcon(isDark) {
+  document.querySelectorAll('#darkModeIcon, .dark-mode-icon').forEach(iconEl => {
+    iconEl.className = isDark ? 'ri-sun-line' : 'ri-moon-line';
+  });
+  document.querySelectorAll('#darkModeToggle, .dark-mode-toggle').forEach(btn => {
+    btn.title = isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+  });
+}
+

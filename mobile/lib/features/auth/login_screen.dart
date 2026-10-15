@@ -76,13 +76,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 children: [
                   Center(
                     child: Container(
-                      width: 60,
-                      height: 60,
+                      width: 64,
+                      height: 64,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [AppColors.primary, AppColors.primaryLight],
+                          colors: AppColors.primaryGradient,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: AppColors.glow(AppColors.primary, strength: 0.6),
                       ),
                       child: const Icon(
                         Icons.account_balance_wallet_rounded,
@@ -194,9 +197,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: Divider(
-                                color: isDark ? Colors.white12 : Colors.black12,
-                              ),
+                              child: Divider(color: AppColors.border(isDark)),
                             ),
                             Padding(
                               padding: const EdgeInsets.symmetric(
@@ -206,16 +207,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 'or continue with',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: isDark
-                                      ? AppColors.darkTextSecondary
-                                      : AppColors.lightTextSecondary,
+                                  color: AppColors.textSecondary(isDark),
                                 ),
                               ),
                             ),
                             Expanded(
-                              child: Divider(
-                                color: isDark ? Colors.white12 : Colors.black12,
-                              ),
+                              child: Divider(color: AppColors.border(isDark)),
                             ),
                           ],
                         ),
@@ -227,9 +224,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               : _handleGoogleSignIn,
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: BorderSide(
-                              color: isDark ? Colors.white24 : Colors.black12,
-                            ),
+                            side: BorderSide(color: AppColors.border(isDark)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),

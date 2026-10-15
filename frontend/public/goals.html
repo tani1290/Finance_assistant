@@ -150,7 +150,7 @@
         return;
       }
 
-      const goals = data.data.goals || [];
+      const goals = Array.isArray(data.data) ? data.data : (data.data.goals || []);
       const active = goals.filter(g => g.status === 'ACTIVE');
       const totalSaved = goals.reduce((s, g) => s + parseFloat(g.currentAmount), 0);
       const totalTarget = goals.reduce((s, g) => s + parseFloat(g.targetAmount), 0);
@@ -170,13 +170,13 @@
             const pct = Math.min(g.progress || 0, 100);
             const remaining = parseFloat(g.targetAmount) - parseFloat(g.currentAmount);
             const isCompleted = g.status === 'COMPLETED' || pct >= 100;
-            return `<div class="card" style="border:1px solid ${isCompleted?'rgba(16,185,129,.3)':g.status==='PAUSED'?'rgba(245,158,11,.2)':g.priority==='HIGH'?'rgba(239,68,68,.2)':'rgba(255,255,255,.08)'}">
+            return `<div class="card" style="border:1px solid ${isCompleted?'rgba(16,185,129,.3)':g.status==='PAUSED'?'rgba(245,158,11,.2)':g.priority==='HIGH'?'rgba(239,68,68,.2)':'var(--border)'}">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
                 <div style="display:flex;align-items:center;gap:10px">
                   <div style="font-size:24px">${goalIcons[g.goalType]||'🎯'}</div>
                   <div>
-                    <div style="font-size:14px;font-weight:700">${g.name}</div>
-                    <div style="font-size:11px;color:#6b7280">${g.goalType.replace(/_/g,' ')} · <span style="color:${priorityColors[g.priority]}">${g.priority}</span></div>
+                    <div style="font-size:14px;font-weight:700;color:var(--text)">${g.name}</div>
+                    <div style="font-size:11px;color:var(--muted,#6b7280)">${g.goalType.replace(/_/g,' ')} · <span style="color:${priorityColors[g.priority]}">${g.priority}</span></div>
                   </div>
                 </div>
                 <span class="badge ${isCompleted?'badge-green':g.status==='PAUSED'?'badge-amber':'badge-blue'}">${isCompleted?'✅ Done':g.status}</span>
@@ -186,14 +186,14 @@
                 <div class="progress-fill ${isCompleted?'green':''}" style="width:${pct}%"></div>
               </div>
               
-              <div style="display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:10px">
-                <span>Saved: <strong style="color:white">${fmt(g.currentAmount)}</strong></span>
-                <span>Target: <strong style="color:white">${fmt(g.targetAmount)}</strong></span>
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted,#6b7280);margin-bottom:10px">
+                <span>Saved: <strong style="color:var(--text)">${fmt(g.currentAmount)}</strong></span>
+                <span>Target: <strong style="color:var(--text)">${fmt(g.targetAmount)}</strong></span>
               </div>
               
               <div style="font-size:12px;margin-bottom:12px">
-                ${isCompleted ? '<span style="color:#10b981">🎉 Goal completed!</span>' : `<span style="color:#6b7280">Remaining: <strong style="color:white">${fmt(remaining)}</strong></span>`}
-                ${g.targetDate ? `<span style="color:#6b7280;margin-left:8px">· Due: ${new Date(g.targetDate).toLocaleDateString('en-IN',{month:'short',year:'numeric'})}</span>` : ''}
+                ${isCompleted ? '<span style="color:#10b981">🎉 Goal completed!</span>' : `<span style="color:var(--muted,#6b7280)">Remaining: <strong style="color:var(--text)">${fmt(remaining)}</strong></span>`}
+                ${g.targetDate ? `<span style="color:var(--muted,#6b7280);margin-left:8px">· Due: ${new Date(g.targetDate).toLocaleDateString('en-IN',{month:'short',year:'numeric'})}</span>` : ''}
               </div>
               
               <div style="display:flex;gap:8px">

@@ -8,6 +8,7 @@ import '../../core/utils/date_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/gradient_button.dart';
+import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/status_badge.dart';
 
 class PendingSmsScreen extends StatefulWidget {
@@ -72,7 +73,7 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Confirmed ₹${item.amount.toStringAsFixed(0)} to ledger!',
+              'Confirmed ${CurrencyFormatter.format(item.amount)} to ledger!',
             ),
             backgroundColor: AppColors.primary,
           ),
@@ -101,6 +102,7 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
   }
 
   void _showConfirmDialog(PendingSmsModel item) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final catController = TextEditingController(
       text: item.suggestedCategory ?? 'General',
     );
@@ -109,6 +111,7 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppColors.surface(isDark),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -126,9 +129,13 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Confirm Transaction',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary(isDark),
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close_rounded),
@@ -148,15 +155,19 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
             const SizedBox(height: 6),
             Text(
               'Detected from ${item.rawSender ?? "Bank SMS"} • ${DateFormatter.formatWithTime(item.transactionDate)}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: AppColors.darkTextSecondary,
+                color: AppColors.textSecondary(isDark),
               ),
             ),
             const SizedBox(height: 18),
-            const Text(
+            Text(
               'Merchant / Payee',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textPrimary(isDark),
+              ),
             ),
             const SizedBox(height: 6),
             TextField(
@@ -164,9 +175,13 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
               decoration: const InputDecoration(hintText: 'Merchant name'),
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'Category',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textPrimary(isDark),
+              ),
             ),
             const SizedBox(height: 6),
             TextField(
@@ -289,7 +304,7 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pending SMS Transactions'),
+        title: const Text('Pending SMS'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_comment_rounded),
@@ -303,19 +318,32 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? _buildSkeleton()
           : _errorMessage != null
           ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(_errorMessage!),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: _loadPendingSms,
-                    child: const Text('Retry'),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.cloud_off_rounded,
+                      size: 42,
+                      color: AppColors.textMuted(isDark),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondary(isDark)),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadPendingSms,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
             )
           : _pendingItems.isEmpty
@@ -327,150 +355,241 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
               actionLabel: 'Simulate a Bank SMS',
               onAction: _showSimulateSmsDialog,
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(18),
-              itemCount: _pendingItems.length,
-              itemBuilder: (context, index) {
-                final item = _pendingItems[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: FinancialCard(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                StatusBadge(
-                                  label: item.isIncome ? 'Credit' : 'Debit',
-                                  color: item.isIncome
-                                      ? AppColors.income
-                                      : AppColors.expense,
-                                ),
-                                const SizedBox(width: 8),
-                                if (item.isDuplicate) StatusBadge.duplicate(),
-                              ],
-                            ),
-                            Text(
-                              DateFormatter.relative(item.transactionDate),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.darkTextSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.merchant ?? 'Merchant',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Category: ${item.suggestedCategory ?? "General"}',
-                                    style: const TextStyle(
-                                      fontSize: 12.5,
-                                      color: AppColors.darkTextSecondary,
-                                    ),
-                                  ),
-                                  if (item.accountHint != null)
-                                    Text(
-                                      'Account Ending: •••• ${item.accountHint}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.darkTextSecondary,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              '${item.isIncome ? "+" : "-"}${CurrencyFormatter.format(item.amount)}',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: item.isIncome
-                                    ? AppColors.income
-                                    : (isDark
-                                          ? AppColors.darkTextPrimary
-                                          : AppColors.lightTextPrimary),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (item.duplicateReason != null) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.purple.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '⚠️ ${item.duplicateReason}',
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                color: AppColors.purple,
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => _handleReject(item),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.expense,
-                                  side: const BorderSide(
-                                    color: AppColors.darkBorder,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                child: const Text('Reject'),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () => _showConfirmDialog(item),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Confirm',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+          : RefreshIndicator(
+              onRefresh: _loadPendingSms,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
+                itemCount: _pendingItems.length,
+                itemBuilder: (context, index) {
+                  final item = _pendingItems[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _PendingSmsCard(
+                      item: item,
+                      isDark: isDark,
+                      onConfirm: () => _showConfirmDialog(item),
+                      onReject: () => _handleReject(item),
+                    ),
+                  );
+                },
+              ),
+            ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
+      itemCount: 3,
+      itemBuilder: (context, index) => const Padding(
+        padding: EdgeInsets.only(bottom: 14),
+        child: FinancialCard(
+          padding: EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  SkeletonLoader(width: 64, height: 22, borderRadius: 11),
+                  SkeletonLoader(width: 70, height: 12),
+                ],
+              ),
+              SizedBox(height: 16),
+              SkeletonLoader(width: 150, height: 15),
+              SizedBox(height: 8),
+              SkeletonLoader(width: 110, height: 12),
+              SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: SkeletonLoader(
+                      width: double.infinity,
+                      height: 42,
+                      borderRadius: 10,
                     ),
                   ),
-                );
-              },
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: SkeletonLoader(
+                      width: double.infinity,
+                      height: 42,
+                      borderRadius: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingSmsCard extends StatelessWidget {
+  final PendingSmsModel item;
+  final bool isDark;
+  final VoidCallback onConfirm;
+  final VoidCallback onReject;
+
+  const _PendingSmsCard({
+    required this.item,
+    required this.isDark,
+    required this.onConfirm,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FinancialCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  StatusBadge(
+                    label: item.isIncome ? 'Credit' : 'Debit',
+                    color: item.isIncome ? AppColors.income : AppColors.expense,
+                    icon: item.isIncome
+                        ? Icons.arrow_downward_rounded
+                        : Icons.arrow_upward_rounded,
+                  ),
+                  const SizedBox(width: 8),
+                  if (item.isDuplicate) StatusBadge.duplicate(),
+                ],
+              ),
+              Text(
+                DateFormatter.relative(item.transactionDate),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textMuted(isDark),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.merchant ?? 'Merchant',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary(isDark),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Category: ${item.suggestedCategory ?? "General"}',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textSecondary(isDark),
+                      ),
+                    ),
+                    if (item.accountHint != null)
+                      Text(
+                        'Account Ending: •••• ${item.accountHint}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMuted(isDark),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${item.isIncome ? "+" : "-"}${CurrencyFormatter.format(item.amount)}',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: item.isIncome
+                      ? AppColors.income
+                      : AppColors.textPrimary(isDark),
+                ),
+              ),
+            ],
+          ),
+          if (item.duplicateReason != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.purple.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.content_copy_rounded,
+                    size: 14,
+                    color: AppColors.purple,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item.duplicateReason!,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.purple,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onReject,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.expense,
+                    side: BorderSide(color: AppColors.border(isDark)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text('Reject'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: onConfirm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Confirm',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

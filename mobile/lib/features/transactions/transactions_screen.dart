@@ -4,10 +4,10 @@ import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/models/transaction_model.dart';
-import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
-import '../../shared/widgets/financial_card.dart';
+import '../../shared/widgets/pressable.dart';
+import '../../shared/widgets/transaction_tile.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -113,11 +113,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _buildFilterChip('ALL', 'All'),
+                    _buildFilterChip(isDark, 'ALL', 'All'),
                     const SizedBox(width: 8),
-                    _buildFilterChip('EXPENSE', 'Expenses'),
+                    _buildFilterChip(isDark, 'EXPENSE', 'Expenses'),
                     const SizedBox(width: 8),
-                    _buildFilterChip('INCOME', 'Income'),
+                    _buildFilterChip(isDark, 'INCOME', 'Income'),
                   ],
                 ),
               ],
@@ -148,73 +148,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         final tx = items[index];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: FinancialCard(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
+                          child: TransactionTile(
+                            tx: tx,
+                            subtitle:
+                                '${tx.categoryName} • ${DateFormatter.format(tx.date)}',
                             onTap: () => context.push('/transactions/${tx.id}'),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: tx.isIncome
-                                        ? AppColors.incomeBadgeBg
-                                        : AppColors.expenseBadgeBg,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    tx.isIncome
-                                        ? Icons.arrow_downward_rounded
-                                        : Icons.arrow_upward_rounded,
-                                    size: 16,
-                                    color: tx.isIncome
-                                        ? AppColors.income
-                                        : AppColors.expense,
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        tx.merchant ??
-                                            tx.description ??
-                                            'Transaction',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      Text(
-                                        '${tx.categoryName} • ${DateFormatter.format(tx.date)}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.darkTextSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  '${tx.isIncome ? "+" : "-"}${CurrencyFormatter.format(tx.amount)}',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: tx.isIncome
-                                        ? AppColors.income
-                                        : (isDark
-                                              ? AppColors.darkTextPrimary
-                                              : AppColors.lightTextPrimary),
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
                         );
                       },
@@ -226,18 +164,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildFilterChip(String type, String label) {
+  Widget _buildFilterChip(bool isDark, String type, String label) {
     final isSelected = _filterType == type;
-    return InkWell(
+    return Pressable(
       onTap: () => setState(() => _filterType = type),
-      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
+          color: isSelected ? AppColors.primary : AppColors.surface(isDark),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.darkBorder,
+            color: isSelected ? AppColors.primary : AppColors.border(isDark),
           ),
         ),
         child: Text(
@@ -245,7 +182,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           style: TextStyle(
             fontSize: 12.5,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : AppColors.darkTextSecondary,
+            color: isSelected ? Colors.white : AppColors.textSecondary(isDark),
           ),
         ),
       ),

@@ -15,7 +15,9 @@ const getGeminiClient = () => {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY') {
-    return null;
+    const err = new Error('GEMINI_API_KEY not configured. Using rule-based AI fallback.');
+    err.code = 'API_KEY_ERROR';
+    throw err;
   }
 
   try {
@@ -24,7 +26,9 @@ const getGeminiClient = () => {
     return genAI;
   } catch (e) {
     console.error('[AI] Failed to initialize Gemini:', e.message);
-    return null;
+    const err = new Error('Failed to initialize Gemini AI client.');
+    err.code = 'SDK_COMPATIBILITY_ERROR';
+    throw err;
   }
 };
 
@@ -286,6 +290,22 @@ const chat = async (userId, userMessage, chatHistory = []) => {
       };
     } catch (err) {
       console.warn(`[AI] Gemini attempt with ${modelName} failed:`, err.message);
+      // Translate common Gemini errors to user-friendly codes
+      const msg = err.message || '';
+      if (msg.includes('404') || msg.includes('not found')) {
+        // Model not found
+      } else if (msg.includes('400') || msg.includes('bad request') || msg.includes('invalid')) {
+        // Invalid request / unsupported model
+      } else if (msg.includes('429') || msg.includes('rate limit')) {
+        // Rate limit - continue to next model
+      } else if (msg.includes('401') || msg.includes('unauthenticated')) {
+        // API key error - fall through to rule-based
+      } else if (msg.includes('503') || msg.includes('unavailable')) {
+        // Provider unavailable - try next model
+      } else if (msg.includes('context') || msg.includes('length')) {
+        // Context length exceeded
+      }
+      // Continue to next model or fall back
     }
   }
 

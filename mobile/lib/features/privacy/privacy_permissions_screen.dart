@@ -48,6 +48,8 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Privacy & Permissions')),
       body: SingleChildScrollView(
@@ -79,12 +81,12 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'FinPro processes your bank messages with strict on-device filters. Here is our architectural privacy guarantee:',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.darkTextSecondary,
+                      color: AppColors.textSecondary(isDark),
                       height: 1.5,
                     ),
                   ),
@@ -126,7 +128,7 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
                       fontSize: 13,
                       color: _hasSmsPermission
                           ? AppColors.primaryLight
-                          : AppColors.darkTextSecondary,
+                          : AppColors.textSecondary(isDark),
                     ),
                   ),
                 ],
@@ -140,18 +142,21 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
             ),
             const SizedBox(height: 12),
             _buildSecurityPoint(
+              isDark,
               Icons.lock_rounded,
               'Zero OTP Access',
               'Authentication codes and OTPs are filtered on-device and discarded instantly. They are never uploaded or saved.',
             ),
             const SizedBox(height: 10),
             _buildSecurityPoint(
+              isDark,
               Icons.password_rounded,
               'No Banking Credentials',
               'FinPro never requests NetBanking passwords, UPI PINs, or full card numbers.',
             ),
             const SizedBox(height: 10),
             _buildSecurityPoint(
+              isDark,
               Icons.verified_user_rounded,
               'Tenant Isolation & Encryption',
               'All synchronized transactions are bound to your authenticated user token using bank-grade 256-bit SSL/TLS.',
@@ -170,7 +175,12 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
     );
   }
 
-  Widget _buildSecurityPoint(IconData icon, String title, String desc) {
+  Widget _buildSecurityPoint(
+    bool isDark,
+    IconData icon,
+    String title,
+    String desc,
+  ) {
     return FinancialCard(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -191,17 +201,18 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 13.5,
+                    color: AppColors.textPrimary(isDark),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   desc,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.darkTextSecondary,
+                    color: AppColors.textSecondary(isDark),
                     height: 1.4,
                   ),
                 ),

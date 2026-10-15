@@ -92,6 +92,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Center(
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: AppColors.primaryGradient,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(17),
+                        boxShadow: AppColors.glow(
+                          AppColors.primary,
+                          strength: 0.55,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.person_add_alt_1_rounded,
+                        size: 30,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   Text(
                     'Create Free Account',
                     textAlign: TextAlign.center,

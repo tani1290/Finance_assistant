@@ -10,10 +10,12 @@ import '../../core/models/account_model.dart';
 import '../../core/models/transaction_model.dart';
 import '../../core/sms/sms_platform_channel.dart';
 import '../../core/utils/currency_formatter.dart';
-import '../../core/utils/date_formatter.dart';
 import '../../shared/widgets/financial_card.dart';
+import '../../shared/widgets/pressable.dart';
+import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/status_badge.dart';
+import '../../shared/widgets/transaction_tile.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -23,6 +25,11 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  static const _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -64,10 +71,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         final data = syncRes.data['data'];
         final summary = data['summary'] ?? {};
 
-        _netWorth =
-            double.tryParse(summary['netWorth']?.toString() ?? '0') ?? 0.0;
-        _pendingSmsCount =
-            int.tryParse(summary['pendingSmsCount']?.toString() ?? '0') ?? 0;
+        _netWorth = double.tryParse(summary['netWorth']?.toString() ?? '0') ?? 0.0;
+        _pendingSmsCount = int.tryParse(summary['pendingSmsCount']?.toString() ?? '0') ?? 0;
 
         if (data['accounts'] is List) {
           _accounts = (data['accounts'] as List)
@@ -88,19 +93,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         if (dashRes.statusCode == 200 && dashRes.data['success'] == true) {
           final dashData = dashRes.data['data'];
           _monthlyIncome =
-              double.tryParse(dashData['monthlyIncome']?.toString() ?? '0') ??
-              0.0;
+              double.tryParse(dashData['monthlyIncome']?.toString() ?? '0') ?? 0.0;
           _monthlyExpenses =
-              double.tryParse(dashData['monthlyExpenses']?.toString() ?? '0') ??
-              0.0;
+              double.tryParse(dashData['monthlyExpenses']?.toString() ?? '0') ?? 0.0;
           _savingsRate =
-              double.tryParse(dashData['savingsRate']?.toString() ?? '0') ??
-              0.0;
+              double.tryParse(dashData['savingsRate']?.toString() ?? '0') ?? 0.0;
           _healthScore =
-              int.tryParse(
-                dashData['financialHealthScore']?.toString() ?? '75',
-              ) ??
-              75;
+              int.tryParse(dashData['financialHealthScore']?.toString() ?? '75') ?? 75;
           _aiInsight = dashData['aiAdvice'] ?? dashData['insight'];
         }
       } catch (_) {}
@@ -118,8 +117,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       }
       if (_savingsRate == 0 && _monthlyIncome > 0) {
         _savingsRate =
-            (((_monthlyIncome - _monthlyExpenses) / _monthlyIncome) * 100)
-                .clamp(0, 100);
+            (((_monthlyIncome - _monthlyExpenses) / _monthlyIncome) * 100).clamp(0, 100);
       }
       if (_aiInsight == null || _aiInsight!.isEmpty) {
         _aiInsight =
@@ -138,6 +136,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider).user;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final name = user?.firstName.isNotEmpty == true ? user!.firstName : 'there';
 
     return Scaffold(
       appBar: AppBar(
@@ -145,28 +144,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Hello, ${user?.firstName.isNotEmpty == true ? user!.firstName : "Rahul"} 👋',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              'Hi, $name 👋',
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
             ),
-            const Text(
+            Text(
               'Here is your financial clarity',
               style: TextStyle(
                 fontSize: 12,
-                color: AppColors.darkTextSecondary,
+                color: AppColors.textSecondary(isDark),
               ),
             ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.sync_rounded),
-            tooltip: 'Sync Mobile State',
-            onPressed: () => context.push('/sync'),
+          _CircleIconButton(
+            icon: Icons.sync_rounded,
+            tooltip: 'Sync',
+            onTap: () => context.push('/sync'),
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => context.push('/notifications'),
+          const SizedBox(width: 4),
+          _CircleIconButton(
+            icon: Icons.notifications_none_rounded,
+            tooltip: 'Notifications',
+            showDot: _pendingSmsCount > 0,
+            onTap: () => context.push('/notifications'),
           ),
+          const SizedBox(width: 12),
         ],
       ),
       body: RefreshIndicator(
@@ -175,49 +178,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ? _buildLoadingSkeleton()
             : SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (_errorMessage != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.expense.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.expense.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.info_outline,
-                              color: AppColors.expense,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.expense,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      _buildErrorBanner(isDark),
                       const SizedBox(height: 12),
                     ],
 
                     // Pending SMS Action Banner
                     if (_pendingSmsCount > 0) ...[
-                      _buildPendingSmsBanner(),
+                      _buildPendingSmsBanner(isDark),
                       const SizedBox(height: 16),
                     ],
 
@@ -225,16 +197,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     _buildNetWorthCard(isDark),
                     const SizedBox(height: 16),
 
-                    // Cashflow Snapshot (Income vs Expense vs Savings)
+                    // Cashflow Snapshot
                     _buildCashflowRow(isDark),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
                     // AI Advisor Insight Card
                     _buildAiInsightCard(isDark),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
 
                     // Quick Navigation Action Pills
-                    _buildQuickActionsRow(),
+                    _buildQuickActionsRow(isDark),
                     const SizedBox(height: 24),
 
                     // Spending Activity Mini Chart
@@ -247,7 +219,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
                     // Recent Transactions
                     _buildRecentTransactionsSection(isDark),
-                    const SizedBox(height: 32),
                   ],
                 ),
               ),
@@ -255,30 +226,52 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildPendingSmsBanner() {
-    return InkWell(
+  // ─────────────────────────────────────────────────────────────
+  // Widgets
+  // ─────────────────────────────────────────────────────────────
+
+  Widget _buildErrorBanner(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.expense.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.expense.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, color: AppColors.expense, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: const TextStyle(fontSize: 13, color: AppColors.expense),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingSmsBanner(bool isDark) {
+    return Pressable(
       onTap: () => context.push('/pending-sms'),
-      borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: AppColors.warning.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.warning.withValues(alpha: 0.32)),
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
                 color: AppColors.warning.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.sms_rounded,
-                color: AppColors.warning,
-                size: 20,
-              ),
+              child: const Icon(Icons.sms_rounded, color: AppColors.warning, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -286,18 +279,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '$_pendingSmsCount Bank SMS Awaiting Review',
+                    '$_pendingSmsCount bank SMS to review',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: AppColors.warning,
                     ),
                   ),
-                  const Text(
-                    'Tap to confirm or categorize new transactions',
+                  Text(
+                    'Tap to confirm or categorise new transactions',
                     style: TextStyle(
                       fontSize: 12,
-                      color: AppColors.darkTextSecondary,
+                      color: AppColors.textSecondary(isDark),
                     ),
                   ),
                 ],
@@ -311,27 +304,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildNetWorthCard(bool isDark) {
+    final textPrimary = AppColors.textPrimary(isDark);
+    final textSecondary = AppColors.textSecondary(isDark);
+
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF0F2537), const Color(0xFF132F4C)]
-              : [const Color(0xFFE8F5E9), const Color(0xFFF1F8E9)],
+          colors: isDark ? AppColors.heroGradientDark : AppColors.heroGradientLight,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isDark ? const Color(0xFF1E3A5F) : const Color(0xFFC8E6C9),
+          color: isDark
+              ? AppColors.primary.withValues(alpha: 0.28)
+              : AppColors.primary.withValues(alpha: 0.20),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: AppColors.shadow(isDark),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,36 +330,38 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'TOTAL ESTIMATED NET WORTH',
+                'TOTAL NET WORTH',
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
+                  letterSpacing: 1.0,
+                  color: textSecondary,
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.primary.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.verified_rounded,
-                      size: 13,
-                      color: AppColors.primaryLight,
-                    ),
-                    const SizedBox(width: 4),
+                    const Icon(Icons.favorite_rounded, size: 12, color: AppColors.primaryLight),
+                    const SizedBox(width: 5),
                     Text(
-                      'Health: $_healthScore/100',
+                      '$_healthScore',
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                         color: AppColors.primaryLight,
+                      ),
+                    ),
+                    Text(
+                      '/100',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: textSecondary,
                       ),
                     ),
                   ],
@@ -377,16 +369,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             CurrencyFormatter.format(_netWorth),
             style: TextStyle(
-              fontSize: 34,
+              fontSize: 36,
               fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
-              color: isDark
-                  ? AppColors.darkTextPrimary
-                  : AppColors.lightTextPrimary,
+              letterSpacing: -0.8,
+              color: textPrimary,
             ),
           ),
           const SizedBox(height: 14),
@@ -398,13 +388,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 icon: Icons.trending_up_rounded,
               ),
               const SizedBox(width: 12),
-              Text(
-                '${_accounts.length} active Indian accounts',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
+              Flexible(
+                child: Text(
+                  '${_accounts.length} linked ${_accounts.length == 1 ? "account" : "accounts"}',
+                  style: TextStyle(fontSize: 12.5, color: textSecondary),
                 ),
               ),
             ],
@@ -418,173 +405,122 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Row(
       children: [
         Expanded(
-          child: FinancialCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.incomeBadgeBg,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_downward_rounded,
-                        size: 14,
-                        color: AppColors.income,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Income',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.darkTextSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  CurrencyFormatter.compact(_monthlyIncome),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+          child: _buildMetricCard(
+            isDark: isDark,
+            icon: Icons.arrow_downward_rounded,
+            iconColor: AppColors.income,
+            iconBg: AppColors.incomeBadgeBg,
+            label: 'Income',
+            value: CurrencyFormatter.compact(_monthlyIncome),
+            valueColor: AppColors.textPrimary(isDark),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: FinancialCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.expenseBadgeBg,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_upward_rounded,
-                        size: 14,
-                        color: AppColors.expense,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Spent',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.darkTextSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  CurrencyFormatter.compact(_monthlyExpenses),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+          child: _buildMetricCard(
+            isDark: isDark,
+            icon: Icons.arrow_upward_rounded,
+            iconColor: AppColors.expense,
+            iconBg: AppColors.expenseBadgeBg,
+            label: 'Spent',
+            value: CurrencyFormatter.compact(_monthlyExpenses),
+            valueColor: AppColors.textPrimary(isDark),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: FinancialCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryWash,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.pie_chart_rounded,
-                        size: 14,
-                        color: AppColors.primaryLight,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Saved',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.darkTextSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '${_savingsRate.toStringAsFixed(0)}%',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryLight,
-                  ),
-                ),
-              ],
-            ),
+          child: _buildMetricCard(
+            isDark: isDark,
+            icon: Icons.savings_rounded,
+            iconColor: AppColors.primaryLight,
+            iconBg: AppColors.primaryWash,
+            label: 'Saved',
+            value: '${_savingsRate.toStringAsFixed(0)}%',
+            valueColor: AppColors.primaryLight,
           ),
         ),
       ],
     );
   }
 
+  Widget _buildMetricCard({
+    required bool isDark,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String label,
+    required String value,
+    required Color valueColor,
+  }) {
+    return FinancialCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+            child: Icon(icon, size: 14, color: iconColor),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: valueColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAiInsightCard(bool isDark) {
-    return InkWell(
+    return Pressable(
       onTap: () => context.push('/ai-advisor'),
-      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF13231F) : const Color(0xFFECFDF5),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF10241F), const Color(0xFF0E1D2A)]
+                : [const Color(0xFFE9FBF3), const Color(0xFFEFF6FF)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.28)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
+                gradient: const LinearGradient(colors: AppColors.primaryGradient),
+                borderRadius: BorderRadius.circular(11),
               ),
-              child: const Icon(
-                Icons.auto_awesome_rounded,
-                color: AppColors.primaryLight,
-                size: 20,
-              ),
+              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      const Text(
                         'AI Financial Co-pilot',
                         style: TextStyle(
                           fontSize: 13.5,
@@ -595,19 +531,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       Icon(
                         Icons.arrow_forward_ios_rounded,
                         size: 12,
-                        color: AppColors.primaryLight,
+                        color: isDark ? AppColors.primaryLight : AppColors.primary,
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    _aiInsight ??
-                        "Reviewing your accounts and daily patterns...",
+                    _aiInsight ?? 'Reviewing your accounts and daily patterns...',
                     style: TextStyle(
                       fontSize: 12.5,
-                      color: isDark
-                          ? AppColors.darkTextPrimary
-                          : AppColors.lightTextPrimary,
+                      color: AppColors.textPrimary(isDark),
                       height: 1.45,
                     ),
                   ),
@@ -620,77 +553,61 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildQuickActionsRow() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _buildActionButton(
-            Icons.sms_outlined,
-            'Pending SMS',
-            () => context.push('/pending-sms'),
-          ),
-          const SizedBox(width: 10),
-          _buildActionButton(
-            Icons.pie_chart_outline_rounded,
-            'Budgets',
-            () => context.push('/budgets'),
-          ),
-          const SizedBox(width: 10),
-          _buildActionButton(
-            Icons.account_balance_outlined,
-            'Accounts',
-            () => context.push('/accounts'),
-          ),
-          const SizedBox(width: 10),
-          _buildActionButton(
-            Icons.show_chart_rounded,
-            'Investments',
-            () => context.push('/investments'),
-          ),
-          const SizedBox(width: 10),
-          _buildActionButton(
-            Icons.flag_outlined,
-            'Goals',
-            () => context.push('/goals'),
-          ),
-          const SizedBox(width: 10),
-          _buildActionButton(
-            Icons.credit_card_outlined,
-            'Loans & EMI',
-            () => context.push('/loans'),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildQuickActionsRow(bool isDark) {
+    final actions = <_QuickAction>[
+      _QuickAction(Icons.sms_outlined, 'SMS Inbox', () => context.push('/pending-sms')),
+      _QuickAction(Icons.pie_chart_outline_rounded, 'Budgets', () => context.push('/budgets')),
+      _QuickAction(Icons.account_balance_outlined, 'Accounts', () => context.push('/accounts')),
+      _QuickAction(Icons.show_chart_rounded, 'Invest', () => context.push('/investments')),
+      _QuickAction(Icons.flag_outlined, 'Goals', () => context.push('/goals')),
+      _QuickAction(Icons.credit_card_outlined, 'Loans', () => context.push('/loans')),
+    ];
 
-  Widget _buildActionButton(IconData icon, String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.darkSurface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.darkBorder),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: AppColors.primaryLight),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+    return SizedBox(
+      height: 84,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: actions.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, i) {
+          final a = actions[i];
+          return Pressable(
+            onTap: a.onTap,
+            child: Container(
+              width: 72,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surface(isDark),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border(isDark)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(a.icon, size: 22, color: AppColors.primaryLight),
+                  const SizedBox(height: 8),
+                  Text(
+                    a.label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary(isDark),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
   Widget _buildSpendingTrendChart(bool isDark) {
+    final now = DateTime.now();
+    final monthLabel = '${_months[now.month - 1]} ${now.year}';
+
     return FinancialCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -698,27 +615,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Spending & Cash Flow',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
-              Text(
-                'October 2026',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.darkTextSecondary,
+              Text('Spending & Cash Flow', style: Theme.of(context).textTheme.titleLarge),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceSubtle(isDark),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  monthLabel,
+                  style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary(isDark)),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
           SizedBox(
-            height: 140,
+            height: 150,
             child: LineChart(
               LineChartData(
-                gridData: const FlGridData(show: false),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: 25,
+                  getDrawingHorizontalLine: (v) => FlLine(
+                    color: AppColors.border(isDark).withValues(alpha: 0.6),
+                    strokeWidth: 1,
+                  ),
+                ),
                 titlesData: const FlTitlesData(show: false),
                 borderData: FlBorderData(show: false),
+                lineTouchData: const LineTouchData(enabled: false),
+                minY: 0,
+                maxY: 100,
                 lineBarsData: [
                   LineChartBarData(
                     spots: const [
@@ -731,13 +660,31 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       FlSpot(6, 68),
                     ],
                     isCurved: true,
-                    color: AppColors.primaryLight,
+                    curveSmoothness: 0.35,
+                    gradient: const LinearGradient(
+                      colors: [AppColors.primaryLight, AppColors.teal],
+                    ),
                     barWidth: 3,
                     isStrokeCapRound: true,
-                    dotData: const FlDotData(show: false),
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
+                        radius: 3,
+                        color: AppColors.primaryLight,
+                        strokeWidth: 2,
+                        strokeColor: AppColors.surface(isDark),
+                      ),
+                    ),
                     belowBarData: BarAreaData(
                       show: true,
-                      color: AppColors.primaryLight.withValues(alpha: 0.12),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppColors.primaryLight.withValues(alpha: 0.28),
+                          AppColors.primaryLight.withValues(alpha: 0.0),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -753,83 +700,81 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Your Accounts',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            TextButton(
-              onPressed: () => context.push('/accounts'),
-              child: const Text('View All', style: TextStyle(fontSize: 13)),
-            ),
-          ],
+        SectionHeader(
+          title: 'Your Accounts',
+          subtitle: '${_accounts.length} linked',
+          actionLabel: 'View all',
+          onAction: () => context.push('/accounts'),
         ),
-        const SizedBox(height: 10),
         if (_accounts.isEmpty)
-          const Text('No accounts found. Tap to add one.')
+          FinancialCard(
+            padding: const EdgeInsets.symmetric(vertical: 28),
+            child: Center(
+              child: Text(
+                'No accounts yet — add one to get started.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark)),
+              ),
+            ),
+          )
         else
-          ..._accounts
-              .take(3)
-              .map(
-                (acc) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: FinancialCard(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
+          ..._accounts.take(3).map(
+            (acc) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: FinancialCard(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                onTap: () => context.push('/accounts'),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.account_balance_rounded,
+                        size: 20,
+                        color: AppColors.primaryLight,
+                      ),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            acc.name,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: AppColors.textPrimary(isDark),
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.account_balance_rounded,
-                            size: 20,
-                            color: AppColors.primaryLight,
+                          Text(
+                            acc.accountNumberMasked != null
+                                ? 'A/c •••• ${acc.accountNumberMasked}'
+                                : acc.accountType,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary(isDark),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                acc.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              Text(
-                                acc.accountNumberMasked != null
-                                    ? 'A/c •••• ${acc.accountNumberMasked}'
-                                    : acc.accountType,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.darkTextSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          CurrencyFormatter.format(acc.balance),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                    Text(
+                      CurrencyFormatter.format(acc.balance),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: AppColors.textPrimary(isDark),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            ),
+          ),
       ],
     );
   }
@@ -838,102 +783,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Recent Transactions',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            TextButton(
-              onPressed: () => context.push('/transactions'),
-              child: const Text('See All', style: TextStyle(fontSize: 13)),
-            ),
-          ],
+        SectionHeader(
+          title: 'Recent Activity',
+          actionLabel: 'See all',
+          onAction: () => context.push('/transactions'),
         ),
-        const SizedBox(height: 10),
         if (_recentTransactions.isEmpty)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
+          FinancialCard(
+            padding: const EdgeInsets.symmetric(vertical: 28),
+            child: Center(
               child: Text(
-                'No transactions yet. Ingest bank SMS or log an expense!',
+                'No transactions yet. Bank SMS will appear here automatically.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark)),
               ),
             ),
           )
         else
-          ..._recentTransactions
-              .take(5)
-              .map(
-                (tx) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: FinancialCard(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    onTap: () => context.push('/transactions/${tx.id}'),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(9),
-                          decoration: BoxDecoration(
-                            color: tx.isIncome
-                                ? AppColors.incomeBadgeBg
-                                : AppColors.expenseBadgeBg,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            tx.isIncome
-                                ? Icons.arrow_downward_rounded
-                                : Icons.arrow_upward_rounded,
-                            size: 16,
-                            color: tx.isIncome
-                                ? AppColors.income
-                                : AppColors.expense,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                tx.merchant ?? tx.description ?? 'Transaction',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13.5,
-                                ),
-                              ),
-                              Text(
-                                '${tx.categoryName} • ${DateFormatter.relative(tx.date)}',
-                                style: const TextStyle(
-                                  fontSize: 11.5,
-                                  color: AppColors.darkTextSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          '${tx.isIncome ? "+" : "-"}${CurrencyFormatter.format(tx.amount)}',
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w700,
-                            color: tx.isIncome
-                                ? AppColors.income
-                                : (isDark
-                                      ? AppColors.darkTextPrimary
-                                      : AppColors.lightTextPrimary),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+          ..._recentTransactions.take(5).map(
+            (tx) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: TransactionTile(
+                tx: tx,
+                onTap: () => context.push('/transactions/${tx.id}'),
               ),
+            ),
+          ),
       ],
     );
   }
@@ -944,29 +819,77 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: const [
-          SkeletonLoader(width: double.infinity, height: 160, borderRadius: 20),
+          SkeletonLoader(width: double.infinity, height: 170, borderRadius: 24),
           SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: SkeletonLoader(width: 100, height: 80, borderRadius: 16),
-              ),
+              Expanded(child: SkeletonLoader(width: 100, height: 92, borderRadius: 18)),
               SizedBox(width: 12),
-              Expanded(
-                child: SkeletonLoader(width: 100, height: 80, borderRadius: 16),
-              ),
+              Expanded(child: SkeletonLoader(width: 100, height: 92, borderRadius: 18)),
               SizedBox(width: 12),
-              Expanded(
-                child: SkeletonLoader(width: 100, height: 80, borderRadius: 16),
-              ),
+              Expanded(child: SkeletonLoader(width: 100, height: 92, borderRadius: 18)),
             ],
           ),
           SizedBox(height: 20),
-          SkeletonLoader(width: double.infinity, height: 80, borderRadius: 16),
+          SkeletonLoader(width: double.infinity, height: 84, borderRadius: 18),
           SizedBox(height: 24),
-          SkeletonLoader(width: double.infinity, height: 200, borderRadius: 16),
+          SkeletonLoader(width: double.infinity, height: 220, borderRadius: 18),
         ],
       ),
+    );
+  }
+}
+
+class _QuickAction {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _QuickAction(this.icon, this.label, this.onTap);
+}
+
+class _CircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final bool showDot;
+
+  const _CircleIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.showDot = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          tooltip: tooltip,
+          onPressed: onTap,
+          icon: Icon(icon, size: 22),
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.surfaceSubtle(isDark),
+            shape: const CircleBorder(),
+          ),
+        ),
+        if (showDot)
+          Positioned(
+            right: 9,
+            top: 9,
+            child: Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: AppColors.expense,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.bg(isDark), width: 1.5),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

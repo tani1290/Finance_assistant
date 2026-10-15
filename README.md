@@ -10,7 +10,8 @@
 > **Created by Students of VU**  
 > **Project Lead:** Jinay Golecha  
 > **Local Project:** `E:\FINAL_YEAR_PROJECT\Minor Project\Final-Year-Project`  
-> **Repository:** [jinaygolecha/Fin_AI_Personal_Financial_Planner_AI_Final_Year_Project](https://github.com/jinaygolecha/Fin_AI_Personal_Financial_Planner_AI_Final_Year_Project)
+> **Repository:** [tani1290/Finance_assistant](https://github.com/tani1290/Finance_assistant.git)  
+> **Master Documentation:** For full system architecture, Mermaid ER diagrams, Gantt charts, and workflows, see [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
 
 ---
 

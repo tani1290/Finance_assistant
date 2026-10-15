@@ -6,7 +6,9 @@ import '../../core/api/api_endpoints.dart';
 import '../../core/models/transaction_model.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
+import '../../shared/widgets/empty_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
+import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/status_badge.dart';
 
 class TransactionDetailScreen extends StatefulWidget {
@@ -39,6 +41,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           _transaction = TransactionModel.fromJson(res.data['data']);
           _isLoading = false;
         });
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (_) {
       setState(() => _isLoading = false);
@@ -81,17 +85,47 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(title: const Text('Transaction Details')),
+        body: const Padding(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            children: [
+              SizedBox(height: 8),
+              SkeletonLoader(width: 88, height: 88, borderRadius: 44),
+              SizedBox(height: 18),
+              SkeletonLoader(width: 180, height: 30),
+              SizedBox(height: 12),
+              SkeletonLoader(width: 130, height: 18),
+              SizedBox(height: 36),
+              SkeletonLoader(
+                width: double.infinity,
+                height: 260,
+                borderRadius: 18,
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     final tx = _transaction;
     if (tx == null) {
       return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text('Transaction not found')),
+        appBar: AppBar(title: const Text('Transaction Details')),
+        body: const EmptyStateView(
+          icon: Icons.receipt_long_outlined,
+          title: 'Transaction Not Found',
+          description:
+              'This transaction may have been deleted or is no longer available.',
+        ),
       );
     }
+
+    final accent = tx.isIncome ? AppColors.income : AppColors.expense;
 
     return Scaffold(
       appBar: AppBar(
@@ -107,79 +141,101 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         child: Column(
           children: [
             Center(
               child: Column(
                 children: [
                   Container(
-                    width: 64,
-                    height: 64,
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
-                      color: tx.isIncome
-                          ? AppColors.incomeBadgeBg
-                          : AppColors.expenseBadgeBg,
+                      gradient: LinearGradient(
+                        colors: [
+                          accent.withValues(alpha: 0.22),
+                          accent.withValues(alpha: 0.08),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       shape: BoxShape.circle,
+                      border: Border.all(color: accent.withValues(alpha: 0.25)),
                     ),
                     child: Icon(
                       tx.isIncome
                           ? Icons.arrow_downward_rounded
                           : Icons.arrow_upward_rounded,
-                      size: 30,
-                      color: tx.isIncome ? AppColors.income : AppColors.expense,
+                      size: 32,
+                      color: accent,
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
                   Text(
                     '${tx.isIncome ? "+" : "-"}${CurrencyFormatter.format(tx.amount)}',
                     style: TextStyle(
-                      fontSize: 32,
+                      fontSize: 34,
                       fontWeight: FontWeight.w800,
-                      color: tx.isIncome
-                          ? AppColors.income
-                          : AppColors.darkTextPrimary,
+                      letterSpacing: -0.5,
+                      color: tx.isIncome ? AppColors.income : accent,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     tx.merchant ?? tx.description ?? 'Merchant',
-                    style: const TextStyle(
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary(isDark),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   StatusBadge(
                     label: tx.isIncome ? 'Credit / Income' : 'Debit / Expense',
-                    color: tx.isIncome ? AppColors.income : AppColors.expense,
+                    color: accent,
+                    icon: tx.isIncome
+                        ? Icons.arrow_downward_rounded
+                        : Icons.arrow_upward_rounded,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 32),
             FinancialCard(
+              padding: const EdgeInsets.all(18),
               child: Column(
                 children: [
-                  _buildDetailRow('Category', tx.categoryName),
-                  const Divider(height: 24),
-                  _buildDetailRow(
-                    'Date & Time',
-                    DateFormatter.formatWithTime(tx.date),
+                  _DetailRow(
+                    label: 'Category',
+                    value: tx.categoryName,
+                    isDark: isDark,
                   ),
-                  const Divider(height: 24),
-                  _buildDetailRow(
-                    'Account',
-                    tx.accountName ?? 'Primary Account',
+                  _divider(isDark),
+                  _DetailRow(
+                    label: 'Date & Time',
+                    value: DateFormatter.formatWithTime(tx.date),
+                    isDark: isDark,
                   ),
-                  const Divider(height: 24),
-                  _buildDetailRow(
-                    'Payment Mode',
-                    tx.paymentMethod ?? 'UPI / Bank Transfer',
+                  _divider(isDark),
+                  _DetailRow(
+                    label: 'Account',
+                    value: tx.accountName ?? 'Primary Account',
+                    isDark: isDark,
+                  ),
+                  _divider(isDark),
+                  _DetailRow(
+                    label: 'Payment Mode',
+                    value: tx.paymentMethod ?? 'UPI / Bank Transfer',
+                    isDark: isDark,
                   ),
                   if (tx.description != null && tx.description!.isNotEmpty) ...[
-                    const Divider(height: 24),
-                    _buildDetailRow('Description', tx.description!),
+                    _divider(isDark),
+                    _DetailRow(
+                      label: 'Description',
+                      value: tx.description!,
+                      isDark: isDark,
+                    ),
                   ],
                 ],
               ),
@@ -190,20 +246,44 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _divider(bool isDark) =>
+      Divider(height: 26, color: AppColors.border(isDark).withValues(alpha: 0.6));
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isDark;
+
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13.5,
-            color: AppColors.darkTextSecondary,
+            color: AppColors.textSecondary(isDark),
           ),
         ),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary(isDark),
+            ),
+          ),
         ),
       ],
     );
