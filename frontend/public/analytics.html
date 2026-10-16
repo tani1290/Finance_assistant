@@ -48,6 +48,7 @@
   </main>
 
   <script src="/assets/js/sidebar.js"></script>
+  <script src="/assets/js/realtime.js"></script>
   <script>
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const API_BASE = (!isLocal || window.location.origin.includes(':5001')) ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
@@ -159,6 +160,18 @@
 
 
     loadAnalytics('month');
+
+    // Cross-device sync: any ledger change re-renders the report while keeping
+    // whichever period the user is currently looking at.
+    const activeAnalyticsPeriod = () =>
+      document.getElementById('btnW')?.classList.contains('btn-primary') ? 'week'
+        : document.getElementById('btnY')?.classList.contains('btn-primary') ? 'year'
+          : 'month';
+
+    window.finproRealtime.mount({
+      resources: ['transactions', 'accounts', 'budgets', 'goals', 'investments', 'loans'],
+      reload: () => loadAnalytics(activeAnalyticsPeriod()),
+    });
   </script>
 </body>
 </html>

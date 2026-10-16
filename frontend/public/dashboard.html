@@ -659,6 +659,7 @@
     })();
   </script>
 
+  <script src="/assets/js/realtime.js"></script>
   <script type="module">
     import api, { formatINR, requireAuth, getUser } from '/assets/js/api.js';
     import { playAudioChime, triggerNotification, requestNotificationPermission } from '/assets/js/notifications.js';
@@ -1052,6 +1053,18 @@
     loadMarketTicker();
     window.loadCashFlow(30);
     loadAnomalies();
+
+    // Cross-device sync: an SMS confirmed on the phone — or an action the AI
+    // took in another tab — refreshes every headline metric on this page.
+    window.finproRealtime.mount({
+      resources: '*',
+      reload: () => {
+        loadDashboard();
+        loadAnomalies();
+        window.loadCashFlow(30);
+        if (typeof loadNotifications === 'function') loadNotifications();
+      },
+    });
 
     // Auto-refresh market ticker every 30 seconds
     setInterval(loadMarketTicker, 30000);

@@ -396,6 +396,29 @@ export const exportAPI = {
   summary: () => downloadFile('/export/summary.csv', 'jinay_finance_summary.csv'),
 };
 
+// ===== Realtime Sync (SSE + polling watermark) =====
+//
+// Cross-device sync transport. Most pages use `window.finproRealtime` (see
+// assets/js/realtime.js) for automatic reconnect + page refresh; these helpers
+// exist for module code that needs direct access to the raw endpoints.
+
+export const realtimeAPI = {
+  /** Delta of everything that changed after `since` (polling fallback). */
+  changes: (since = 0) => apiFetch(`/realtime/changes?since=${Number(since) || 0}`),
+  /** Realtime connection/subscriber stats for the current user. */
+  status: () => apiFetch('/realtime/status'),
+};
+
+/** Authenticated SSE URL — EventSource cannot set an Authorization header. */
+export const getRealtimeStreamURL = (lastEventId = 0) => {
+  const token = getToken();
+  let url = `${API_BASE}/realtime/stream?token=${encodeURIComponent(token || '')}`;
+  if (lastEventId) url += `&lastEventId=${Number(lastEventId) || 0}`;
+  return url;
+};
+
+export const API_BASE_URL = API_BASE;
+
 // ===== Utility Functions =====
 
 export const formatINR = (amount) => {
@@ -458,6 +481,9 @@ export default {
   receiptsAPI,
   importAPI,
   exportAPI,
+  realtimeAPI,
+  getRealtimeStreamURL,
+  API_BASE_URL,
   formatINR,
   formatINRFull,
   isAuthenticated,

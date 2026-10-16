@@ -13,6 +13,10 @@ class ApiClient {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          // Identifies this device as the mobile client. The backend tags every
+          // realtime event it originates with this value, so the web app knows a
+          // change came from a phone (and, for SMS, chimes + refreshes instantly).
+          'X-Client': 'mobile',
         },
       ),
     );

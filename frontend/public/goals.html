@@ -124,6 +124,7 @@
   </div>
 
   <script src="/assets/js/sidebar.js"></script>
+  <script src="/assets/js/realtime.js"></script>
   <script>
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const API_BASE = (!isLocal || window.location.origin.includes(':5001')) ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
@@ -271,6 +272,9 @@
     function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);`;if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';else t.style.cssText+='background:#1e1b4b;border:1px solid #10b981;color:#6ee7b7;';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
 
     loadGoals();
+
+    // Cross-device sync: goals changed on another device → re-render.
+    window.finproRealtime.mount({ resources: ['goals'], reload: loadGoals });
   </script>
 </body>
 </html>

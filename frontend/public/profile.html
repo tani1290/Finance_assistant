@@ -273,6 +273,7 @@
   </main>
 
   <script src="/assets/js/sidebar.js"></script>
+  <script src="/assets/js/realtime.js"></script>
   <script type="module" src="/assets/js/notifications.js"></script>
   <script>
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -434,6 +435,12 @@
 
     updateNotifStatus();
     loadProfile();
+
+    // Cross-device sync: profile or account changes published elsewhere.
+    window.finproRealtime.mount({
+      resources: ['profile', 'accounts'],
+      reload: () => { loadProfile(); updateNotifStatus(); },
+    });
   </script>
 </body>
 </html>

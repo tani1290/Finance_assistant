@@ -129,6 +129,7 @@
   </div>
 
   <script src="/assets/js/sidebar.js"></script>
+  <script src="/assets/js/realtime.js"></script>
   <script>
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const API_BASE = (!isLocal || window.location.origin.includes(':5001')) ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
@@ -304,6 +305,12 @@
 
 
     loadInsuranceData();
+
+    // Cross-device sync: policies/subscriptions changed elsewhere → re-render.
+    window.finproRealtime.mount({
+      resources: ['insurance', 'subscriptions'],
+      reload: loadInsuranceData,
+    });
   </script>
 </body>
 </html>

@@ -514,6 +514,7 @@ How can I assist you today? You can ask about your spending, run a what-if finan
   </div>
 
   <script src="/assets/js/sidebar.js"></script>
+  <script src="/assets/js/realtime.js"></script>
   <script type="module">
     import api, { formatINR, requireAuth, getUser } from '/assets/js/api.js';
 
@@ -1415,6 +1416,10 @@ How can I assist you today? You can ask about your spending, run a what-if finan
     });
 
     loadSnapshot();
+
+    // Cross-device sync: the AI context snapshot follows the live ledger, so any
+    // change made on another device (or by the AI) refreshes it here.
+    window.finproRealtime.mount({ resources: '*', reload: loadSnapshot });
   </script>
 </body>
 </html>

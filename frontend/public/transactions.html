@@ -185,6 +185,7 @@
   </div>
 
   <script src="/assets/js/sidebar.js"></script>
+  <script src="/assets/js/realtime.js"></script>
   <script>
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const API_BASE = (!isLocal || window.location.origin.includes(':5001')) ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
@@ -504,6 +505,13 @@
     // Init
     loadSummary();
     loadTransactions();
+
+    // Cross-device sync: a transaction confirmed on the phone (or created by the
+    // AI on another tab) re-renders the ledger and account balances here.
+    window.finproRealtime.mount({
+      resources: ['transactions', 'accounts'],
+      reload: () => { loadSummary(); loadTransactions(); loadAccounts(); },
+    });
   </script>
 </body>
 </html>

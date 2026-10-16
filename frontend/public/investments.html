@@ -214,6 +214,7 @@
   </div>
 
   <script src="/assets/js/sidebar.js"></script>
+  <script src="/assets/js/realtime.js"></script>
   <script type="module">
     import api, { formatINR, requireAuth } from '/assets/js/api.js';
 
@@ -500,6 +501,13 @@
     document.getElementById('refreshMarketBtn')?.addEventListener('click', refreshAllMarketData);
     setInterval(refreshAllMarketData, 30000);
     refreshAllMarketData();
+
+    // Cross-device sync: holdings/account changes refresh the portfolio table.
+    // Market quotes keep their own 30s cadence above.
+    window.finproRealtime.mount({
+      resources: ['investments', 'accounts'],
+      reload: loadPortfolio,
+    });
   </script>
 </body>
 </html>
