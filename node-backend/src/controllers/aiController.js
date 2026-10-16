@@ -9,6 +9,7 @@ const { formatINR } = require('../utils/inr');
 
 const ragService = require('../services/ragService');
 const aiActionService = require('../services/aiActionService');
+const aiAssistantService = require('../services/aiAssistantService');
 
 /**
  * POST /api/v1/ai/chat
@@ -39,7 +40,47 @@ const chat = async (req, res, next) => {
       data: { userId, role: 'user', content: message.trim() },
     });
 
-    // 1. Check if message is an actionable command (Add expense/income, View user data, Remove, Edit)
+    // 1. PRIMARY: LLM tool-calling assistant — can both answer questions and
+    //    actually perform any financial action across the whole domain.
+    try {
+      const assistant = await aiAssistantService.run(userId, message.trim(), chatHistory);
+      if (assistant && assistant.response) {
+        await prisma.chatMessage.create({
+          data: { userId, role: 'assistant', content: assistant.response },
+        });
+
+        const acted = (assistant.steps || []).filter((s) => s.ok).map((s) => s.name);
+
+        return res.status(200).json({
+          success: true,
+          data: {
+            response: assistant.response,
+            source: assistant.source,
+            sources: ['Gemini Function Calling', 'PostgreSQL Database'],
+            action: acted.length
+              ? {
+                  executed: true,
+                  type: acted[acted.length - 1],
+                  data: null,
+                  steps: assistant.steps,
+                }
+              : null,
+            rag: {
+              enabled: true,
+              sources: ['Live Financial Ledger'],
+              retrievedDocCount: (assistant.steps || []).length,
+              intents: acted,
+              tenantVerified: true,
+              model: assistant.model,
+            },
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('[AI] Tool-calling assistant failed, falling back:', err.message);
+    }
+
+    // 2. FALLBACK: deterministic action engine for the core intents.
     const actionResult = await aiActionService.tryExecuteAction(userId, message.trim());
     if (actionResult && actionResult.handled) {
       // Save assistant action response
@@ -69,7 +110,7 @@ const chat = async (req, res, next) => {
       });
     }
 
-    // 2. Otherwise Execute Real RAG Pipeline: Intent -> Multi-domain User Retriever -> Grounded Context -> LLM / Reasoning
+    // 3. Otherwise Execute Real RAG Pipeline: Intent -> Multi-domain User Retriever -> Grounded Context -> LLM / Reasoning
     const result = await ragService.runRAGPipeline(userId, message.trim(), chatHistory);
 
     // Save assistant response

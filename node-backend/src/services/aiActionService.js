@@ -2,6 +2,28 @@ const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
 const financialTwin = require('./financialTwinService');
 const notificationService = require('./notificationService');
+const realtime = require('./realtimeService');
+
+/**
+ * Publish a deterministic AI action onto the realtime bus so every other
+ * device reflects it immediately. Mirrors `aiTools.emit()`: a
+ * `<resource>.changed` event (what the page reloaders subscribe to) plus a
+ * typed `ai.action` used only for the cross-device "assistant did something"
+ * notice. Never allowed to break the action itself.
+ */
+function emit(userId, action, resource, extra = {}) {
+  try {
+    realtime.publish(
+      userId,
+      `${resource}.changed`,
+      { resource, action: 'changed', via: 'ai', ...extra },
+      { source: 'ai' }
+    );
+    realtime.publish(userId, 'ai.action', { tool: action, resource, ...extra }, { source: 'ai' });
+  } catch (_) {
+    /* realtime must never break an action */
+  }
+}
 
 /**
  * AI Action Service
@@ -321,6 +343,9 @@ async function handleAddTransaction(userId, text) {
     },
   }).catch(() => {});
 
+  // Realtime: reflect the assistant-created transaction on every other device.
+  emit(userId, 'ADD_TRANSACTION', 'transaction', { id: newTransaction.id });
+
   const formattedDate = parsedDate.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
@@ -600,6 +625,9 @@ ${updatedAccount ? `| **Restored Account Balance** | **${formatINR(updatedAccoun
 
 > ✅ Your monthly ledger and analytics have been updated automatically.`;
 
+  // Realtime: drop the deleted transaction from every other device's ledger.
+  emit(userId, 'DELETE_TRANSACTION', 'transaction', { id: targetTx.id });
+
   return {
     handled: true,
     action: 'DELETE_TRANSACTION',
@@ -780,6 +808,9 @@ The transaction details have been updated and synchronized with your ledger:
 ${updatedAccount ? `| **Updated Account Balance** | - | **${formatINR(updatedAccount.balance)}** |` : ''}
 
 > 💡 All connected financial twins, monthly budget trackers, and graphs have been refreshed.`;
+
+  // Realtime: push the edited transaction to every other device.
+  emit(userId, 'EDIT_TRANSACTION', 'transaction', { id: updatedTx.id });
 
   return {
     handled: true,

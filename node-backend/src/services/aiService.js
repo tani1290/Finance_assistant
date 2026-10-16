@@ -332,4 +332,4 @@ const chat = async (userId, userMessage, chatHistory = []) => {
   };
 };
 
-module.exports = { chat, getUserFinancialContext };
+module.exports = { chat, getUserFinancialContext, getGeminiClient, CANDIDATE_MODELS };

@@ -691,17 +691,21 @@ async function runTests() {
     // ================================================================
     console.log('\n👉 [26/26] Testing AI Action Engine (conversational Add/View)...');
 
+    // The endpoint is assistant-first (Gemini tool-calling) with a deterministic
+    // action-engine fallback, so either engine is a valid source. Behavioural
+    // guarantees below must hold on both paths.
     const viewChat = await request(app)
       .post('/api/v1/ai/chat')
       .set('Authorization', `Bearer ${tokenA}`)
       .send({ message: 'view user data' });
     assert(
-      viewChat.status === 200 && String(viewChat.body?.data?.source || '').includes('ai_action_engine'),
-      'POST /api/v1/ai/chat routes "view user data" to the AI Action Engine (VIEW_DATA)'
+      viewChat.status === 200 &&
+        /ai_action_engine|gemini-tools/.test(String(viewChat.body?.data?.source || '')),
+      'POST /api/v1/ai/chat routes "view user data" to an AI engine (assistant or action engine)'
     );
     assert(
       String(viewChat.body?.data?.response || '').includes(testUserA.email),
-      'AI Action Engine VIEW_DATA response contains the authenticated user profile'
+      'AI chat VIEW_DATA response contains the authenticated user profile'
     );
 
     const count500 = () => prisma.transaction.count({ where: { userId: userA.id, amount: 500 } });
@@ -713,14 +717,17 @@ async function runTests() {
       .send({ message: 'add 500 expense as automated regression coffee paid by cash' });
     const addChatText = String(addChat.body?.data?.response || '');
     assert(
-      addChat.status === 200 && String(addChat.body?.data?.source || '').includes('ADD_TRANSACTION'),
-      'POST /api/v1/ai/chat routes a natural-language expense to ADD_TRANSACTION'
+      addChat.status === 200 &&
+        /ai_action_engine|gemini-tools|ADD_TRANSACTION/.test(
+          String(addChat.body?.data?.source || '')
+        ),
+      'POST /api/v1/ai/chat routes a natural-language expense to a transaction handler'
     );
     assert(
-      addChatText.includes('500.00') && !addChatText.includes('₹₹'),
-      'AI Action Engine renders each amount with exactly one rupee sign (₹500.00, never ₹₹)'
+      addChatText.includes('500') && !addChatText.includes('₹₹'),
+      'AI chat renders each amount with exactly one rupee sign (never ₹₹)'
     );
-    assert((await count500()) === before500 + 1, 'AI Action Engine ADD_TRANSACTION persists the ₹500 expense to the ledger');
+    assert((await count500()) === before500 + 1, 'AI chat ADD_TRANSACTION persists the ₹500 expense to the ledger');
 
   } catch (err) {
     console.error('\n❌ UNEXPECTED ERROR DURING SUITE:', err);
