@@ -1,5 +1,5 @@
 /**
- * Jinay Finance AI — Centralized API Client
+ * FinPro — Centralized API Client
  * Owner: Jinay Golecha (jinay_golecha)
  * All API calls go to Node.js/Express backend
  */
@@ -432,21 +432,6 @@ export const redirectIfAuth = (redirectTo = '/dashboard.html') => {
   return false;
 };
 
-export const handleGoogleCallback = () => {
-  // Support URL hash fragment (secure) or query params (legacy)
-  const hashString = window.location.hash ? window.location.hash.substring(1) : '';
-  const searchString = window.location.search ? window.location.search.substring(1) : '';
-  const params = new URLSearchParams(hashString || searchString);
-  const accessToken = params.get('access_token');
-  const refreshToken = params.get('refresh_token');
-  if (accessToken) {
-    setTokens(accessToken, refreshToken);
-    window.history.replaceState({}, '', window.location.pathname);
-    return true;
-  }
-  return false;
-};
-
 // Default export
 export default {
   apiFetch,
@@ -482,5 +467,4 @@ export default {
   setUser,
   setTokens,
   clearTokens,
-  handleGoogleCallback,
 };

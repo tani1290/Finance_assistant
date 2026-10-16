@@ -1095,9 +1095,9 @@
         <i class="ri-android-fill"></i>
         <span>Download Android App (.apk)</span>
       </a>
-      <a href="/dashboard.html" class="btn-hero-secondary">
+      <a href="#" id="heroExploreDemo" class="btn-hero-secondary" aria-busy="false">
         <i class="ri-dashboard-line"></i>
-        <span>Explore Demo</span>
+        <span id="heroExploreDemoLabel">Explore Demo</span>
       </a>
     </div>
 
@@ -1534,14 +1534,54 @@
     if (localStorage.getItem('jf_access_token')) {
       window.location.href = '/dashboard.html';
     }
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('access_token')) {
-      localStorage.setItem('jf_access_token', params.get('access_token'));
-      if (params.get('refresh_token')) {
-        localStorage.setItem('jf_refresh_token', params.get('refresh_token'));
+
+    // ===== Explore Demo: sign in with the seeded demo account =====
+    (function () {
+      const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      const API_BASE = (!isLocal || location.origin.includes(':5001'))
+        ? '/api/v1'
+        : 'http://127.0.0.1:5001/api/v1';
+      const DEMO_EMAIL = 'demo@example.com';
+      const DEMO_PASSWORD = 'DemoPassword123!';
+
+      const bind = function () {
+        const btn = document.getElementById('heroExploreDemo');
+        if (!btn) return;
+        btn.addEventListener('click', async function (e) {
+          e.preventDefault();
+          const label = document.getElementById('heroExploreDemoLabel');
+          const previous = label ? label.textContent : '';
+          if (label) label.textContent = 'Loading demo…';
+          btn.setAttribute('aria-busy', 'true');
+          try {
+            // Ensure the demo account exists, then sign in with it.
+            await fetch(API_BASE + '/auth/seed-demo', { method: 'POST' }).catch(function () {});
+            const res = await fetch(API_BASE + '/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD }),
+            });
+            const json = await res.json().catch(function () { return {}; });
+            const data = json && json.data;
+            if (!res.ok || !data || !data.accessToken) throw new Error('demo login failed');
+            localStorage.setItem('jf_access_token', data.accessToken);
+            if (data.refreshToken) localStorage.setItem('jf_refresh_token', data.refreshToken);
+            if (data.user) localStorage.setItem('jf_user', JSON.stringify(data.user));
+            window.location.href = '/dashboard.html';
+          } catch (err) {
+            if (label) label.textContent = previous || 'Explore Demo';
+            btn.setAttribute('aria-busy', 'false');
+            window.location.href = '/login.html';
+          }
+        });
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bind);
+      } else {
+        bind();
       }
-      window.location.href = '/dashboard.html';
-    }
+    })();
 
     // ===== FAQ Accordion =====
     document.querySelectorAll('.faq-question').forEach(btn => {

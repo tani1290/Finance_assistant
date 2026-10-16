@@ -5,32 +5,37 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  /* Brand palette (theme-independent) */
   --primary: #10b981;
   --primary-dark: #059669;
-  --primary-light: #ecfdf5;
   --primary-border: #a7f3d0;
   --primary-hover: #0d9668;
-  --bg: #f8fafb;
-  --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --surface-3: #e8ecf0;
-  --border: #e2e8f0;
-  --border-dark: #cbd5e1;
-  --text: #0f172a;
-  --muted: #64748b;
-  --muted-light: #94a3b8;
   --success: #059669;
-  --success-light: #ecfdf5;
   --warning: #d97706;
-  --warning-light: #fffbeb;
   --danger: #dc2626;
-  --danger-light: #fef2f2;
   --sidebar-w: 260px;
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 8px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 24px -4px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.04);
   --radius: 10px;
   --radius-lg: 14px;
+
+  /* Dark is the DEFAULT theme. Light is an explicit opt-in via :root.light-mode,
+     which also avoids a light flash before the theme script runs. */
+  --bg: #0c0f1a;
+  --surface: #141825;
+  --surface-2: #1c2035;
+  --surface-3: #252a40;
+  --border: #2a2f45;
+  --border-dark: #3a4060;
+  --text: #e8ecf4;
+  --muted: #8b95b0;
+  --muted-light: #5e6880;
+  --primary-light: rgba(16, 185, 129, 0.12);
+  --success-light: rgba(5, 150, 105, 0.12);
+  --warning-light: rgba(217, 119, 6, 0.12);
+  --danger-light: rgba(220, 38, 38, 0.12);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 24px -4px rgba(0, 0, 0, 0.5), 0 4px 8px -4px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
 }
 
 * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
@@ -523,42 +528,24 @@ tr { transition: background 0.15s; }
 }
 .dark-mode-toggle:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-dark); }
 
-/* Auto dark mode from OS preference */
-@media (prefers-color-scheme: dark) {
-  :root:not(.light-mode) {
-    --bg: #0c0f1a;
-    --surface: #141825;
-    --surface-2: #1c2035;
-    --surface-3: #252a40;
-    --border: #2a2f45;
-    --border-dark: #3a4060;
-    --text: #e8ecf4;
-    --muted: #8b95b0;
-    --muted-light: #5e6880;
-    --primary-light: rgba(16, 185, 129, 0.12);
-    --success-light: rgba(5, 150, 105, 0.12);
-    --warning-light: rgba(217, 119, 6, 0.12);
-    --danger-light: rgba(220, 38, 38, 0.12);
-    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 8px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 10px 24px -4px rgba(0, 0, 0, 0.5), 0 4px 8px -4px rgba(0, 0, 0, 0.4);
-  }
-  :root:not(.light-mode) .topbar {
-    background: rgba(20, 24, 37, 0.85);
-  }
-  :root:not(.light-mode) .avatar {
-    background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.2));
-  }
-  :root:not(.light-mode) .skeleton {
-    background: linear-gradient(90deg, #1c2035 25%, #252a40 50%, #1c2035 75%);
-    background-size: 200% 100%;
-  }
-  :root:not(.light-mode) tr:hover td { background: #1c2035; }
-  :root:not(.light-mode) .modal-overlay { background: rgba(0, 0, 0, 0.6); }
+/* Dark is the default theme; :root.light-mode is the explicit opt-out.
+   (The OS preference is intentionally ignored so the app always starts dark.) */
+:root:not(.light-mode) .topbar {
+  background: rgba(20, 24, 37, 0.85);
 }
+:root:not(.light-mode) .avatar {
+  background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.2));
+}
+:root:not(.light-mode) .skeleton {
+  background: linear-gradient(90deg, #1c2035 25%, #252a40 50%, #1c2035 75%);
+  background-size: 200% 100%;
+}
+:root:not(.light-mode) tr:hover td { background: #1c2035; }
+:root:not(.light-mode) .modal-overlay { background: rgba(0, 0, 0, 0.6); }
 
 /* Manual light mode override class */
 :root.light-mode {
+  color-scheme: light;
   --bg: #f8fafb;
   --surface: #ffffff;
   --surface-2: #f1f5f9;
@@ -582,8 +569,9 @@ tr { transition: background 0.15s; }
 :root.light-mode tr:hover td { background: #f8fafc; }
 :root.light-mode .modal-overlay { background: rgba(15, 23, 42, 0.4); }
 
-/* Manual dark mode toggle class */
+/* Manual dark mode toggle class (alias of the default theme) */
 .dark-mode {
+  color-scheme: dark;
   --bg: #0c0f1a;
   --surface: #141825;
   --surface-2: #1c2035;

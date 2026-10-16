@@ -11,12 +11,15 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --primary: #10b981; --primary-dark: #059669; --primary-light: #ecfdf5;
-      --bg: #f8fafb; --surface: #ffffff; --surface-2: #f1f5f9;
-      --border: #e2e8f0; --text: #0f172a; --text-muted: #64748b;
+      --primary: #10b981; --primary-dark: #059669;
       --success: #059669; --warning: #d97706; --danger: #dc2626;
       --gold: #d97706; --silver: #64748b;
       --sidebar-width: 260px;
+      /* Dark is the DEFAULT theme; light is opted into via :root.light-mode. */
+      --bg: #0c0f1a; --surface: #141825; --surface-2: #1c2035;
+      --border: #2a2f45; --text: #e8ecf4; --text-muted: #8b95b0;
+      --primary-light: rgba(16,185,129,0.12);
+      color-scheme: dark;
     }
     * { -webkit-font-smoothing: antialiased; }
     body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; overflow-x: hidden; }
@@ -295,17 +298,11 @@
       .main-content { margin-left: 0; }
     }
 
-    /* Dashboard Dark Mode */
-    @media (prefers-color-scheme: dark) {
-      :root:not(.light-mode) {
-        --bg: #0c0f1a; --surface: #141825; --surface-2: #1c2035;
-        --border: #2a2f45; --text: #e8ecf4; --text-muted: #8b95b0;
-        --primary-light: rgba(16,185,129,0.12);
-      }
-      :root:not(.light-mode) .topbar { background: rgba(20,24,37,0.85); }
-      :root:not(.light-mode) .health-ring circle[stroke="rgba(255,255,255,0.08)"] { stroke: rgba(255,255,255,0.08); }
-    }
+    /* Dark is the default theme; :root.light-mode opts out. */
+    :root:not(.light-mode) .topbar { background: rgba(20,24,37,0.85); }
+    :root:not(.light-mode) .health-ring circle[stroke="rgba(255,255,255,0.08)"] { stroke: rgba(255,255,255,0.08); }
     :root.light-mode {
+      color-scheme: light;
       --bg: #f8fafb; --surface: #ffffff; --surface-2: #f1f5f9;
       --border: #e2e8f0; --text: #0f172a; --text-muted: #64748b;
       --primary-light: #ecfdf5;
@@ -362,15 +359,21 @@
     </div>
     
     <div class="nav-section">
-      <div class="nav-label">Wealth & Intelligence</div>
-      <a href="/investments.html" class="nav-item"><i class="ri-line-chart-line"></i> Investments & Metals</a>
-      <a href="/loans.html" class="nav-item"><i class="ri-bank-card-line"></i> Loans & EMI</a>
-      <a href="/insurance.html" class="nav-item"><i class="ri-shield-check-line"></i> Insurance & Subscriptions</a>
-      <a href="/ai-advisor.html" class="nav-item"><i class="ri-robot-2-line"></i> AI Advisor & Simulator</a>
-      <a href="/training.html" class="nav-item"><i class="ri-brain-line"></i> AI Training & ML Studio</a>
-      <a href="/analytics.html" class="nav-item"><i class="ri-bar-chart-box-line"></i> Analytics & Reports</a>
+      <div class="nav-label">Wealth &amp; Protection</div>
+      <a href="/market.html" class="nav-item"><i class="ri-candlestick-chart-line"></i> Live Market Dashboard</a>
+      <a href="/investments.html" class="nav-item"><i class="ri-line-chart-line"></i> Investments &amp; Metals</a>
+      <a href="/loans.html" class="nav-item"><i class="ri-bank-card-line"></i> Loans &amp; EMI</a>
+      <a href="/insurance.html" class="nav-item"><i class="ri-shield-check-line"></i> Insurance &amp; Subs</a>
+    </div>
+    
+    <div class="nav-section">
+      <div class="nav-label">Intelligence &amp; Tools</div>
+      <a href="/ai-advisor.html" class="nav-item"><i class="ri-robot-2-line"></i> AI Advisor &amp; Simulator</a>
+      <a href="/training.html" class="nav-item"><i class="ri-brain-line"></i> AI Training &amp; ML Studio</a>
+      <a href="/analytics.html" class="nav-item"><i class="ri-bar-chart-box-line"></i> Analytics &amp; Reports</a>
       <a href="/calendar.html" class="nav-item"><i class="ri-calendar-event-line"></i> Financial Calendar</a>
-      <a href="/profile.html" class="nav-item"><i class="ri-user-settings-line"></i> Profile & Settings</a>
+      <a href="/status.html" class="nav-item"><i class="ri-cloud-line"></i> Cloud Status</a>
+      <a href="/profile.html" class="nav-item"><i class="ri-user-settings-line"></i> Profile &amp; Account</a>
     </div>
     
     <div class="sidebar-footer">
@@ -383,8 +386,8 @@
       <div class="user-info" id="userMenuBtn" style="cursor:pointer;" title="View Profile" onclick="window.location.href='/profile.html'">
         <div class="avatar" id="userAvatar">J</div>
         <div>
-          <div class="user-name" id="userName">Jinay Golecha</div>
-          <div class="user-role" id="userRole">Free User</div>
+          <div class="user-name" id="userName">Loading...</div>
+          <div class="user-role" id="userRole">User</div>
         </div>
         <i class="ri-logout-box-r-line" id="logoutBtn" style="margin-left:auto;color:var(--text-muted);font-size:16px;" title="Logout"></i>
       </div>
@@ -618,8 +621,8 @@
     (function() {
       function initDarkMode() {
         const saved = localStorage.getItem('jf_dark_mode');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const isDark = saved === 'true' || (saved === null && prefersDark);
+        // Dark is the default experience; users opt out by choosing light.
+        const isDark = saved !== 'false';
         if (isDark) {
           document.documentElement.classList.add('dark-mode');
           document.documentElement.classList.remove('light-mode');
@@ -638,9 +641,8 @@
         });
       }
       window.toggleDarkMode = function() {
-        const isCurrentlyDark = document.documentElement.classList.contains('dark-mode') || 
-          (!document.documentElement.classList.contains('light-mode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        const willBeDark = !isCurrentlyDark;
+        // Dark is the default, so "not light" means currently dark.
+        const willBeDark = document.documentElement.classList.contains('light-mode');
         if (willBeDark) {
           document.documentElement.classList.add('dark-mode');
           document.documentElement.classList.remove('light-mode');
@@ -799,6 +801,48 @@
       }
     };
 
+    // ===== User identity (sidebar + welcome message) =====
+    // Rendered independently of loadDashboard() so the real logged-in user is
+    // always shown, even if the dashboard request fails or is slow. Falls back
+    // to /auth/me when no cached user is present.
+    let currentUser = getUser() || {};
+
+    const userDisplayName = (user) =>
+      (user && (user.firstName || user.username || user.email)) || 'User';
+
+    function updateWelcome() {
+      const name = userDisplayName(currentUser);
+      const wm = document.getElementById('welcomeMsg');
+      if (wm) wm.textContent = `${greeting}, ${name}!`;
+    }
+
+    function renderUserIdentity(user) {
+      currentUser = user || {};
+      const name = userDisplayName(currentUser);
+      const fullName = name + (currentUser.lastName ? ' ' + currentUser.lastName : '');
+      const nameEl = document.getElementById('userName');
+      const roleEl = document.getElementById('userRole');
+      const avatarEl = document.getElementById('userAvatar');
+      if (nameEl) nameEl.textContent = fullName;
+      if (roleEl) roleEl.textContent = currentUser.isPremium ? '⭐ Premium' : 'Free User';
+      if (avatarEl) avatarEl.textContent = (name[0] || 'U').toUpperCase();
+      updateWelcome();
+    }
+
+    async function ensureUser() {
+      renderUserIdentity(currentUser);
+      if (currentUser.firstName || currentUser.username || currentUser.email) return;
+      try {
+        const res = await api.authAPI.getMe();
+        const fresh = res && (res.data || res.user);
+        if (fresh && (fresh.firstName || fresh.username || fresh.email)) {
+          currentUser = fresh;
+          try { localStorage.setItem('jf_user', JSON.stringify(fresh)); } catch {}
+          renderUserIdentity(fresh);
+        }
+      } catch {}
+    }
+
     // Load Dashboard Core
     const loadDashboard = async () => {
       const data = await api.dashboardAPI.get();
@@ -814,13 +858,8 @@
       document.getElementById('expenseChange').textContent = `This month`;
       document.getElementById('loanLine').textContent = `Loan EMI: ${formatINR(d.totalMonthlyEMI)}`;
 
-      // User Welcome
-      const user = getUser() || {};
-      const name = user.firstName || user.username || 'User';
-      document.getElementById('welcomeMsg').textContent = `${greeting}, ${name}!`;
-      document.getElementById('userName').textContent = name + (user.lastName ? ' ' + user.lastName : '');
-      document.getElementById('userRole').textContent = user.isPremium ? '⭐ Premium' : 'Free User';
-      document.getElementById('userAvatar').textContent = (name[0] || 'U').toUpperCase();
+      // User Welcome (resolved by renderUserIdentity; see below)
+      updateWelcome();
 
       // Health Score Ring
       const score = d.financialHealthScore;
@@ -1008,6 +1047,7 @@
     });
 
     // Initialize
+    ensureUser();
     loadDashboard();
     loadMarketTicker();
     window.loadCashFlow(30);

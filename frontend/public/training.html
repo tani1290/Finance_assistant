@@ -8,30 +8,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/app.css">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     
     :root {
-      --bg: #f8fafb;
-      --surface: #ffffff;
-      --surface-subtle: #f1f5f9;
-      --border: #e2e8f0;
-      --border-focus: #10b981;
-      --text: #0f172a;
-      --text-muted: #64748b;
-      --text-light: #94a3b8;
-      --primary: #10b981;
-      --primary-hover: #4338ca;
-      --primary-light: #ecfdf5;
-      --success: #059669;
-      --success-light: #ecfdf5;
-      --warning: #d97706;
-      --warning-light: #fffbeb;
-      --danger: #dc2626;
-      --danger-light: #fef2f2;
-      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-      --radius: 8px;
+      /* Map legacy token names onto the shared app.css theme tokens.
+         Declaring them with var() keeps these aliases dark/light-aware. */
+      --surface-subtle: var(--surface-2);
+      --text-muted: var(--muted);
+      --text-light: var(--muted-light);
+      --border-focus: var(--primary);
+      --primary-hover: var(--primary-dark);
     }
 
     body {
@@ -41,157 +29,6 @@
       line-height: 1.5;
       min-height: 100vh;
       display: flex;
-    }
-
-    /* ===== SIDEBAR ===== */
-    .sidebar {
-      width: 260px;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      position: fixed;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      z-index: 50;
-    }
-
-    .brand {
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .brand-icon {
-      width: 36px;
-      height: 36px;
-      background: var(--primary);
-      color: #fff;
-      border-radius: var(--radius);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      font-weight: 700;
-    }
-
-    .brand-title {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text);
-    }
-
-    .brand-sub {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .nav-list {
-      padding: 16px 12px;
-      list-style: none;
-      flex: 1;
-      overflow-y: auto;
-    }
-
-    .nav-label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-light);
-      padding: 8px 12px 4px;
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 12px;
-      border-radius: var(--radius);
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 2px;
-      transition: all 0.15s ease;
-    }
-
-    .nav-item:hover {
-      background: var(--surface-subtle);
-      color: var(--text);
-    }
-
-    .nav-item.active {
-      background: var(--primary-light);
-      color: var(--primary);
-      font-weight: 600;
-    }
-
-    .nav-item i {
-      font-size: 16px;
-      width: 20px;
-    }
-
-    .sidebar-footer {
-      padding: 16px 20px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .user-pill {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .user-avatar {
-      width: 32px;
-      height: 32px;
-      background: var(--primary-light);
-      color: var(--primary);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      font-size: 12px;
-    }
-
-    .user-details {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .user-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .user-role {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .logout-btn {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-size: 16px;
-      padding: 6px;
-      border-radius: var(--radius);
-      transition: color 0.15s;
-    }
-
-    .logout-btn:hover {
-      color: var(--danger);
-      background: var(--danger-light);
     }
 
     /* ===== MAIN CONTENT ===== */
@@ -397,7 +234,7 @@
     }
 
     .data-table tr:hover td {
-      background: #f8fafc;
+      background: var(--surface-2);
     }
 
     /* ===== STATS BADGES ===== */
@@ -466,49 +303,23 @@
       gap: 8px;
       margin-top: 16px;
     }
+
+    /* ===== DARK-MODE OVERRIDES (hardcoded light-only colors) ===== */
+    :root:not(.light-mode) .btn-danger { border-color: rgba(239, 68, 68, 0.35); }
+    :root:not(.light-mode) .btn-danger:hover { background: rgba(220, 38, 38, 0.18); }
+    :root:not(.light-mode) .badge-number { background: rgba(99, 102, 241, 0.18); color: #a5b4fc; }
+    :root:not(.light-mode) .badge-string { background: rgba(217, 119, 6, 0.18); color: #fcd34d; }
+    :root:not(.light-mode) .disclaimer-banner {
+      background: rgba(217, 119, 6, 0.12);
+      border-color: rgba(217, 119, 6, 0.3);
+      color: #fcd34d;
+    }
   </style>
 </head>
 <body>
 
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-icon"><i class="ri-line-chart-fill"></i></div>
-      <div>
-        <div class="brand-title">FinPro</div>
-        <div class="brand-sub">Financial Planner & ML Studio</div>
-      </div>
-    </div>
-
-    <ul class="nav-list">
-      <li class="nav-label">Core Dashboard</li>
-      <li><a href="/dashboard.html" class="nav-item"><i class="ri-dashboard-line"></i> Dashboard</a></li>
-      <li><a href="/transactions.html" class="nav-item"><i class="ri-exchange-dollar-line"></i> Transactions</a></li>
-      <li><a href="/budget.html" class="nav-item"><i class="ri-pie-chart-line"></i> Budgets</a></li>
-      <li><a href="/goals.html" class="nav-item"><i class="ri-flag-line"></i> Financial Goals</a></li>
-
-      <li class="nav-label">Wealth & Intelligence</li>
-      <li><a href="/investments.html" class="nav-item"><i class="ri-funds-line"></i> Investments & Gold</a></li>
-      <li><a href="/market.html" class="nav-item"><i class="ri-stock-line"></i> Live Market Feeds</a></li>
-      <li><a href="/loans.html" class="nav-item"><i class="ri-bank-card-line"></i> Loans & Prepayment</a></li>
-      <li><a href="/insurance.html" class="nav-item"><i class="ri-shield-check-line"></i> Insurance Policies</a></li>
-      <li><a href="/ai-advisor.html" class="nav-item"><i class="ri-robot-2-line"></i> AI Financial Advisor</a></li>
-      <li><a href="/training.html" class="nav-item active"><i class="ri-brain-line"></i> AI Training & ML Studio</a></li>
-      <li><a href="/calendar.html" class="nav-item"><i class="ri-calendar-line"></i> Financial Calendar</a></li>
-      <li><a href="/analytics.html" class="nav-item"><i class="ri-bar-chart-box-line"></i> Analytics & Reports</a></li>
-    </ul>
-
-    <div class="sidebar-footer">
-      <div class="user-pill">
-        <div class="user-avatar" id="avatarLetter">J</div>
-        <div class="user-details">
-          <div class="user-name" id="userNameText">Jinay Golecha</div>
-          <div class="user-role" id="userRoleText">Primary User</div>
-        </div>
-      </div>
-      <button class="logout-btn" id="logoutBtn" title="Logout"><i class="ri-logout-box-r-line"></i></button>
-    </div>
-  </aside>
+  <!-- SIDEBAR (shared component, injected below to keep one source of truth) -->
+  <div id="sidebarRoot"></div>
 
   <!-- MAIN VIEW -->
   <main class="main">
@@ -731,17 +542,16 @@
     </div>
   </main>
 
+  <script src="/assets/js/sidebar.js"></script>
   <script type="module">
-    import { trainingAPI, requireAuth, getUser, logout } from './assets/js/api.js';
+    import { trainingAPI, requireAuth } from './assets/js/api.js';
 
     if (!requireAuth()) throw new Error('Unauthenticated');
 
-    const currentUser = getUser();
-    if (currentUser) {
-      document.getElementById('userNameText').textContent = (currentUser.firstName || currentUser.username) + (currentUser.lastName ? ' ' + currentUser.lastName : '');
-      document.getElementById('avatarLetter').textContent = (currentUser.firstName || currentUser.username || 'J')[0].toUpperCase();
-    }
-    document.getElementById('logoutBtn').addEventListener('click', logout);
+    // Shared sidebar: single source of truth for navigation, identity and theme.
+    document.getElementById('sidebarRoot').outerHTML = window.renderSidebar('training');
+    // Resolves the real logged-in user (falls back to /auth/me when not cached).
+    window.initSidebarUser();
 
     let allDatasets = [];
     let selectedDataset = null;

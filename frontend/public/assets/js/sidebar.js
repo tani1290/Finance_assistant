@@ -62,33 +62,78 @@ function renderSidebar(activePage = '') {
             <div class="user-name" id="sidebarUserName">Loading...</div>
             <div class="user-role" id="sidebarUserRole">User</div>
           </div>
-          <i class="ri-logout-box-r-line logout-btn" id="sidebarLogout" title="Logout" style="margin-left:auto;cursor:pointer;" onclick="event.stopPropagation()"></i>
+          <i class="ri-logout-box-r-line logout-btn" id="sidebarLogout" title="Logout" style="margin-left:auto;cursor:pointer;"></i>
         </div>
       </div>
     </aside>
   `;
 }
 
-function initSidebarUser() {
-  const user = JSON.parse(localStorage.getItem('jf_user') || '{}');
-  const name = (user.firstName || user.username || 'User');
+// Same-origin when served by the API (port 5001 or a real host), otherwise the
+// local dev API. Mirrors the API_BASE logic in assets/js/api.js.
+const SIDEBAR_API_BASE =
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+  !window.location.origin.includes(':5001')
+    ? 'http://127.0.0.1:5001/api/v1'
+    : '/api/v1';
+
+function renderSidebarUser(user) {
+  user = user || {};
+  const name = (user.firstName || user.username || user.email || 'User');
   const fullName = name + (user.lastName ? ' ' + user.lastName : '');
-  
+
   const el = document.getElementById('sidebarUserName');
   const roleEl = document.getElementById('sidebarUserRole');
   const avatarEl = document.getElementById('sidebarAvatar');
-  
+
   if (el) el.textContent = fullName;
   if (roleEl) roleEl.textContent = user.isPremium ? '⭐ Premium' : 'Free User';
   if (avatarEl) avatarEl.textContent = (name[0] || 'U').toUpperCase();
-  
+}
+
+async function initSidebarUser() {
+  let user = {};
+  try {
+    user = JSON.parse(localStorage.getItem('jf_user') || '{}') || {};
+  } catch {
+    user = {};
+  }
+
+  // The cached user object is written at login; when it is missing (or was
+  // cleared) resolve the real user from the API so the sidebar never falls
+  // back to a placeholder name.
+  if (!user.firstName && !user.username && !user.email) {
+    const token = localStorage.getItem('jf_access_token');
+    if (token) {
+      try {
+        const res = await fetch(`${SIDEBAR_API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const fresh = json && (json.data || json.user);
+          if (fresh && (fresh.firstName || fresh.username || fresh.email)) {
+            user = fresh;
+            try { localStorage.setItem('jf_user', JSON.stringify(fresh)); } catch {}
+          }
+        }
+      } catch {}
+    }
+  }
+
+  renderSidebarUser(user);
+
   const logoutBtn = document.getElementById('sidebarLogout');
   if (logoutBtn) {
-    logoutBtn.onclick = async () => {
+    logoutBtn.onclick = async (event) => {
+      // Stop the click bubbling to the parent user card, whose handler
+      // navigates to /profile.html — that would abort this async logout and
+      // leave the session alive.
+      if (event && event.stopPropagation) event.stopPropagation();
       const rt = localStorage.getItem('jf_refresh_token');
       const at = localStorage.getItem('jf_access_token');
       try {
-        await fetch('/api/v1/auth/logout', {
+        await fetch(`${SIDEBAR_API_BASE}/auth/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${at}` },
           body: JSON.stringify({ refreshToken: rt }),
@@ -113,10 +158,8 @@ if (typeof window !== 'undefined') {
 }
 
 function toggleDarkMode() {
-  const isCurrentlyDark = document.documentElement.classList.contains('dark-mode') || 
-    (!document.documentElement.classList.contains('light-mode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  
-  const willBeDark = !isCurrentlyDark;
+  // Dark is the default, so "not light" means currently dark.
+  const willBeDark = document.documentElement.classList.contains('light-mode');
 
   if (willBeDark) {
     document.documentElement.classList.add('dark-mode');
@@ -133,8 +176,8 @@ function toggleDarkMode() {
 
 function initDarkMode() {
   const saved = localStorage.getItem('jf_dark_mode');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const isDark = saved === 'true' || (saved === null && prefersDark);
+  // Dark mode is the default experience; users opt out by choosing light.
+  const isDark = saved !== 'false';
 
   if (isDark) {
     document.documentElement.classList.add('dark-mode');
