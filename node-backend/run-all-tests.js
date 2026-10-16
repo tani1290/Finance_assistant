@@ -729,6 +729,153 @@ async function runTests() {
     );
     assert((await count500()) === before500 + 1, 'AI chat ADD_TRANSACTION persists the ₹500 expense to the ledger');
 
+    // ================================================================
+    // 👉 [27/27] Testing Category Resource & Full AI Assistant CRUD Surface...
+    // ================================================================
+    console.log('\n👉 [27/27] Testing Category Resource & Full AI Assistant CRUD Surface...');
+
+    // --- REST: the Category resource (had no API at all before this change) ---
+    const catCreate = await request(app)
+      .post('/api/v1/categories')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ name: 'Regression Coffee', categoryType: 'EXPENSE', color: '#c0ffee' });
+    assert(catCreate.status === 201 && catCreate.body.data.name === 'Regression Coffee', 'POST /api/v1/categories creates a user category');
+    assert(catCreate.body.data.isSystem === false, 'Created category is flagged user-owned (not system)');
+    const categoryAId = catCreate.body.data.id;
+
+    const catDup = await request(app)
+      .post('/api/v1/categories')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ name: 'regression coffee' });
+    assert(catDup.status === 409 && catDup.body.error.code === 'DUPLICATE_CATEGORY', 'POST /api/v1/categories rejects a case-insensitive duplicate (409 DUPLICATE_CATEGORY)');
+
+    const catGet = await request(app).get(`/api/v1/categories/${categoryAId}`).set('Authorization', `Bearer ${tokenA}`);
+    assert(catGet.status === 200 && catGet.body.data.id === categoryAId, 'GET /api/v1/categories/:id returns the category');
+
+    const catList = await request(app).get('/api/v1/categories').set('Authorization', `Bearer ${tokenA}`);
+    assert(catList.status === 200 && catList.body.data.categories.some((c) => c.id === categoryAId), 'GET /api/v1/categories includes the user category');
+
+    const catPatch = await request(app)
+      .patch(`/api/v1/categories/${categoryAId}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ name: 'Regression Espresso' });
+    assert(catPatch.status === 200 && catPatch.body.data.name === 'Regression Espresso', 'PATCH /api/v1/categories/:id renames a user category');
+
+    // Shared system categories (userId === null) are read-only for everyone. The
+    // demo seed owns all of its categories, so provision one here to exercise the
+    // guard, then remove it again so the fixture leaves no residue.
+    const systemCat = await prisma.category.create({
+      data: { userId: null, name: 'Regression System Category', categoryType: 'TRANSFER', isDefault: true },
+    });
+    const catSystemPatch = await request(app)
+      .patch(`/api/v1/categories/${systemCat.id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ name: 'Hijacked' });
+    assert(catSystemPatch.status === 403 && catSystemPatch.body.error.code === 'SYSTEM_CATEGORY_READ_ONLY', 'PATCH /api/v1/categories/:id refuses to edit a shared system category (403)');
+
+    const catSystemDelete = await request(app)
+      .delete(`/api/v1/categories/${systemCat.id}`)
+      .set('Authorization', `Bearer ${tokenA}`);
+    assert(catSystemDelete.status === 403, 'DELETE /api/v1/categories/:id refuses to delete a shared system category (403)');
+
+    const catListSystem = await request(app).get('/api/v1/categories').set('Authorization', `Bearer ${tokenA}`);
+    assert(catListSystem.body.data.categories.some((c) => c.id === systemCat.id && c.isSystem === true), 'GET /api/v1/categories surfaces shared system categories as isSystem=true');
+
+    // An in-use category is guarded unless the caller explicitly forces it.
+    // Note: the transaction API takes a category *name*, not an id.
+    const catTx = await request(app)
+      .post('/api/v1/transactions')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ accountId: accountAId, amount: 120, transactionType: 'EXPENSE', category: 'Regression Espresso', description: 'Categorised regression expense' });
+    assert(catTx.status === 201, 'A transaction can be filed under the new category');
+    assert(catTx.body.data.category === 'Regression Espresso', 'The transaction retained the category it was filed under');
+
+    const catInUse = await request(app).delete(`/api/v1/categories/${categoryAId}`).set('Authorization', `Bearer ${tokenA}`);
+    assert(catInUse.status === 409 && catInUse.body.error.code === 'CATEGORY_IN_USE', 'DELETE /api/v1/categories/:id blocks deleting an in-use category (409 CATEGORY_IN_USE)');
+
+    const catForced = await request(app).delete(`/api/v1/categories/${categoryAId}?force=true`).set('Authorization', `Bearer ${tokenA}`);
+    assert(catForced.status === 200 && catForced.body.data.unlinkedTransactions === 1, 'DELETE /api/v1/categories/:id?force=true deletes and reports unlinked transactions');
+
+    const orphan = await prisma.transaction.findUnique({ where: { id: catTx.body.data.id } });
+    assert(orphan && orphan.categoryId === null, 'Forcing the delete keeps transaction history intact with a null category link');
+
+    // Remove the provisional system category so the fixture leaves no residue.
+    await prisma.category.delete({ where: { id: systemCat.id } });
+
+    const bCatCreate = await request(app)
+      .post('/api/v1/categories')
+      .set('Authorization', `Bearer ${tokenB}`)
+      .send({ name: 'User B Private Category' });
+    assert(bCatCreate.status === 201, 'User B can create their own category');
+    const bCatRead = await request(app).get(`/api/v1/categories/${bCatCreate.body.data.id}`).set('Authorization', `Bearer ${tokenA}`);
+    assert(bCatRead.status === 404, 'User A cannot read User B category (404 Tenant Isolation)');
+
+    // --- AI assistant: the update/delete half of CRUD ---
+    // The chat route is assistant-first but has no LLM key in CI, so the tool
+    // *executors* are the unit under test here — one representative per resource.
+    const { TOOL_MAP } = require('./src/services/aiTools');
+
+    const goalCreate = await request(app)
+      .post('/api/v1/goals')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ name: 'AI Edit Me', targetAmount: 100000, goalType: 'VACATION', priority: 'LOW' });
+    const aiGoalId = goalCreate.body.data.id;
+    const aiGoalUpdate = await TOOL_MAP.update_goal.execute(userA.id, { goal: aiGoalId, targetAmount: 250000, priority: 'HIGH', status: 'PAUSED' });
+    assert(aiGoalUpdate.ok === true, 'AI tool update_goal executes');
+    const aiGoalRow = await prisma.goal.findUnique({ where: { id: aiGoalId } });
+    assert(Number(aiGoalRow.targetAmount) === 250000 && aiGoalRow.priority === 'HIGH' && aiGoalRow.status === 'PAUSED', 'AI tool update_goal persists target, priority and status');
+
+    const aiLoanUpdate = await TOOL_MAP.update_loan.execute(userA.id, { loan: loanAId, outstandingBalance: 123456, status: 'ACTIVE' });
+    assert(aiLoanUpdate.ok === true, 'AI tool update_loan executes');
+    assert(Number((await prisma.loan.findUnique({ where: { id: loanAId } })).outstandingBalance) === 123456, 'AI tool update_loan persists the outstanding balance');
+
+    const aiSubDelete = await TOOL_MAP.delete_subscription.execute(userA.id, { subscription: subAId });
+    assert(aiSubDelete.ok === true && (await prisma.subscription.count({ where: { id: subAId } })) === 0, 'AI tool delete_subscription removes the subscription');
+
+    const aiInsCreate = await TOOL_MAP.create_insurance.execute(userA.id, { policyName: 'AI Temp Cover', policyType: 'HEALTH', coverageAmount: 500000, premium: 12000, premiumCycle: 'ANNUAL', renewalDate: '2027-01-15' });
+    assert(aiInsCreate.ok === true, 'AI tool create_insurance executes');
+    const aiInsUpdate = await TOOL_MAP.update_insurance.execute(userA.id, { policy: 'AI Temp Cover', coverageAmount: 750000, premiumCycle: 'MONTHLY' });
+    const aiInsRow = await prisma.insurancePolicy.findFirst({ where: { userId: userA.id, policyName: 'AI Temp Cover' } });
+    assert(aiInsUpdate.ok === true && Number(aiInsRow.coverageAmount) === 750000 && aiInsRow.premiumCycle === 'MONTHLY', 'AI tool update_insurance persists coverage and premium cycle');
+    const aiInsDelete = await TOOL_MAP.delete_insurance.execute(userA.id, { policy: 'AI Temp Cover' });
+    assert(aiInsDelete.ok === true && (await prisma.insurancePolicy.count({ where: { userId: userA.id, policyName: 'AI Temp Cover' } })) === 0, 'AI tool delete_insurance removes the policy');
+
+    const aiCatCreate = await TOOL_MAP.create_category.execute(userA.id, { name: 'AI Tool Category', categoryType: 'INCOME' });
+    const aiCatRow = await prisma.category.findFirst({ where: { userId: userA.id, name: { contains: 'AI Tool Category' } } });
+    assert(aiCatCreate.ok === true && aiCatRow && aiCatRow.categoryType === 'INCOME', 'AI tool create_category persists a user category');
+    const aiCatUpdate = await TOOL_MAP.update_category.execute(userA.id, { category: aiCatRow.id, name: 'AI Tool Category v2' });
+    assert(aiCatUpdate.ok === true, 'AI tool update_category executes');
+    const aiCatDelete = await TOOL_MAP.delete_category.execute(userA.id, { category: 'AI Tool Category v2' });
+    assert(aiCatDelete.ok === true && (await prisma.category.count({ where: { userId: userA.id, name: 'AI Tool Category v2' } })) === 0, 'AI tool delete_category removes the user category');
+    const aiCatSystem = await TOOL_MAP.update_category.execute(userA.id, { category: systemCat?.id || 'nope', name: 'Hijack Try' });
+    assert(aiCatSystem.ok === false, 'AI tool update_category refuses a shared system category');
+
+    const aiProfile = await TOOL_MAP.update_profile.execute(userA.id, { riskProfile: 'AGGRESSIVE', city: 'Bengaluru' });
+    const aiProfileRow = await prisma.financialProfile.findUnique({ where: { userId: userA.id } });
+    assert(aiProfile.ok === true && aiProfileRow.riskProfile === 'AGGRESSIVE' && aiProfileRow.city === 'Bengaluru', 'AI tool update_profile persists risk profile and city');
+
+    const aiTaskUpdate = await TOOL_MAP.update_task.execute(userA.id, { task: taskId, priority: 'LOW', notes: 'Edited by AI' });
+    assert(aiTaskUpdate.ok === true, 'AI tool update_task executes');
+    const aiTaskDelete = await TOOL_MAP.delete_task.execute(userA.id, { task: taskId });
+    assert(aiTaskDelete.ok === true && (await prisma.financialTask.count({ where: { id: taskId } })) === 0, 'AI tool delete_task removes the task');
+
+    // Account update/archive. A dedicated scratch account avoids disturbing the
+    // legacy-reserve assertions above; the archive must be a soft delete so the
+    // account's transaction history survives.
+    const aiAcctCreate = await request(app)
+      .post('/api/v1/accounts')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ name: 'AI Scratch Account', accountType: 'CASH', balance: 1000 });
+    const aiAcctId = aiAcctCreate.body.data.id;
+    const aiAccountUpdate = await TOOL_MAP.update_account.execute(userA.id, { account: aiAcctId, name: 'AI Renamed Account' });
+    assert(aiAccountUpdate.ok === true, 'AI tool update_account executes');
+    assert((await prisma.financialAccount.findUnique({ where: { id: aiAcctId } })).name === 'AI Renamed Account', 'AI tool update_account persists the new name');
+    const aiAccountDelete = await TOOL_MAP.delete_account.execute(userA.id, { account: 'AI Renamed Account' });
+    const aiAccountRow = await prisma.financialAccount.findUnique({ where: { id: aiAcctId } });
+    assert(aiAccountDelete.ok === true && aiAccountRow.isActive === false, 'AI tool delete_account soft-deletes (isActive=false) instead of destroying history');
+    const aiAccountGuard = await TOOL_MAP.delete_account.execute(userA.id, { account: 'Nonexistent Account XYZ' });
+    assert(aiAccountGuard.ok === false, 'AI tool delete_account fails cleanly on an unknown account');
+
   } catch (err) {
     console.error('\n❌ UNEXPECTED ERROR DURING SUITE:', err);
     failedCount++;
