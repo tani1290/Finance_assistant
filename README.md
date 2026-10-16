@@ -9,9 +9,8 @@
 > **FinPro**  
 > **Created by Students of VU**  
 > **Project Lead:** Jinay Golecha  
-> **Local Project:** `E:\FINAL_YEAR_PROJECT\Minor Project\Final-Year-Project`  
 > **Repository:** [tani1290/Finance_assistant](https://github.com/tani1290/Finance_assistant.git)  
-> **Master Documentation:** For full system architecture, Mermaid ER diagrams, Gantt charts, and workflows, see [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
+> **Master Documentation:** For full system architecture, database schema, Mermaid ER diagrams, and deployment workflows, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
@@ -224,4 +223,4 @@ The backend exposes authenticated and unauthenticated diagnostic endpoints:
 - **Academic Year:** 2025–2026
 
 For contributing guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).  
-For detailed architectural audits and documentation, see [docs/PROJECT_AUDIT.md](docs/PROJECT_AUDIT.md), [docs/FINAL_QA_REPORT.md](docs/FINAL_QA_REPORT.md), [docs/MARKET_DATA.md](docs/MARKET_DATA.md), and [docs/CLOUD_COMPUTING.md](docs/CLOUD_COMPUTING.md).
+For the full documentation set, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/API.md](docs/API.md), [docs/DATABASE.md](docs/DATABASE.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/MOBILE.md](docs/MOBILE.md), [docs/TESTING.md](docs/TESTING.md), and [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).

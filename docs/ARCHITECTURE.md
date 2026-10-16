@@ -86,17 +86,10 @@ Final-Year-Project/
 ├── docs/                     # Canonical architectural, QA, and deployment docs
 │   ├── API.md                # Complete REST API Specification
 │   ├── ARCHITECTURE.md       # Architecture & Tech Stack (This document)
-│   ├── CLOUD_COMPUTING.md    # Cloud Computing, Resiliency & Telemetry Guide
 │   ├── DATABASE.md           # Database Schema & Relational Specifications
 │   ├── DEPLOYMENT.md         # Deployment Handbook (Local, Docker, Render, Vercel, Firebase)
 │   ├── DESIGN_SYSTEM.md      # UI/UX Design System Tokens & Guidelines
-│   ├── FINAL_QA_REPORT.md    # Master QA Test Results & Verification
-│   ├── KNOWN_LIMITATIONS.md  # Limitations & Roadmap
-│   ├── MARKET_DATA.md        # Live Market Pipeline & Zero-Fake Provenance
 │   ├── MOBILE.md             # Flutter Mobile Architecture & SMS Engine
-│   ├── PROJECT_AUDIT.md      # System Audit & Diagnostic Reports
-│   ├── PROJECT_REPORT.md     # Academic Project Report
-│   ├── PROJECT_SYNOPSIS.md   # Academic Synopsis
 │   └── TESTING.md            # Testing Guide & Suite Directory
 ├── frontend/
 │   └── public/               # Single Page Application HTML, CSS & JS
