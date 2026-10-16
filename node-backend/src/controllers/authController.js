@@ -264,30 +264,6 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
-/**
- * POST /api/v1/auth/seed-demo & GET /api/v1/auth/seed-demo
- * Seeds demo user (demo@example.com / DemoPassword123!)
- */
-const seedDemo = async (req, res, next) => {
-  try {
-    const user = await authService.ensureDemoUserExists();
-    return res.status(200).json({
-      success: true,
-      message: 'Demo user Arjun Sharma (demo@example.com) is seeded and ready to log in!',
-      data: {
-        email: user.email,
-        username: user.username,
-        credentials: {
-          email: 'demo@example.com',
-          password: 'DemoPassword123!',
-        },
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
 module.exports = {
   register,
   login,
@@ -295,5 +271,4 @@ module.exports = {
   logout,
   getMe,
   updateProfile,
-  seedDemo,
 };

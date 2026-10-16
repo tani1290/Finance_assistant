@@ -36,9 +36,6 @@ const startServer = async () => {
         await prisma.$connect();
         const dbTelemetry = prisma.getDatabaseTelemetry();
         console.log(`[Database] Connected to PostgreSQL (${dbTelemetry.isCloud ? 'managed cloud' : 'local'}) ✓`);
-        // Ensure demo user exists for seamless sign in
-        const authService = require('./services/authService');
-        await authService.ensureDemoUserExists().catch((e) => console.warn('[Auth] Demo user auto-seed warning:', e.message));
         break;
       } catch (err) {
         retries--;

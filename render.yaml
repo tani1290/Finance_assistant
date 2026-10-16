@@ -15,7 +15,7 @@ services:
     # `prisma db push` for this db-push-managed database. It reports the real
     # outcome instead of swallowing failures behind `|| true`, and never uses
     # --accept-data-loss. See node-backend/scripts/deploy-migrate.js.
-    startCommand: cd node-backend && node scripts/deploy-migrate.js && (node prisma/seed.js || true) && node src/server.js
+    startCommand: cd node-backend && node scripts/deploy-migrate.js && node src/server.js
     healthCheckPath: /api/v1/health
     autoDeploy: true
 

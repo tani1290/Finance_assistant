@@ -177,83 +177,6 @@ const logout = async (refreshToken) => {
 };
 
 /**
- * Ensure the demo user (Arjun Sharma) exists in the database
- */
-const ensureDemoUserExists = async () => {
-  const demoEmail = 'demo@example.com';
-  const existing = await prisma.user.findUnique({ where: { email: demoEmail } });
-  if (existing) return existing;
-
-  const hashedPassword = await bcrypt.hash('DemoPassword123!', 10);
-  const demoUser = await prisma.user.create({
-    data: {
-      email: demoEmail,
-      username: 'demouser',
-      password: hashedPassword,
-      firstName: 'Arjun',
-      lastName: 'Sharma',
-      phone: '+91 98765 43210',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      role: 'PREMIUM_USER',
-      isPremium: true,
-      isActive: true,
-      country: 'India',
-      timezone: 'Asia/Kolkata',
-      currency: 'INR',
-    },
-  });
-
-  await prisma.profile.create({
-    data: {
-      userId: demoUser.id,
-      occupation: 'Senior Product Manager',
-      bio: 'Engineering and personal finance enthusiast based in Bengaluru.',
-    },
-  }).catch(() => {});
-
-  await prisma.financialProfile.create({
-    data: {
-      userId: demoUser.id,
-      monthlySalary: 180000,
-      estimatedMonthlyExpenses: 75000,
-      currentSavings: 893870,
-      totalDebt: 142800,
-      riskProfile: 'MODERATE_AGGRESSIVE',
-      investmentExperience: 'INTERMEDIATE',
-      city: 'Bengaluru',
-      tier: 'TIER_1',
-    },
-  }).catch(() => {});
-
-  await prisma.financialAccount.create({
-    data: {
-      userId: demoUser.id,
-      name: 'HDFC Corporate Salary Account',
-      institution: 'HDFC Bank',
-      accountType: 'SAVINGS',
-      accountNumberMasked: '•••• 4589',
-      balance: 385420,
-      currency: 'INR',
-    },
-  }).catch(() => {});
-
-  await prisma.financialAccount.create({
-    data: {
-      userId: demoUser.id,
-      name: 'ICICI Emergency Reserve',
-      institution: 'ICICI Bank',
-      accountType: 'SAVINGS',
-      accountNumberMasked: '•••• 7120',
-      balance: 500000,
-      currency: 'INR',
-    },
-  }).catch(() => {});
-
-  console.log('[Auth] Demo user created successfully: demo@example.com / DemoPassword123!');
-  return demoUser;
-};
-
-/**
  * Strip sensitive fields from user object
  */
 const sanitizeUser = (user) => ({
@@ -277,5 +200,4 @@ module.exports = {
   refreshAccessToken,
   logout,
   sanitizeUser,
-  ensureDemoUserExists,
 };

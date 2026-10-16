@@ -9,7 +9,5 @@ router.post('/logout', auth.logout);
 router.get('/me', require('../middleware/auth').authenticate, auth.getMe);
 router.get('/profile', require('../middleware/auth').authenticate, auth.getMe);
 router.patch('/profile', require('../middleware/auth').authenticate, auth.updateProfile);
-router.get('/seed-demo', auth.seedDemo);
-router.post('/seed-demo', auth.seedDemo);
 
 module.exports = router;
