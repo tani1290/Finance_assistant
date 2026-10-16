@@ -20,6 +20,9 @@ class FinProSmsReceiver : BroadcastReceiver() {
         const val PREFS_NAME = "finpro_sms_buffer_prefs"
         const val BUFFER_KEY = "buffered_sms_messages"
 
+        /** User-controlled switch: when false, ignore incoming SMS entirely. */
+        const val ENABLED_KEY = "sms_detection_enabled"
+
         // Callback hook when MainActivity is active in foreground
         var onSmsReceivedListener: ((sender: String, body: String, timestamp: Long) -> Unit)? = null
     }
@@ -27,6 +30,15 @@ class FinProSmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
             try {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+                // Respect the in-app toggle: a disabled user should never be
+                // processed, buffered, or uploaded.
+                if (!prefs.getBoolean(ENABLED_KEY, true)) {
+                    Log.d(TAG, "SMS detection disabled by user; ignoring message")
+                    return
+                }
+
                 val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
                 if (messages.isNullOrEmpty()) return
 
@@ -62,7 +74,6 @@ class FinProSmsReceiver : BroadcastReceiver() {
                 onSmsReceivedListener?.invoke(sender, body, timestamp)
 
                 // 2. Persist to local buffer in SharedPreferences for reliable pickup
-                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val existingJson = prefs.getString(BUFFER_KEY, "[]") ?: "[]"
                 val jsonArray = JSONArray(existingJson)
 

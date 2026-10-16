@@ -13,7 +13,7 @@ class PrivacyPermissionsScreen extends StatefulWidget {
 }
 
 class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
-  bool _hasSmsPermission = false;
+  bool _smsDetectionEnabled = false;
   bool _isLoading = true;
 
   @override
@@ -24,25 +24,41 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
 
   Future<void> _checkPermissions() async {
     final granted = await SmsPlatformChannel.checkPermission();
+    final prefEnabled = await SmsPlatformChannel.isDetectionEnabled();
     if (mounted) {
       setState(() {
-        _hasSmsPermission = granted;
+        _smsDetectionEnabled = granted && prefEnabled;
         _isLoading = false;
       });
     }
   }
 
-  Future<void> _requestPermissions() async {
-    final granted = await SmsPlatformChannel.requestPermission();
-    if (!mounted) return;
-    setState(() => _hasSmsPermission = granted);
+  Future<void> _toggleDetection(bool enable) async {
+    if (enable) {
+      final granted = await SmsPlatformChannel.requestPermission();
+      if (granted) {
+        await SmsPlatformChannel.setDetectionEnabled(true);
+      }
+      if (!mounted) return;
+      setState(() => _smsDetectionEnabled = granted);
+      _showSnack(
+        granted ? 'SMS detection is on.' : 'Permission denied by user',
+        granted ? AppColors.primary : AppColors.expense,
+      );
+    } else {
+      await SmsPlatformChannel.setDetectionEnabled(false);
+      if (!mounted) return;
+      setState(() => _smsDetectionEnabled = false);
+      _showSnack(
+        'SMS detection paused. Re-enable anytime.',
+        AppColors.warning,
+      );
+    }
+  }
+
+  void _showSnack(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          granted ? 'SMS permissions enabled!' : 'Permission denied by user',
-        ),
-        backgroundColor: granted ? AppColors.primary : AppColors.expense,
-      ),
+      SnackBar(content: Text(message), backgroundColor: color),
     );
   }
 
@@ -111,22 +127,20 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
                         ),
                       ),
                       Switch(
-                        value: _hasSmsPermission,
-                        onChanged: _isLoading
-                            ? null
-                            : (_) => _requestPermissions(),
+                        value: _smsDetectionEnabled,
+                        onChanged: _isLoading ? null : _toggleDetection,
                         activeThumbColor: AppColors.primaryLight,
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _hasSmsPermission
+                    _smsDetectionEnabled
                         ? 'Active: FinPro will detect incoming banking debit & credit alerts.'
                         : 'Disabled: Manual expense entry will be used.',
                     style: TextStyle(
                       fontSize: 13,
-                      color: _hasSmsPermission
+                      color: _smsDetectionEnabled
                           ? AppColors.primaryLight
                           : AppColors.textSecondary(isDark),
                     ),
@@ -163,11 +177,11 @@ class _PrivacyPermissionsScreenState extends State<PrivacyPermissionsScreen> {
             ),
             const SizedBox(height: 28),
 
-            if (!_hasSmsPermission)
+            if (!_smsDetectionEnabled)
               GradientButton(
                 text: 'Enable Bank SMS Detection',
                 icon: Icons.sms_rounded,
-                onPressed: _requestPermissions,
+                onPressed: () => _toggleDetection(true),
               ),
           ],
         ),

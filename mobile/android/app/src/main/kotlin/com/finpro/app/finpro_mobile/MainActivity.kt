@@ -46,6 +46,20 @@ class MainActivity : FlutterActivity() {
                         )
                     }
                 }
+                "isSmsDetectionEnabled" -> {
+                    val prefs = getSharedPreferences(FinProSmsReceiver.PREFS_NAME, Context.MODE_PRIVATE)
+                    result.success(prefs.getBoolean(FinProSmsReceiver.ENABLED_KEY, true))
+                }
+                "setSmsDetectionEnabled" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: true
+                    val prefs = getSharedPreferences(FinProSmsReceiver.PREFS_NAME, Context.MODE_PRIVATE)
+                    prefs.edit().putBoolean(FinProSmsReceiver.ENABLED_KEY, enabled).apply()
+                    if (!enabled) {
+                        // Stop buffering immediately; drop anything not yet uploaded.
+                        prefs.edit().putString(FinProSmsReceiver.BUFFER_KEY, "[]").apply()
+                    }
+                    result.success(enabled)
+                }
                 "getBufferedSms" -> {
                     val prefs = getSharedPreferences(FinProSmsReceiver.PREFS_NAME, Context.MODE_PRIVATE)
                     val rawJson = prefs.getString(FinProSmsReceiver.BUFFER_KEY, "[]") ?: "[]"

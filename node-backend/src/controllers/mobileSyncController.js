@@ -77,8 +77,21 @@ exports.getMobileSyncState = async (req, res) => {
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
 
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
     // Fetch core financial state in parallel
-    const [accounts, recentTransactions, pendingSmsCount, budgets, user] = await Promise.all([
+    const [
+      accounts,
+      recentTransactions,
+      pendingSmsCount,
+      budgets,
+      user,
+      portfolio,
+      monthlyIncomeAgg,
+      monthlyExpenseAgg,
+      activeLoan
+    ] = await Promise.all([
       prisma.financialAccount.findMany({
         where: { userId, isActive: true },
         orderBy: { createdAt: 'asc' }
@@ -109,14 +122,42 @@ exports.getMobileSyncState = async (req, res) => {
           currency: true,
           isPremium: true
         }
+      }),
+      prisma.portfolio.findUnique({
+        where: { userId },
+        select: { totalInvested: true, currentValue: true }
+      }),
+      prisma.transaction.aggregate({
+        where: { userId, transactionType: 'INCOME', date: { gte: startOfMonth, lte: endOfMonth } },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.aggregate({
+        where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
+        _sum: { amount: true }
+      }),
+      prisma.loan.aggregate({
+        where: { userId, status: 'ACTIVE' },
+        _sum: { outstandingBalance: true }
       })
     ]);
 
-    // Calculate total net worth
+    // Calculate total balance, investments, debt and true net worth
+    // (mirrors GET /dashboard so mobile and web never disagree)
     let totalBalance = 0;
     accounts.forEach(acc => {
       totalBalance += parseFloat(acc.balance || 0);
     });
+
+    const investmentValue = parseFloat(portfolio?.currentValue || 0);
+    const loanOutstanding = parseFloat(activeLoan._sum.outstandingBalance || 0);
+    const netWorth = totalBalance + investmentValue - loanOutstanding;
+
+    const monthlyIncome = parseFloat(monthlyIncomeAgg._sum.amount || 0);
+    const monthlyExpenses = parseFloat(monthlyExpenseAgg._sum.amount || 0);
+    const monthlySavings = monthlyIncome - monthlyExpenses;
+    const savingsRate = monthlyIncome > 0
+      ? Math.round((monthlySavings / monthlyIncome) * 100)
+      : 0;
 
     return res.status(200).json({
       success: true,
@@ -125,7 +166,13 @@ exports.getMobileSyncState = async (req, res) => {
         user,
         summary: {
           totalBalance,
-          netWorth: totalBalance,
+          investmentValue,
+          loanOutstanding,
+          netWorth,
+          monthlyIncome,
+          monthlyExpenses,
+          monthlySavings,
+          savingsRate,
           pendingSmsCount,
           activeAccountsCount: accounts.length
         },

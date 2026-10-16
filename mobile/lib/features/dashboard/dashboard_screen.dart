@@ -72,6 +72,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         final summary = data['summary'] ?? {};
 
         _netWorth = double.tryParse(summary['netWorth']?.toString() ?? '0') ?? 0.0;
+        _monthlyIncome =
+            double.tryParse(summary['monthlyIncome']?.toString() ?? '0') ?? 0.0;
+        _monthlyExpenses =
+            double.tryParse(summary['monthlyExpenses']?.toString() ?? '0') ?? 0.0;
+        _savingsRate =
+            double.tryParse(summary['savingsRate']?.toString() ?? '0') ?? 0.0;
         _pendingSmsCount = int.tryParse(summary['pendingSmsCount']?.toString() ?? '0') ?? 0;
 
         if (data['accounts'] is List) {
@@ -92,15 +98,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         final dashRes = await apiClient.get(ApiEndpoints.dashboard);
         if (dashRes.statusCode == 200 && dashRes.data['success'] == true) {
           final dashData = dashRes.data['data'];
+          // Net worth is authoritative here: it folds in investments and loans,
+          // not just cash balances, so it never under-reports portfolio value.
+          _netWorth =
+              double.tryParse(dashData['netWorth']?.toString() ?? '') ?? _netWorth;
           _monthlyIncome =
-              double.tryParse(dashData['monthlyIncome']?.toString() ?? '0') ?? 0.0;
+              double.tryParse(dashData['monthlyIncome']?.toString() ?? '') ?? _monthlyIncome;
           _monthlyExpenses =
-              double.tryParse(dashData['monthlyExpenses']?.toString() ?? '0') ?? 0.0;
+              double.tryParse(dashData['monthlyExpenses']?.toString() ?? '') ?? _monthlyExpenses;
           _savingsRate =
-              double.tryParse(dashData['savingsRate']?.toString() ?? '0') ?? 0.0;
+              double.tryParse(dashData['savingsRate']?.toString() ?? '') ?? _savingsRate;
           _healthScore =
               int.tryParse(dashData['financialHealthScore']?.toString() ?? '75') ?? 75;
-          _aiInsight = dashData['aiAdvice'] ?? dashData['insight'];
+          _aiInsight = dashData['aiAdvice'] ?? dashData['insight'] ?? dashData['planSummary'];
         }
       } catch (_) {}
 
@@ -438,7 +448,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             iconColor: AppColors.primaryLight,
             iconBg: AppColors.primaryWash,
             label: 'Saved',
-            value: '${_savingsRate.toStringAsFixed(0)}%',
+            value: _monthlyIncome > 0
+                ? '${_savingsRate.toStringAsFixed(0)}%'
+                : '—',
             valueColor: AppColors.primaryLight,
           ),
         ),

@@ -72,12 +72,14 @@ class _AiAdvisorScreenState extends State<AiAdvisorScreen> {
       );
 
       if (res.statusCode == 200 && res.data['success'] == true) {
+        final data = res.data['data'] ?? {};
         final reply =
-            res.data['data']['reply'] ??
-            res.data['data']['message'] ??
+            data['response'] ??
+            data['reply'] ??
+            data['message'] ??
             'I have reviewed your financial parameters. Your plan remains balanced.';
         setState(() {
-          _messages.add({'role': 'assistant', 'content': reply});
+          _messages.add({'role': 'assistant', 'content': reply.toString()});
         });
       } else {
         _addAssistantMessage(

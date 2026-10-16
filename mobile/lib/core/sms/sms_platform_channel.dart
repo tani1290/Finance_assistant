@@ -26,6 +26,30 @@ class SmsPlatformChannel {
     }
   }
 
+  /// Whether the user has switched on-device bank SMS detection on/off.
+  /// Permission and preference are separate: Android cannot revoke an already
+  /// granted runtime permission from code, so the app owns an explicit flag.
+  static Future<bool> isDetectionEnabled() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('isSmsDetectionEnabled');
+      return res ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<bool> setDetectionEnabled(bool enabled) async {
+    try {
+      final res = await _channel.invokeMethod<bool>(
+        'setSmsDetectionEnabled',
+        {'enabled': enabled},
+      );
+      return res ?? enabled;
+    } catch (_) {
+      return enabled;
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getBufferedSms() async {
     try {
       final res = await _channel.invokeListMethod<dynamic>('getBufferedSms');
