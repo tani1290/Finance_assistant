@@ -168,6 +168,28 @@ async function runSmsMobileTests() {
       .send({ messageText: debitSms, sender: 'HDFCBK' });
     assert(dupRes.status === 409, 'Duplicate identical SMS rejected with 409 Conflict');
 
+    // DB-level backstop: the read-then-insert duplicate check has a race window
+    // when two devices sync the same message at once, so (userId, rawMessageHash)
+    // is UNIQUE in the schema. Prove the database itself refuses a double-insert
+    // (better than trusting the application check alone).
+    const hashProbe = `constraint-probe-${Date.now()}`;
+    const probeRow = {
+      userId: userA.id,
+      amount: 1,
+      merchant: 'Constraint Probe',
+      status: 'PENDING',
+      rawMessageHash: hashProbe
+    };
+    await prisma.pendingSmsTransaction.create({ data: probeRow });
+    let constraintEnforced = false;
+    try {
+      await prisma.pendingSmsTransaction.create({ data: probeRow });
+    } catch (e) {
+      constraintEnforced = e.code === 'P2002';
+    }
+    assert(constraintEnforced, 'DB rejects a second pending row with the same (userId, rawMessageHash) [P2002]');
+    await prisma.pendingSmsTransaction.deleteMany({ where: { userId: userA.id, rawMessageHash: hashProbe } });
+
     // 5. Pending Review, Confirmation, Balance Mutation & Rejection
     console.log('\n👉 [5/6] Testing Confirmation & Ledger Mutation...');
     const listRes = await request(app)

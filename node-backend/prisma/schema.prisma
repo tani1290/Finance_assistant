@@ -964,7 +964,11 @@ model PendingSmsTransaction {
 
   @@index([userId])
   @@index([userId, status])
-  @@index([userId, rawMessageHash])
+  // A message hash identifies one SMS for a user. The app's read-then-insert
+  // duplicate check is not atomic under concurrent ingests (two devices syncing
+  // the same message), so this is the DB-level backstop that makes it impossible
+  // to double-ingest. NULL hashes stay distinct, so hash-less rows never collide.
+  @@unique([userId, rawMessageHash])
   @@index([userId, bankReference])
   @@map("pending_sms_transactions")
 }

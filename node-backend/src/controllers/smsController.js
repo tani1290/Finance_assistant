@@ -11,6 +11,14 @@ const realtime = require('../services/realtimeService');
 /** Which device initiated this action (web | mobile | ai). */
 const deviceSource = (req) => String(req.headers['x-client'] || 'server');
 
+/**
+ * Prisma's unique-constraint violation. With @@unique([userId, rawMessageHash])
+ * on the pending queue this is what a concurrent ingest of the *same* SMS looks
+ * like: a benign duplicate, not a server error. Callers map it to the normal
+ * duplicate outcome instead of a 500.
+ */
+const isUniqueViolation = (err) => Boolean(err) && err.code === 'P2002';
+
 // Ingest a single SMS message
 exports.ingestSms = async (req, res) => {
   try {
@@ -79,31 +87,51 @@ exports.ingestSms = async (req, res) => {
     }
 
     // 4. Create pending transaction
-    const pendingItem = await prisma.pendingSmsTransaction.create({
-      data: {
-        userId,
-        amount: parsed.amount,
-        currency: parsed.currency || 'INR',
-        transactionType: parsed.transactionType || 'EXPENSE',
-        merchant: parsed.merchant,
-        accountHint: parsed.accountHint,
-        matchedAccountId,
-        suggestedCategory: parsed.suggestedCategory,
-        confidence: parsed.categoryConfidence,
-        categoryReason: parsed.categoryReason,
-        status: 'PENDING',
-        source: 'BANK_SMS',
-        rawSender: parsed.rawSender,
-        rawMessageHash: parsed.rawMessageHash,
-        bankReference: parsed.bankReference,
-        transactionDate: parsed.transactionDate,
-        isDuplicate: dupCheck.isDuplicate,
-        duplicateReason: dupCheck.reason || null
-      },
-      include: {
-        matchedAccount: true
-      }
-    });
+    let pendingItem;
+    try {
+      pendingItem = await prisma.pendingSmsTransaction.create({
+        data: {
+          userId,
+          amount: parsed.amount,
+          currency: parsed.currency || 'INR',
+          transactionType: parsed.transactionType || 'EXPENSE',
+          merchant: parsed.merchant,
+          accountHint: parsed.accountHint,
+          matchedAccountId,
+          suggestedCategory: parsed.suggestedCategory,
+          confidence: parsed.categoryConfidence,
+          categoryReason: parsed.categoryReason,
+          status: 'PENDING',
+          source: 'BANK_SMS',
+          rawSender: parsed.rawSender,
+          rawMessageHash: parsed.rawMessageHash,
+          bankReference: parsed.bankReference,
+          transactionDate: parsed.transactionDate,
+          isDuplicate: dupCheck.isDuplicate,
+          duplicateReason: dupCheck.reason || null
+        },
+        include: {
+          matchedAccount: true
+        }
+      });
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      // Lost the race against a concurrent ingest of the same message hash.
+      // That is the "already pending" outcome, so report it as a duplicate
+      // (same contract as the pre-check above) rather than a 500.
+      const existing = parsed.rawMessageHash
+        ? await prisma.pendingSmsTransaction.findFirst({
+            where: { userId, rawMessageHash: parsed.rawMessageHash },
+            select: { id: true }
+          })
+        : null;
+      return res.status(409).json({
+        success: false,
+        error: 'DUPLICATE_PENDING_TRANSACTION',
+        message: 'This message is already pending review',
+        existingPendingId: existing ? existing.id : null
+      });
+    }
 
     // Realtime: SMS arrived on a device — reflect it on every other device now.
     realtime.publish(userId, 'sms.pending', {
@@ -148,81 +176,100 @@ exports.batchIngestSms = async (req, res) => {
 
     // Limit batch size to 100 items per request for performance
     const batch = messages.slice(0, 100);
-    const results = {
-      total: batch.length,
-      ingested: 0,
-      rejectedNonTx: 0,
-      duplicatesSkipped: 0,
-      items: []
-    };
+    let results;
 
     // ACID: the batch is one logical unit ("this device's SMS backlog"), so its
     // writes commit atomically — a mid-batch failure rolls the whole backlog
     // back instead of leaving the device half-synced. Parsing runs outside the
-    // transaction, and the rawMessageHash duplicate check makes re-sending a
-    // failed batch safe.
-    await prisma.$transaction(
-      async (tx) => {
-        for (const msg of batch) {
-          const text = typeof msg === 'string' ? msg : msg.messageText || msg.body;
-          const sender = typeof msg === 'object' ? msg.sender || msg.address : null;
+    // transaction, and the rawMessageHash duplicate check *plus* the
+    // @@unique([userId, rawMessageHash]) index make re-sending a failed batch safe.
+    const runBatch = async () => {
+      const attempt = {
+        total: batch.length,
+        ingested: 0,
+        rejectedNonTx: 0,
+        duplicatesSkipped: 0,
+        items: []
+      };
 
-          if (!text || typeof text !== 'string') continue;
+      await prisma.$transaction(
+        async (tx) => {
+          for (const msg of batch) {
+            const text = typeof msg === 'string' ? msg : msg.messageText || msg.body;
+            const sender = typeof msg === 'object' ? msg.sender || msg.address : null;
 
-          const parsed = await smsParserService.parseMessage(text, sender, userId);
-          if (!parsed.isTransaction) {
-            results.rejectedNonTx++;
-            continue;
-          }
+            if (!text || typeof text !== 'string') continue;
 
-          const dupCheck = await smsParserService.checkDuplicate(userId, parsed);
-          if (dupCheck.isDuplicate && dupCheck.existingPendingId) {
-            results.duplicatesSkipped++;
-            continue;
-          }
+            const parsed = await smsParserService.parseMessage(text, sender, userId);
+            if (!parsed.isTransaction) {
+              attempt.rejectedNonTx++;
+              continue;
+            }
 
-          // Find account
-          let matchedAccountId = null;
-          if (parsed.accountHint) {
-            const account = await tx.financialAccount.findFirst({
-              where: {
+            const dupCheck = await smsParserService.checkDuplicate(userId, parsed);
+            if (dupCheck.isDuplicate && dupCheck.existingPendingId) {
+              attempt.duplicatesSkipped++;
+              continue;
+            }
+
+            // Find account
+            let matchedAccountId = null;
+            if (parsed.accountHint) {
+              const account = await tx.financialAccount.findFirst({
+                where: {
+                  userId,
+                  isActive: true,
+                  accountNumberMasked: { contains: parsed.accountHint }
+                }
+              });
+              if (account) matchedAccountId = account.id;
+            }
+
+            const item = await tx.pendingSmsTransaction.create({
+              data: {
                 userId,
-                isActive: true,
-                accountNumberMasked: { contains: parsed.accountHint }
+                amount: parsed.amount,
+                currency: parsed.currency || 'INR',
+                transactionType: parsed.transactionType || 'EXPENSE',
+                merchant: parsed.merchant,
+                accountHint: parsed.accountHint,
+                matchedAccountId,
+                suggestedCategory: parsed.suggestedCategory,
+                confidence: parsed.categoryConfidence,
+                categoryReason: parsed.categoryReason,
+                status: 'PENDING',
+                source: 'BANK_SMS',
+                rawSender: parsed.rawSender,
+                rawMessageHash: parsed.rawMessageHash,
+                bankReference: parsed.bankReference,
+                transactionDate: parsed.transactionDate,
+                isDuplicate: dupCheck.isDuplicate,
+                duplicateReason: dupCheck.reason || null
               }
             });
-            if (account) matchedAccountId = account.id;
+
+            attempt.ingested++;
+            attempt.items.push(item);
           }
+        },
+        { timeout: 30000, maxWait: 10000 }
+      );
 
-          const item = await tx.pendingSmsTransaction.create({
-            data: {
-              userId,
-              amount: parsed.amount,
-              currency: parsed.currency || 'INR',
-              transactionType: parsed.transactionType || 'EXPENSE',
-              merchant: parsed.merchant,
-              accountHint: parsed.accountHint,
-              matchedAccountId,
-              suggestedCategory: parsed.suggestedCategory,
-              confidence: parsed.categoryConfidence,
-              categoryReason: parsed.categoryReason,
-              status: 'PENDING',
-              source: 'BANK_SMS',
-              rawSender: parsed.rawSender,
-              rawMessageHash: parsed.rawMessageHash,
-              bankReference: parsed.bankReference,
-              transactionDate: parsed.transactionDate,
-              isDuplicate: dupCheck.isDuplicate,
-              duplicateReason: dupCheck.reason || null
-            }
-          });
+      return attempt;
+    };
 
-          results.ingested++;
-          results.items.push(item);
-        }
-      },
-      { timeout: 30000, maxWait: 10000 }
-    );
+    try {
+      results = await runBatch();
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      // Another device committed the same message hash between our duplicate
+      // check and the insert, which aborted the transaction. The batch is
+      // idempotent, so one retry converges: the now-committed rows are skipped
+      // instead of re-inserted. A failed Postgres transaction cannot be resumed,
+      // which is why we retry the whole batch rather than swallow it mid-loop.
+      console.warn('[SMS] Batch hit a unique-hash race; retrying once');
+      results = await runBatch();
+    }
 
     // Realtime: one summary event for the whole batch (cheap, avoids N frames).
     if (results.ingested > 0) {
