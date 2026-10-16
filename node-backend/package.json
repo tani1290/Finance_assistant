@@ -1,6 +1,6 @@
 {
   "name": "finpro-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "FinPro — Personal Finance & Investment Decision Support Platform | Created by Students of VU (Node.js Backend)",
   "main": "src/server.js",
   "scripts": {
@@ -10,8 +10,6 @@
     "test:sms": "node test-sms-mobile-suite.js",
     "test:cloud": "node test-cloud-verification.js",
     "test:failure": "node test-cloud-failure.js",
-    "test:repair": "node test-major-engineering-repair.js",
-    "seed": "node prisma/seed.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
@@ -19,7 +17,7 @@
     "db:reconcile": "node scripts/deploy-migrate.js",
     "db:reconcile:strict": "node scripts/deploy-migrate.js --strict",
     "build": "node scripts/build.js",
-    "lint": "node scripts/lint.js"
+    "lint": "node scripts/lint.js && node scripts/scan-secrets.js"
   },
   "keywords": [
     "finance",

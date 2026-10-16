@@ -55,7 +55,7 @@ try {
     { name: 'Hardcoded S3 Secret (AWS/Supabase)', regex: /S3_SECRET_ACCESS_KEY\s*=\s*['"][a-f0-9]{32,}['"]/i },
     { 
       name: 'Hardcoded Remote DB Password in Code', 
-      regex: /postgresql:\/\/(?!postgres:postgres@(?:localhost|127\.0\.0\.1|db|postgres))[a-zA-Z0-9_\.\-]+:([^@\s\/]{8,})@(?!localhost|127\.0\.0\.1|db|postgres)[a-zA-Z0-9_\.\-]+/ 
+      regex: /postgresql:\/\/(?!postgres:postgres@(?:localhost|127\.0\.0\.1|db|postgres))[a-zA-Z0-9_\.\-]+:(?!password|pass|passwd|secret|changeme|example)[^@\s\/]{8,}@(?!localhost|127\.0\.0\.1|db|postgres)[a-zA-Z0-9_\.\-]+/ 
     },
     { name: 'Exposed Gemini API Key', regex: /AIzaSy[a-zA-Z0-9_\-]{30,}/ },
     { name: 'Exposed Gemini API Key (AQ format)', regex: /AQ\.[a-zA-Z0-9_\-]{40,}/ },

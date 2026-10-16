@@ -5,6 +5,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.1.0] - 2026-10-16
+
+### Added
+- **Real-time cross-device sync**: server-side event bus (SSE with a watermark fallback) pushing live updates to both the web and Flutter mobile clients.
+- **Full tool-calling AI assistant**: the Gemini advisor executes create/update/delete actions across accounts, transactions, budgets, goals, loans, investments, insurance, subscriptions, and categories from natural conversation.
+- **Categories resource**: complete REST CRUD surface for user-owned categories plus shared read-only system categories, wired into the realtime sync client.
+- **Android SMS capture (Flutter)**: on-device SMS detection and atomic batch ingest with a pending-review queue.
+- **Live market intelligence**: technical indicators computed from real price history alongside gold/silver spot rates and financial news.
+- **Android distribution**: release-signed APK served from the landing page.
+- **Security hardening**: defense-in-depth security headers, request sanitisation, an HTTP Parameter Pollution guard, and an automated repository secret scanner wired into the lint gate.
+
+### Changed
+- **Authentication**: email/password only — Google Sign-In and all associated OAuth client code removed.
+- **Deployment**: the database schema is reconciled at deploy time (`prisma migrate deploy` with a non-destructive `db push` fallback) that reports real outcomes instead of masking failures.
+
+### Fixed
+- Duplicate SMS recording is now impossible, enforced by a unique `(userId, rawMessageHash)` constraint.
+- The mobile dashboard now reports true net worth and returns real AI replies.
+
+### Removed
+- **Demo mode**: the seeded demo account, `/auth/seed-demo` endpoints, boot-time auto-seed, and the landing-page "Explore Demo" flow.
+- Legacy Django backend, self-host deployment configs, and scratch test scripts.
+
 ## [1.0.0] - 2026-08-15
 
 ### Added

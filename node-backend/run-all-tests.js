@@ -761,9 +761,9 @@ async function runTests() {
       .send({ name: 'Regression Espresso' });
     assert(catPatch.status === 200 && catPatch.body.data.name === 'Regression Espresso', 'PATCH /api/v1/categories/:id renames a user category');
 
-    // Shared system categories (userId === null) are read-only for everyone. The
-    // demo seed owns all of its categories, so provision one here to exercise the
-    // guard, then remove it again so the fixture leaves no residue.
+    // Shared system categories (userId === null) are read-only for everyone.
+    // Provision one here to exercise the guard, then remove it again so the
+    // fixture leaves no residue.
     const systemCat = await prisma.category.create({
       data: { userId: null, name: 'Regression System Category', categoryType: 'TRANSFER', isDefault: true },
     });

@@ -160,7 +160,7 @@ app.get('/api/v1/health', async (req, res) => {
     storageProvider: storageHealth.provider,
     storageLatencyMs: storageHealth.latencyMs,
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
+    version: '1.1.0',
     owner: 'Jinay Golecha',
     project: 'FinPro — Personal Finance & Investment Decision Support Platform',
     timezone: 'Asia/Kolkata',

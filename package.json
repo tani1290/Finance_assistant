@@ -1,6 +1,6 @@
 {
   "name": "finpro",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "FinPro — Personal Finance & Investment Decision Support Platform | Created by Students of VU | Project Lead: Jinay Golecha",
   "main": "node-backend/src/server.js",
   "scripts": {
@@ -10,14 +10,12 @@
     "test": "npm --prefix node-backend test",
     "test:cloud": "npm --prefix node-backend run test:cloud",
     "test:failure": "npm --prefix node-backend run test:failure",
-    "test:repair": "npm --prefix node-backend run test:repair",
     "build": "npm --prefix node-backend run build",
     "lint": "npm --prefix node-backend run lint",
     "db:push": "cd node-backend && npx prisma db push",
     "db:generate": "npm --prefix node-backend run prisma:generate",
     "db:migrate": "npm --prefix node-backend run prisma:migrate",
     "db:deploy": "npm --prefix node-backend run prisma:deploy",
-    "db:seed": "npm --prefix node-backend run seed",
     "db:studio": "npm --prefix node-backend run prisma:studio"
   },
   "engines": {
