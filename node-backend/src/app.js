@@ -19,6 +19,7 @@ const apiRoutes = require('./routes/index');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const requestLogger = require('./middleware/requestLogger');
 const { securityHeaders, inputSanitizer, hppProtection } = require('./middleware/cybersecurity');
+const realtimePublisher = require('./middleware/realtimePublisher');
 const prisma = require('./config/database');
 
 const app = express();
@@ -77,7 +78,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-Id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-Id', 'X-Client'],
 }));
 
 // Rate limiting (disabled in test mode)
@@ -87,6 +88,9 @@ if (process.env.NODE_ENV !== 'test') {
     max: 200,
     standardHeaders: true,
     legacyHeaders: false,
+    // Realtime traffic is long-lived / high-frequency by design (SSE keep-alive
+    // + the polling fallback). It must never consume the general API budget.
+    skip: (req) => req.originalUrl.startsWith('/api/v1/realtime'),
     message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests. Please try again later.' } },
   });
 
@@ -104,13 +108,22 @@ if (process.env.NODE_ENV !== 'test') {
 
 // ==================== REQUEST MIDDLEWARE ====================
 
-app.use(compression());
+// Never gzip the SSE stream — buffering would defeat realtime delivery.
+app.use(compression({
+  filter: (req, res) => {
+    if (req.originalUrl && req.originalUrl.startsWith('/api/v1/realtime/stream')) return false;
+    return compression.filter(req, res);
+  },
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Cybersecurity: Parameter pollution defense & input sanitization
 app.use(hppProtection);
 app.use(inputSanitizer);
+
+// Realtime: emit a generic sync.changed event for every successful mutation.
+app.use(realtimePublisher);
 
 // Request logging
 if (process.env.NODE_ENV !== 'test') {

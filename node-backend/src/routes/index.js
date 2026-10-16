@@ -26,6 +26,7 @@ const creditHealth = require('../controllers/creditHealthController');
 const gst = require('../controllers/gstController');
 const sms = require('../controllers/smsController');
 const mobileSync = require('../controllers/mobileSyncController');
+const realtimeCtrl = require('../controllers/realtimeController');
 const notificationRoutes = require('./notificationRoutes');
 
 // Apply auth to all routes below
@@ -246,5 +247,10 @@ router.get('/sms/pending', sms.getPendingSms);
 router.post('/sms/pending/:id/confirm', sms.confirmPendingSms);
 router.post('/sms/pending/:id/reject', sms.rejectPendingSms);
 router.post('/sms/parse', sms.parsePreview);
+
+// Realtime cross-device sync (SSE primary, watermark polling fallback)
+router.get('/realtime/stream', realtimeCtrl.stream);
+router.get('/realtime/changes', realtimeCtrl.changes);
+router.get('/realtime/status', realtimeCtrl.status);
 
 module.exports = router;
