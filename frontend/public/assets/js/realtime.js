@@ -114,6 +114,7 @@
     subscription: 'subscriptions',
     card: 'cards',
     task: 'tasks',
+    category: 'categories',
     notification: 'notifications',
     sms: 'sms',
     ai: 'ai',
