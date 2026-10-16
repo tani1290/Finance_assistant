@@ -121,19 +121,27 @@ class MLCategorizerService {
     }
 
     const predictedClass = classes[bestIdx];
-    const confidencePct = Math.round(maxProb * 1000) / 10;
+
+    // Confidence is a 0–1 probability — NOT a percentage. This must stay a
+    // fraction because it is compared against `confidenceThreshold` (0.50),
+    // persisted to `PendingSmsTransaction.confidence` (@db.Decimal(5,4), whose
+    // maximum magnitude is 9.9999), and rendered by both clients as a fraction
+    // (web: `confidence * 100`; mobile: parsed as a double defaulting to 0.8).
+    // Emitting a percentage here used to overflow that column and fail the
+    // entire SMS ingestion with a 500 whenever the ML fallback was reached.
+    const confidence = Math.round(maxProb * 1000) / 1000;
     const isConfident = maxProb >= this.confidenceThreshold;
 
-    // Top 3 candidate classes
+    // Top 3 candidate classes (probabilities, also 0–1).
     const topCandidates = classes
-      .map((c, i) => ({ category: c, probability: Math.round(probs[i] * 1000) / 10 }))
+      .map((c, i) => ({ category: c, probability: Math.round(probs[i] * 1000) / 1000 }))
       .sort((a, b) => b.probability - a.probability)
       .slice(0, 3);
 
     return {
       category: isConfident ? predictedClass : 'Needs Review',
       predictedCategory: predictedClass,
-      confidence: confidencePct,
+      confidence,
       isConfident,
       status: isConfident ? 'HIGH_CONFIDENCE' : 'NEEDS_REVIEW',
       topCandidates,

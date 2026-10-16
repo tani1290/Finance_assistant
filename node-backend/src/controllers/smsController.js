@@ -1,11 +1,15 @@
 const prisma = require('../config/database');
 const smsParserService = require('../services/smsParserService');
 const fcmService = require('../services/fcmService');
+const realtime = require('../services/realtimeService');
 
 /**
  * Controller for Bank SMS Ingestion, Pending Review, and Confirmation
  * Conforms to Master Engineering Directive Sections 4, 7, 8, 9.
  */
+
+/** Which device initiated this action (web | mobile | ai). */
+const deviceSource = (req) => String(req.headers['x-client'] || 'server');
 
 // Ingest a single SMS message
 exports.ingestSms = async (req, res) => {
@@ -101,6 +105,18 @@ exports.ingestSms = async (req, res) => {
       }
     });
 
+    // Realtime: SMS arrived on a device — reflect it on every other device now.
+    realtime.publish(userId, 'sms.pending', {
+      id: pendingItem.id,
+      amount: pendingItem.amount,
+      transactionType: pendingItem.transactionType,
+      merchant: pendingItem.merchant,
+      suggestedCategory: pendingItem.suggestedCategory,
+      matchedAccountId: pendingItem.matchedAccountId,
+      transactionDate: pendingItem.transactionDate,
+      rawSender: pendingItem.rawSender,
+    }, { source: deviceSource(req) });
+
     return res.status(201).json({
       success: true,
       message: 'SMS transaction candidate ingested into pending review',
@@ -140,62 +156,88 @@ exports.batchIngestSms = async (req, res) => {
       items: []
     };
 
-    for (const msg of batch) {
-      const text = typeof msg === 'string' ? msg : msg.messageText || msg.body;
-      const sender = typeof msg === 'object' ? msg.sender || msg.address : null;
+    // ACID: the batch is one logical unit ("this device's SMS backlog"), so its
+    // writes commit atomically — a mid-batch failure rolls the whole backlog
+    // back instead of leaving the device half-synced. Parsing runs outside the
+    // transaction, and the rawMessageHash duplicate check makes re-sending a
+    // failed batch safe.
+    await prisma.$transaction(
+      async (tx) => {
+        for (const msg of batch) {
+          const text = typeof msg === 'string' ? msg : msg.messageText || msg.body;
+          const sender = typeof msg === 'object' ? msg.sender || msg.address : null;
 
-      if (!text || typeof text !== 'string') continue;
+          if (!text || typeof text !== 'string') continue;
 
-      const parsed = await smsParserService.parseMessage(text, sender, userId);
-      if (!parsed.isTransaction) {
-        results.rejectedNonTx++;
-        continue;
-      }
-
-      const dupCheck = await smsParserService.checkDuplicate(userId, parsed);
-      if (dupCheck.isDuplicate && dupCheck.existingPendingId) {
-        results.duplicatesSkipped++;
-        continue;
-      }
-
-      // Find account
-      let matchedAccountId = null;
-      if (parsed.accountHint) {
-        const account = await prisma.financialAccount.findFirst({
-          where: {
-            userId,
-            isActive: true,
-            accountNumberMasked: { contains: parsed.accountHint }
+          const parsed = await smsParserService.parseMessage(text, sender, userId);
+          if (!parsed.isTransaction) {
+            results.rejectedNonTx++;
+            continue;
           }
-        });
-        if (account) matchedAccountId = account.id;
-      }
 
-      const item = await prisma.pendingSmsTransaction.create({
-        data: {
-          userId,
-          amount: parsed.amount,
-          currency: parsed.currency || 'INR',
-          transactionType: parsed.transactionType || 'EXPENSE',
-          merchant: parsed.merchant,
-          accountHint: parsed.accountHint,
-          matchedAccountId,
-          suggestedCategory: parsed.suggestedCategory,
-          confidence: parsed.categoryConfidence,
-          categoryReason: parsed.categoryReason,
-          status: 'PENDING',
-          source: 'BANK_SMS',
-          rawSender: parsed.rawSender,
-          rawMessageHash: parsed.rawMessageHash,
-          bankReference: parsed.bankReference,
-          transactionDate: parsed.transactionDate,
-          isDuplicate: dupCheck.isDuplicate,
-          duplicateReason: dupCheck.reason || null
+          const dupCheck = await smsParserService.checkDuplicate(userId, parsed);
+          if (dupCheck.isDuplicate && dupCheck.existingPendingId) {
+            results.duplicatesSkipped++;
+            continue;
+          }
+
+          // Find account
+          let matchedAccountId = null;
+          if (parsed.accountHint) {
+            const account = await tx.financialAccount.findFirst({
+              where: {
+                userId,
+                isActive: true,
+                accountNumberMasked: { contains: parsed.accountHint }
+              }
+            });
+            if (account) matchedAccountId = account.id;
+          }
+
+          const item = await tx.pendingSmsTransaction.create({
+            data: {
+              userId,
+              amount: parsed.amount,
+              currency: parsed.currency || 'INR',
+              transactionType: parsed.transactionType || 'EXPENSE',
+              merchant: parsed.merchant,
+              accountHint: parsed.accountHint,
+              matchedAccountId,
+              suggestedCategory: parsed.suggestedCategory,
+              confidence: parsed.categoryConfidence,
+              categoryReason: parsed.categoryReason,
+              status: 'PENDING',
+              source: 'BANK_SMS',
+              rawSender: parsed.rawSender,
+              rawMessageHash: parsed.rawMessageHash,
+              bankReference: parsed.bankReference,
+              transactionDate: parsed.transactionDate,
+              isDuplicate: dupCheck.isDuplicate,
+              duplicateReason: dupCheck.reason || null
+            }
+          });
+
+          results.ingested++;
+          results.items.push(item);
         }
-      });
+      },
+      { timeout: 30000, maxWait: 10000 }
+    );
 
-      results.ingested++;
-      results.items.push(item);
+    // Realtime: one summary event for the whole batch (cheap, avoids N frames).
+    if (results.ingested > 0) {
+      realtime.publish(userId, 'sms.pending', {
+        batch: true,
+        count: results.ingested,
+        items: results.items.slice(0, 20).map((it) => ({
+          id: it.id,
+          amount: it.amount,
+          transactionType: it.transactionType,
+          merchant: it.merchant,
+          suggestedCategory: it.suggestedCategory,
+          transactionDate: it.transactionDate,
+        })),
+      }, { source: deviceSource(req) });
     }
 
     return res.status(200).json({
@@ -406,20 +448,56 @@ exports.confirmPendingSms = async (req, res) => {
       };
     });
 
-    // Fire FCM push notification (non-blocking)
+    // Fire FCM push notification to EVERY registered device (non-blocking)
     try {
-      const tokenRecord = await prisma.fcmToken.findFirst({ where: { userId } });
-      if (tokenRecord?.token) {
-        fcmService.sendTransactionAlert(tokenRecord.token, {
-          id: result.transaction.id,
-          amount: finalAmount,
-          merchantName: finalMerchant,
-          transactionType: finalType,
-          category: finalCategoryName,
-          description: result.transaction.description,
-        }).catch(() => {}); // silently ignore push failures
+      const tokenRecords = await prisma.fcmToken.findMany({
+        where: { userId },
+        select: { token: true },
+      });
+      const tokens = tokenRecords.map((r) => r.token).filter(Boolean);
+
+      if (tokens.length > 0) {
+        const emoji = finalType === 'EXPENSE' ? '💸' : '💰';
+        const typeLabel = finalType === 'EXPENSE' ? 'Spent' : 'Received';
+        const amountLabel = Number(finalAmount).toLocaleString('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          maximumFractionDigits: 0,
+        });
+
+        fcmService.sendToMultiple(
+          tokens,
+          {
+            title: `${emoji} ${typeLabel} ${amountLabel}`,
+            body: `${finalMerchant || result.transaction.description || 'Transaction'} · ${finalCategoryName}`,
+          },
+          {
+            transactionId: result.transaction.id,
+            type: finalType,
+            amount: String(finalAmount),
+            screen: 'transactions',
+          }
+        ).catch(() => {}); // silently ignore push failures
       }
     } catch (_) {}
+
+    // Realtime: the canonical ledger changed — push to every open tab/device.
+    realtime.publish(userId, 'transaction.created', {
+      id: result.transaction.id,
+      amount: parseFloat(result.transaction.amount),
+      transactionType: finalType,
+      merchant: finalMerchant,
+      category: finalCategoryName,
+      accountId: targetAccountId,
+      accountBalance: parseFloat(result.account.balance),
+      date: result.transaction.date,
+      origin: 'sms',
+    }, { source: deviceSource(req) });
+
+    realtime.publish(userId, 'sms.confirmed', {
+      pendingId: id,
+      transactionId: result.transaction.id,
+    }, { source: deviceSource(req) });
 
     return res.status(200).json({
       success: true,
@@ -459,6 +537,11 @@ exports.rejectPendingSms = async (req, res) => {
       where: { id },
       data: { status: 'REJECTED' }
     });
+
+    // Realtime: remove the pending item from every other device's review list.
+    realtime.publish(userId, 'sms.rejected', {
+      pendingId: id,
+    }, { source: deviceSource(req) });
 
     return res.status(200).json({
       success: true,

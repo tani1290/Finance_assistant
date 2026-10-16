@@ -10,6 +10,7 @@ const request = require('supertest');
 const app = require('./src/app');
 const prisma = require('./src/config/database');
 const smsParserService = require('./src/services/smsParserService');
+const mlCategorizerService = require('./src/services/mlCategorizerService');
 
 let passedCount = 0;
 let failedCount = 0;
@@ -122,6 +123,35 @@ async function runSmsMobileTests() {
     assert(ingestRes2.status === 201, 'Salary credit SMS ingested (201 Created)');
     assert(ingestRes2.body.data.transactionType === 'INCOME', 'Direction correctly classified as INCOME');
     assert(ingestRes2.body.data.suggestedCategory === 'Salary', 'Category correctly classified as Salary');
+
+    // Regression: an unknown merchant forces the ML categorizer fallback. That
+    // path used to emit a 0-100 percentage, which overflowed the
+    // `PendingSmsTransaction.confidence` Decimal(5,4) column and failed the
+    // entire ingest with an HTTP 500 — silently dropping real bank SMS.
+    const unknownMerchantSms =
+      'Rs. 1,299.00 debited from A/c XX1234 on 12-Oct-2026 to SHREE GANESH PROVISION STORE. Avl Bal Rs 8,251. Ref: 4455667788.';
+    const ingestRes3 = await request(app)
+      .post('/api/v1/sms/ingest')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ messageText: unknownMerchantSms, sender: 'HDFCBK' });
+
+    assert(ingestRes3.status === 201, 'ML-fallback SMS (unknown merchant) ingests without a 500');
+    const mlConfidence = Number(ingestRes3.body?.data?.confidence);
+    assert(
+      Number.isFinite(mlConfidence) && mlConfidence >= 0 && mlConfidence <= 1,
+      `ML-fallback confidence stored as a 0-1 fraction (got ${ingestRes3.body?.data?.confidence})`
+    );
+    assert(!!ingestRes3.body?.data?.suggestedCategory, 'ML-fallback SMS suggests a reviewable category');
+
+    const mlPrediction = mlCategorizerService.predict('SHREE GANESH PROVISION STORE', 1299, 'EXPENSE');
+    assert(
+      Number.isFinite(mlPrediction.confidence) && mlPrediction.confidence > 0 && mlPrediction.confidence <= 1,
+      `mlCategorizerService.predict returns a probability, not a percentage (got ${mlPrediction.confidence})`
+    );
+    assert(
+      mlPrediction.isConfident === (mlPrediction.confidence >= 0.5),
+      'ML confidence and isConfident flag agree on the same 0-1 scale'
+    );
 
     // Test Non-transaction rejection over API
     const nonTxRes = await request(app)

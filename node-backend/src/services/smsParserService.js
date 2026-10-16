@@ -40,6 +40,21 @@ const DETERMINISTIC_MERCHANTS = [
   { pattern: /bajaj\s*finance|home\s*credit|emi|loan\s*repay|hdfc\s*bank\s*loan|sbi\s*loan/i, category: 'Loan Payment', name: 'Loan Payment' }
 ];
 
+/**
+ * Normalise a confidence value into the 0–1 fraction every consumer expects:
+ * the `PendingSmsTransaction.confidence` column is @db.Decimal(5,4) (max
+ * 9.9999), the web UI multiplies by 100, and the mobile app parses it as a
+ * double. A stray percentage would overflow the column, so the whole SMS
+ * ingest — and with it cross-device sync — must never depend on the caller
+ * getting this right. Tolerates a percentage from any upstream engine.
+ */
+function clampConfidence(value, fallback = 0.5) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  const fraction = n > 1 ? n / 100 : n;
+  return Math.min(0.9999, Math.max(0, fraction));
+}
+
 class SmsParserService {
   /**
    * Compute a deterministic hash of normalized SMS body
@@ -309,11 +324,17 @@ class SmsParserService {
     // 3. Fallback to In-Process ML Categorizer Engine
     try {
       const mlResult = mlCategorizerService.predict(combinedText, amount, direction);
-      if (mlResult && mlResult.category && mlResult.confidence >= 0.50) {
+      // Guard against any future drift back to a percentage — the gate below
+      // compares against 0.50 and the value is persisted to a Decimal(5,4).
+      const mlConfidence =
+        mlResult && Number.isFinite(mlResult.confidence) && mlResult.confidence > 1
+          ? mlResult.confidence / 100
+          : mlResult && mlResult.confidence;
+      if (mlResult && mlResult.category && mlConfidence >= 0.50) {
         return {
           category: mlResult.category,
-          confidence: mlResult.confidence,
-          reason: `ML classification (${(mlResult.confidence * 100).toFixed(0)}% confidence)`,
+          confidence: mlConfidence,
+          reason: `ML classification (${(mlConfidence * 100).toFixed(0)}% confidence)`,
           source: 'ML_ENGINE'
         };
       }
@@ -382,7 +403,7 @@ class SmsParserService {
       bankReference,
       transactionDate,
       suggestedCategory: catResult.category,
-      categoryConfidence: catResult.confidence,
+      categoryConfidence: clampConfidence(catResult.confidence),
       categoryReason: catResult.reason,
       overallConfidence: confidence,
       rawSender: rawSender || 'BANK_SMS',
