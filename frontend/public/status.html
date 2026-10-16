@@ -210,16 +210,16 @@
           No synthetic timers or fake cloud metrics are displayed. The database status is measured via an actual <code class="metric-mono">SELECT 1</code> execution through the Prisma query engine, and storage availability is validated through an active read/write check against the configured storage provider.
         </p>
         <div style="display:flex; gap:12px; flex-wrap:wrap;">
-          <a href="/api/v1/health" target="_blank" class="btn btn-secondary" style="font-size:12px;">
+          <a href="/api/v1/health" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="font-size:12px;">
             <i class="ri-external-link-line"></i>Raw /health JSON
           </a>
-          <a href="/api/v1/health/database" target="_blank" class="btn btn-secondary" style="font-size:12px;">
+          <a href="/api/v1/health/database" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="font-size:12px;">
             <i class="ri-external-link-line"></i>Raw /health/database JSON
           </a>
-          <a href="/api/v1/health/storage" target="_blank" class="btn btn-secondary" style="font-size:12px;">
+          <a href="/api/v1/health/storage" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="font-size:12px;">
             <i class="ri-external-link-line"></i>Raw /health/storage JSON
           </a>
-          <a href="/api/v1/health/ready" target="_blank" class="btn btn-secondary" style="font-size:12px;">
+          <a href="/api/v1/health/ready" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="font-size:12px;">
             <i class="ri-external-link-line"></i>Raw /health/ready JSON
           </a>
         </div>
@@ -302,8 +302,8 @@
             { subsystem: 'Application Core', probe: 'GET /api/v1/health', config: `${s.application?.details?.runtime} · Uptime ${s.application?.details?.uptimeSeconds}s · Heap ${s.application?.details?.heapUsedMB}MB`, latency: `${s.application?.latencyMs || 0} ms`, state: s.application?.status, ok: s.application?.status === 'CONNECTED' },
             { subsystem: 'PostgreSQL Database', probe: 'GET /api/v1/health/database', config: `${s.postgresql?.details?.engine} · DB: ${s.postgresql?.details?.database}`, latency: `${s.postgresql?.latencyMs || 0} ms`, state: s.postgresql?.status, ok: s.postgresql?.status === 'CONNECTED' },
             { subsystem: 'Prisma ORM Engine', probe: 'GET /api/v1/health/ready', config: `${s.prisma?.details?.ormVersion} · Schema Sync Active`, latency: `${s.prisma?.latencyMs || 0} ms`, state: s.prisma?.status, ok: s.prisma?.status === 'CONNECTED' },
-            { subsystem: 'Supabase Cloud Pooler', probe: 'TELEMETRY: POOLER', config: s.supabase?.safeMessage || 'Direct connection active', latency: `${s.supabase?.latencyMs || 0} ms`, state: s.supabase?.status, ok: s.supabase?.status === 'CONNECTED' },
-            { subsystem: 'Supabase Cloud Storage', probe: 'TELEMETRY: S3 BUCKET', config: s.supabaseStorage?.safeMessage || 'Local fallback active', latency: `${s.supabaseStorage?.latencyMs || 0} ms`, state: s.supabaseStorage?.status, ok: s.supabaseStorage?.status === 'CONNECTED' },
+            { subsystem: 'PostgreSQL Connection Pooler', probe: 'TELEMETRY: POOLER', config: s.dbPooler?.details?.route || s.dbPooler?.safeMessage || 'Direct connection active', latency: `${s.dbPooler?.latencyMs || 0} ms`, state: s.dbPooler?.status, ok: s.dbPooler?.status === 'CONNECTED' },
+            { subsystem: 'Cloud Object Storage Bucket', probe: 'TELEMETRY: S3 BUCKET', config: `${s.objectStorage?.details?.provider || 'S3-compatible'} · ${s.objectStorage?.safeMessage || 'Local fallback active'}`, latency: `${s.objectStorage?.latencyMs || 0} ms`, state: s.objectStorage?.status, ok: s.objectStorage?.status === 'CONNECTED' },
             { subsystem: 'Object / Document Storage', probe: 'GET /api/v1/health/storage', config: `Provider: ${s.s3Storage?.details?.provider?.toUpperCase()} · Target: ${s.s3Storage?.details?.target}`, latency: `${s.s3Storage?.latencyMs || 0} ms`, state: s.s3Storage?.status, ok: s.s3Storage?.status === 'CONNECTED' || s.s3Storage?.status === 'DEGRADED' },
             { subsystem: 'Cloud AI (Google Gemini)', probe: 'GET /api/v1/health/ai', config: `Model: ${s.geminiAI?.details?.model || 'Fallback'} · ${s.geminiAI?.details?.provider}`, latency: `${s.geminiAI?.latencyMs || 0} ms`, state: s.geminiAI?.status, ok: s.geminiAI?.status === 'CONNECTED' },
             { subsystem: 'OCR Document Engine', probe: 'TESSERACT OCR WORKER', config: `${s.ocrSubsystem?.details?.engine} · Formats: PNG, JPEG, PDF`, latency: `${s.ocrSubsystem?.latencyMs || 0} ms`, state: s.ocrSubsystem?.status, ok: s.ocrSubsystem?.status === 'CONNECTED' },

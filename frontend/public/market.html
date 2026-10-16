@@ -286,9 +286,9 @@
       </div>
 
       <div class="av-footer">
-        Live market data by <a href="https://finnhub.io" target="_blank">Finnhub</a> &amp;
-        <a href="https://finance.yahoo.com" target="_blank">Yahoo Finance</a> &middot;
-        Fundamental &amp; earnings data by <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a> &middot;
+        Live market data by <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer">Finnhub</a> &amp;
+        <a href="https://finance.yahoo.com" target="_blank" rel="noopener noreferrer">Yahoo Finance</a> &middot;
+        Fundamental &amp; earnings data by <a href="https://www.alphavantage.co" target="_blank" rel="noopener noreferrer">Alpha Vantage</a> &middot;
         NSE/BSE Stocks &middot; Gold &amp; Silver &middot; WTI/Brent &middot; FX &middot; RSI &middot; MACD &middot; BBands &middot;
         FinPro &copy; 2025
       </div>
@@ -543,7 +543,7 @@
       const res = await get('/market/news?category=general');
       if (!res?.success) return;
       document.getElementById('newsList').innerHTML = res.data.slice(0, 8).map(n => `
-        <div class="news-item" ${n.url ? `onclick="window.open('${n.url}','_blank')"` : ''}>
+        <div class="news-item" ${n.url ? `onclick="window.open('${n.url}','_blank','noopener,noreferrer')"` : ''}>
           <div class="news-headline">${n.headline}</div>
           <div class="news-meta">
             <span>${n.source || 'Market Desk'}</span><span>&middot;</span>

@@ -1,7 +1,7 @@
 # ====================================================================
 # FinPro — Personal Finance & AI Platform
 # Render Blueprint Specification (render.yaml)
-# Production Deployment with Supabase PostgreSQL + Firebase
+# Production Deployment with Render PostgreSQL + Firebase
 # ====================================================================
 
 services:
@@ -26,20 +26,24 @@ services:
       - key: PORT
         value: 5000
 
-      # Supabase PostgreSQL Database URL — used by the running server.
-      # The transaction pooler (port 6543) is fine for queries:
-      #   postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true
-      # but Prisma CANNOT run schema migrations (DDL) through it, which is why
-      # a reconciliation connection is needed at deploy time (see DIRECT_URL).
+      # Render PostgreSQL Database URL — used by the running server.
+      # Use the instance's *internal* connection string when the web service runs
+      # in the same region; it is a direct connection and needs no SSL parameter.
+      #   postgresql://user:password@dpg-xxxxxxxx-a/dbname
+      # If you instead point this at a transaction pooler (PgBouncer, e.g.
+      # Supabase port 6543), Prisma CANNOT run schema migrations (DDL) through it,
+      # which is why a reconciliation connection is needed at deploy time
+      # (see DIRECT_URL).
       - key: DATABASE_URL
         sync: false
 
-      # Migration-only connection (OPTIONAL, recommended for Supabase).
-      # Set this to the DIRECT connection (db.[ref].supabase.co:5432) or the
-      # SESSION pooler (same pooler host as above, but port 5432). Used only by
-      # scripts/deploy-migrate.js during deploy. If left unset, that script
-      # derives the session pooler from DATABASE_URL automatically. The running
-      # server never reads this variable.
+      # Migration-only connection (OPTIONAL). Render PostgreSQL's internal URL can
+      # execute DDL directly, so this is unnecessary for the default setup. Set it
+      # only when DATABASE_URL is a transaction pooler: the DIRECT connection
+      # (db.[ref].supabase.co:5432) or the SESSION pooler (same host, port 5432).
+      # Used only by scripts/deploy-migrate.js during deploy; if left unset, that
+      # script derives the session pooler from DATABASE_URL automatically. The
+      # running server never reads this variable.
       - key: DIRECT_URL
         sync: false
 

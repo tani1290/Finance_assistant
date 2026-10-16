@@ -16,7 +16,7 @@ The backend also needs a PostgreSQL database. Do not deploy the frontend alone u
 
 Use:
 
-- **Supabase or Neon** for PostgreSQL
+- **Render PostgreSQL** for PostgreSQL (same region as the web service)
 - **Render** for the Node backend
 - **Vercel** for the static frontend
 - **Firebase** for mobile auth, notifications, analytics, and crash reporting
@@ -49,17 +49,21 @@ Expected result:
 
 ## 2. Create PostgreSQL Database
 
-### Option A: Supabase
+### Option A: Render PostgreSQL (recommended — matches production)
 
-1. Create a Supabase project.
-2. Go to **Project Settings** -> **Database** -> **Connection string**.
-3. Use the pooled connection string if deploying on Render.
-4. Ensure the URL includes SSL and schema parameters where needed.
+1. In the Render dashboard, create a **PostgreSQL** instance in the same region as
+   the web service (the free instance is sufficient for this project).
+2. Open the instance and copy its **Internal Database URL**.
+3. Set that as `DATABASE_URL` on the web service. Because the database and service
+   share Render's private network, the internal URL is used directly and needs no
+   SSL parameter — the running server reports `ssl:false`, `connectionPooler:false`.
+4. Only if you deliberately target Render's **External** URL or a PgBouncer pooler
+   should you append `?sslmode=require` and also set `DIRECT_URL`.
 
-Example shape:
+Example shape (internal):
 
 ```env
-DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-region.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require&schema=public"
+DATABASE_URL="postgresql://finpro:PASSWORD@dpg-xxxxxxxx-a/dbname"
 ```
 
 ### Option B: Neon
@@ -139,14 +143,16 @@ cd node-backend && node scripts/deploy-migrate.js && (node prisma/seed.js || tru
 1. `prisma migrate deploy` — for a migration-managed database.
 2. Falls back to an **additive** `prisma db push` (never `--accept-data-loss`) when
    the database has tables but no `_prisma_migrations` history (Prisma P3005) —
-   which is how this project's Supabase instance was created.
+   which is how this project's Render PostgreSQL instance was created.
 3. Prints the real outcome. A failure is loud but never blocks the boot.
 
-Prisma cannot run DDL through Supabase's **transaction** pooler (port 6543). If
-migrations fail with a pooler error, set `DIRECT_URL` in the Render dashboard to
-your Supabase **direct** connection (`db.<ref>.supabase.co:5432`) or **session**
-pooler (`aws-0-<region>.pooler.supabase.com:5432`). When `DIRECT_URL` is unset the
-script derives the session pooler from `DATABASE_URL` on its own.
+Production connects over Render PostgreSQL's internal network — a direct connection
+that *can* execute DDL — so `DIRECT_URL` is not needed there. The caveat only applies
+if `DATABASE_URL` uses a **transaction-mode** pooler (Supabase's port 6543 /
+PgBouncer): Prisma cannot run `CREATE`/`ALTER` through one, so set `DIRECT_URL` in the
+Render dashboard to the **direct** connection (`db.<ref>.supabase.co:5432`) or the
+**session** pooler (`aws-0-<region>.pooler.supabase.com:5432`). When `DIRECT_URL` is
+unset the script derives the session pooler from `DATABASE_URL` on its own.
 
 After deployment, verify:
 
@@ -284,7 +290,7 @@ Codex can do:
 - Run pre-deployment checks.
 - Update config files such as `vercel.json`.
 - Push changes if GitHub access is configured locally.
-- Use logged-in CLIs such as `vercel`, `render`, `supabase`, `firebase`, or `docker`.
+- Use logged-in CLIs such as `vercel`, `render`, `firebase`, or `docker`.
 - Deploy to a VPS over SSH if you provide host access.
 - Verify public health endpoints after deployment.
 
@@ -292,7 +298,7 @@ Codex cannot independently access your private hosting accounts unless you conne
 
 Recommended safe approach:
 
-1. You create the Supabase/Neon database.
+1. You create the Render PostgreSQL database (or another managed PostgreSQL instance).
 2. You create Render and Vercel projects or log in through their CLIs.
 3. You provide only required production environment variables through the hosting dashboards.
 4. Codex runs the deployment commands and verifies the live URLs.

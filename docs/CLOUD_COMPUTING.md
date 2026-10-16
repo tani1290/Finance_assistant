@@ -22,8 +22,8 @@ graph TD
     end
     
     subgraph PersistenceTier ["Persistence Tier (Data & Storage)"]
-        Express -->|TLS Pooled Connection| ManagedDB["Managed PostgreSQL (Supabase / Neon)"]
-        Express -->|HTTPS S3 REST API| ObjectStore["Cloud Object Storage (S3 / Supabase)"]
+        Express -->|TLS Internal Connection| ManagedDB["Managed PostgreSQL (Render PostgreSQL)"]
+        Express -->|HTTPS S3 REST API| ObjectStore["Cloud Object Storage (S3-compatible)"]
     end
 
     subgraph BaaSTier ["Backend-as-a-Service (Cloud Services)"]
@@ -35,7 +35,7 @@ graph TD
 ### 1.1 Cloud Service Model Breakdown
 - **Infrastructure-as-a-Service (IaaS):** Managed compute VM / host, raw storage blocks, and virtual networking.
 - **Platform-as-a-Service (PaaS):** Render container orchestration running the application process; automated health checks and restart policies.
-- **Database-as-a-Service (DBaaS):** Supabase / Neon Serverless PostgreSQL 17 with automated connection pooling and TLS encryption.
+- **Database-as-a-Service (DBaaS):** Render PostgreSQL 17 — managed, with automated backups, an internal-network connection string for same-region services, and an optional PgBouncer pooler endpoint.
 - **Backend-as-a-Service (BaaS):** Firebase (Auth identity provider, Cloud Messaging real-time push, Analytics & Crashlytics).
 - **Content Delivery Network (CDN):** Vercel edge distribution for frontend static asset delivery with microsecond response times.
 
@@ -78,15 +78,17 @@ server {
    - Development environments may use `prisma db push` during active schema experimentation.
    - Production runs `node scripts/deploy-migrate.js` on every deploy. It attempts
      version-controlled migrations (`prisma migrate deploy`) first and, for this
-     Supabase database (created with `db push`, so it has no `_prisma_migrations`
-     history), falls back to an additive `prisma db push`.
+     Render PostgreSQL database (created with `db push`, so it has no
+     `_prisma_migrations` history), falls back to an additive `prisma db push`.
    - The fallback never passes `--accept-data-loss`: it can add missing tables and
      indexes but can never drop data. Failures are logged loudly and never masked
      behind `|| true`.
-   - Migrations need a connection that can execute DDL. Supabase's transaction
-     pooler (port 6543) cannot, so set the optional `DIRECT_URL` to a direct
-     (`db.<ref>.supabase.co:5432`) or session-pooler connection when reconciling the
-     cloud database.
+   - Migrations need a connection that can execute DDL. Production uses Render
+     PostgreSQL's internal connection, which is direct and can do this, so no extra
+     variable is needed. Only when `DATABASE_URL` points at a transaction-mode pooler
+     (for example Supabase's port 6543 / PgBouncer) should you set the optional
+     `DIRECT_URL` to a direct (`db.<ref>.supabase.co:5432`) or session-pooler
+     connection.
 2. **Connection Pooling:**
    - Serverless pooling handles connection spikes without exhausting database limits (`connection_limit=20&pool_timeout=15`).
 3. **Tenant Security:**

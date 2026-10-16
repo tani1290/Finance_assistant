@@ -10,8 +10,8 @@ const https = require('https');
  * 1. Application Core
  * 2. PostgreSQL Database
  * 3. Prisma ORM Engine
- * 4. Supabase Connection Pooler
- * 5. Supabase Storage Bucket
+ * 4. PostgreSQL Connection Pooler / Routing
+ * 5. Cloud Object Storage Bucket (S3-compatible)
  * 6. S3-Compatible Object Storage
  * 7. Cloud AI (Gemini)
  * 8. OCR Subsystem (Tesseract)
@@ -32,8 +32,8 @@ class CloudHealthService {
       appHealth,
       dbHealth,
       prismaHealth,
-      supabaseHealth,
-      supabaseStorageHealth,
+      dbPoolerHealth,
+      objectStorageHealth,
       s3StorageHealth,
       aiHealth,
       ocrHealth,
@@ -45,8 +45,8 @@ class CloudHealthService {
       this.checkApplication(),
       this.checkPostgres(),
       this.checkPrisma(),
-      this.checkSupabasePooler(),
-      this.checkSupabaseStorage(),
+      this.checkDbPooler(),
+      this.checkCloudStorage(),
       this.checkS3Storage(),
       this.checkAI(),
       this.checkOCR(),
@@ -60,8 +60,8 @@ class CloudHealthService {
       application: appHealth,
       postgresql: dbHealth,
       prisma: prismaHealth,
-      supabase: supabaseHealth,
-      supabaseStorage: supabaseStorageHealth,
+      dbPooler: dbPoolerHealth,
+      objectStorage: objectStorageHealth,
       s3Storage: s3StorageHealth,
       geminiAI: aiHealth,
       ocrSubsystem: ocrHealth,
@@ -107,7 +107,8 @@ class CloudHealthService {
     try {
       const result = await prisma.$queryRaw`SELECT 1 as ping, current_database() as db, version() as v`;
       const latencyMs = Date.now() - start;
-      const isCloud = !!(process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('supabase.co') || process.env.DATABASE_URL.includes('pooler.supabase.com')));
+      const telemetry = prisma.getDatabaseTelemetry();
+      const isCloud = telemetry.isCloud;
       return {
         status: 'CONNECTED',
         subsystem: 'PostgreSQL Database',
@@ -158,90 +159,87 @@ class CloudHealthService {
     }
   }
 
-  async checkSupabasePooler() {
-    const start = Date.now();
-    const dbUrl = process.env.DATABASE_URL || '';
-    const hasSupabaseUrl = dbUrl.includes('supabase.co') || dbUrl.includes('pooler.supabase.com') || !!process.env.SUPABASE_URL;
+  async checkDbPooler() {
+    const telemetry = prisma.getDatabaseTelemetry();
 
-    if (!hasSupabaseUrl) {
+    if (!telemetry.configured) {
       return {
         status: 'NOT_CONFIGURED',
-        subsystem: 'Supabase Cloud Pooler',
+        subsystem: 'PostgreSQL Connection Pooler',
         latencyMs: 0,
         lastChecked: new Date().toISOString(),
-        safeMessage: 'Direct PostgreSQL connection active. Supabase connection pooler is not configured.',
+        safeMessage: 'No database connection string configured.',
       };
     }
 
-    try {
-      // If DATABASE_URL is Supabase, perform query check
-      if (dbUrl.includes('supabase.co') || dbUrl.includes('pooler.supabase.com')) {
-        await prisma.$queryRaw`SELECT 1`;
-        return {
-          status: 'CONNECTED',
-          subsystem: 'Supabase Cloud Pooler',
-          latencyMs: Date.now() - start,
-          lastChecked: new Date().toISOString(),
-          details: { provider: 'Supabase Managed Cloud Postgres' },
-        };
-      }
+    if (!telemetry.isCloud) {
       return {
-        status: 'DEGRADED',
-        subsystem: 'Supabase Cloud Pooler',
+        status: 'NOT_CONFIGURED',
+        subsystem: 'PostgreSQL Connection Pooler',
+        latencyMs: 0,
+        lastChecked: new Date().toISOString(),
+        safeMessage: 'Local PostgreSQL connection in use; no managed connection pooler.',
+      };
+    }
+
+    const start = Date.now();
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return {
+        status: 'CONNECTED',
+        subsystem: 'PostgreSQL Connection Pooler',
         latencyMs: Date.now() - start,
         lastChecked: new Date().toISOString(),
-        safeMessage: 'Supabase project paused or unreachable; local database fallback engaged.',
+        details: {
+          route: telemetry.connectionPooler
+            ? 'Transaction pooler (PgBouncer)'
+            : 'Direct managed connection',
+          host: telemetry.host,
+          port: telemetry.port,
+          pooler: telemetry.connectionPooler,
+        },
       };
     } catch (err) {
       return {
         status: 'UNAVAILABLE',
-        subsystem: 'Supabase Cloud Pooler',
+        subsystem: 'PostgreSQL Connection Pooler',
         latencyMs: Date.now() - start,
         lastChecked: new Date().toISOString(),
-        safeError: 'Supabase pooler returned unavailable status.',
+        safeError: 'Managed database route returned unavailable status.',
       };
     }
   }
 
-  async checkSupabaseStorage() {
+  async checkCloudStorage() {
     const start = Date.now();
-    const hasKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY !== 'YOUR_SERVICE_ROLE_KEY';
-    const hasUrl = !!process.env.SUPABASE_URL && process.env.SUPABASE_URL !== 'https://YOUR_PROJECT_ID.supabase.co';
-
-    if (!hasKey || !hasUrl) {
-      return {
-        status: 'NOT_CONFIGURED',
-        subsystem: 'Supabase Cloud Storage',
-        latencyMs: 0,
-        lastChecked: new Date().toISOString(),
-        safeMessage: 'Supabase storage credentials not configured. Local storage provider active.',
-      };
-    }
-
     try {
-      // Test storage via storageService if configured
       const health = await storageService.checkStorageHealth();
-      if (health.provider === 's3' && health.available) {
+
+      if (health.provider === 's3') {
         return {
-          status: 'CONNECTED',
-          subsystem: 'Supabase Cloud Storage',
+          status: health.available ? 'CONNECTED' : 'DEGRADED',
+          subsystem: 'Cloud Object Storage Bucket',
           latencyMs: health.latencyMs || Date.now() - start,
           lastChecked: new Date().toISOString(),
-          details: { bucket: process.env.SUPABASE_STORAGE_BUCKET || 'finpro-documents' },
-        };
-      } else {
-        return {
-          status: 'DEGRADED',
-          subsystem: 'Supabase Cloud Storage',
-          latencyMs: Date.now() - start,
-          lastChecked: new Date().toISOString(),
-          safeMessage: 'Supabase Cloud Storage paused or fallback active.',
+          details: {
+            provider: 'S3-compatible object storage',
+            bucket: health.bucket || 'finpro-documents',
+          },
+          safeMessage: 'Cloud object storage bucket reachable.',
         };
       }
+
+      return {
+        status: 'NOT_CONFIGURED',
+        subsystem: 'Cloud Object Storage Bucket',
+        latencyMs: 0,
+        lastChecked: new Date().toISOString(),
+        safeMessage: 'No S3-compatible bucket credentials configured. Local storage provider active.',
+      };
     } catch (err) {
       return {
         status: 'UNAVAILABLE',
-        subsystem: 'Supabase Cloud Storage',
+        subsystem: 'Cloud Object Storage Bucket',
         latencyMs: Date.now() - start,
         lastChecked: new Date().toISOString(),
         safeError: 'Cloud storage check failed safely without exposing bucket credentials.',

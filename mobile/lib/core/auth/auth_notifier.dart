@@ -4,7 +4,6 @@ import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../models/user_model.dart';
 import '../firebase/firebase_service.dart';
-import '../debug_agent_log.dart';
 import 'auth_state.dart';
 import 'token_storage.dart';
 
@@ -57,33 +56,9 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<bool> login(String email, String password) async {
     state = AuthState.loading();
     try {
-      agentLog(
-        location: 'auth_notifier.dart:login:entry',
-        message: 'Login request starting',
-        hypothesisId: 'A,B,E',
-        data: {
-          'url': ApiEndpoints.login,
-          'emailLen': email.trim().length,
-          'hasAt': email.contains('@'),
-        },
-      );
       final response = await apiClient.post(
         ApiEndpoints.login,
         data: {'email': email.trim(), 'password': password},
-      );
-
-      agentLog(
-        location: 'auth_notifier.dart:login:response',
-        message: 'Login HTTP response',
-        hypothesisId: 'A,C',
-        data: {
-          'status': response.statusCode,
-          'success': response.data is Map ? response.data['success'] : null,
-          'hasUser': response.data is Map && response.data['data'] is Map
-              ? response.data['data']['user'] != null
-              : false,
-          'dataType': response.data.runtimeType.toString(),
-        },
       );
 
       if (response.statusCode == 200 && response.data['success'] == true) {
@@ -116,12 +91,6 @@ class AuthNotifier extends Notifier<AuthState> {
         return false;
       }
     } catch (e) {
-      agentLog(
-        location: 'auth_notifier.dart:login:catch',
-        message: 'Login threw',
-        hypothesisId: 'A,B,C,D',
-        data: _dioErrorData(e),
-      );
       state = AuthState.unauthenticated(
         error: _extractErrorMessage(e, 'Invalid email or password. Please verify your credentials.'),
       );
@@ -138,18 +107,6 @@ class AuthNotifier extends Notifier<AuthState> {
   }) async {
     state = AuthState.loading();
     try {
-      agentLog(
-        location: 'auth_notifier.dart:register:entry',
-        message: 'Register request starting',
-        hypothesisId: 'A,B,E',
-        data: {
-          'url': ApiEndpoints.register,
-          'usernameLen': username.trim().length,
-          'emailLen': email.trim().length,
-          'passwordLen': password.length,
-          'hasAt': email.contains('@'),
-        },
-      );
       final response = await apiClient.post(
         ApiEndpoints.register,
         data: {
@@ -158,20 +115,6 @@ class AuthNotifier extends Notifier<AuthState> {
           'password': password,
           'firstName': firstName.trim(),
           'lastName': lastName.trim(),
-        },
-      );
-
-      agentLog(
-        location: 'auth_notifier.dart:register:response',
-        message: 'Register HTTP response',
-        hypothesisId: 'A,C',
-        data: {
-          'status': response.statusCode,
-          'success': response.data is Map ? response.data['success'] : null,
-          'hasUser': response.data is Map && response.data['data'] is Map
-              ? response.data['data']['user'] != null
-              : false,
-          'dataType': response.data.runtimeType.toString(),
         },
       );
 
@@ -204,12 +147,6 @@ class AuthNotifier extends Notifier<AuthState> {
         return false;
       }
     } catch (e) {
-      agentLog(
-        location: 'auth_notifier.dart:register:catch',
-        message: 'Register threw',
-        hypothesisId: 'A,B,C,D',
-        data: _dioErrorData(e),
-      );
       state = AuthState.unauthenticated(
         error: _extractErrorMessage(
           e,
@@ -256,23 +193,6 @@ class AuthNotifier extends Notifier<AuthState> {
       }
     }
     return fallback;
-  }
-
-  Map<String, dynamic> _dioErrorData(Object e) {
-    if (e is DioException) {
-      final data = e.response?.data;
-      final errorObj = data is Map ? data['error'] : null;
-      return {
-        'type': e.type.toString(),
-        'status': e.response?.statusCode,
-        'path': e.requestOptions.path,
-        'errorCode': errorObj is Map ? errorObj['code'] : null,
-        'errorMessage': errorObj is Map ? errorObj['message'] : null,
-        'messageKey': data is Map ? data['message'] : null,
-        'dioMessage': e.message,
-      };
-    }
-    return {'type': e.runtimeType.toString(), 'toString': e.toString()};
   }
 
   Future<void> logout() async {

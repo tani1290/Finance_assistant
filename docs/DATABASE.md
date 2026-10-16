@@ -90,7 +90,7 @@ npx prisma studio
 
 ## 5. Schema Reconciliation on Deploy
 
-Local development **and** the Supabase production database are both maintained with
+Local development **and** the Render PostgreSQL production database are both maintained with
 `prisma db push`. Neither has a `_prisma_migrations` history, so `prisma migrate
 deploy` cannot adopt them on its own (Prisma P3005: *"The database schema is not
 empty"*).
@@ -115,12 +115,14 @@ A missing table surfaces to clients as a bare HTTP 500 (`P2021 The table does no
 exist`) or a feature-level `SYNC_ERROR`, so this script's output is the first place
 to look when a cloud feature misbehaves.
 
-**Connection caveat:** Prisma cannot execute DDL through Supabase's *transaction*
-pooler (port 6543) — the URL normally used for runtime queries. Set the optional
-`DIRECT_URL` environment variable to a direct (`db.<ref>.supabase.co:5432`) or
-session-pooler (`aws-0-<region>.pooler.supabase.com:5432`) connection so the
-reconciliation step has a connection it can migrate over. When `DIRECT_URL` is
-absent, `deploy-migrate.js` derives the session pooler from `DATABASE_URL`.
+**Connection caveat:** production uses **Render PostgreSQL** over Render's
+internal network, which is a direct connection and can execute DDL, so
+`DIRECT_URL` is not required there. The variable only matters if you point
+`DATABASE_URL` at a *transaction-mode* pooler — the classic case is Supabase's
+port 6543 / PgBouncer — because Prisma cannot run `CREATE`/`ALTER` through one.
+For such setups, set `DIRECT_URL` to a direct (`db.<ref>.supabase.co:5432`) or
+session-pooler (`aws-0-<region>.pooler.supabase.com:5432`) connection. When it
+is absent, `deploy-migrate.js` derives the session pooler from `DATABASE_URL`.
 
 Verify after a deploy:
 

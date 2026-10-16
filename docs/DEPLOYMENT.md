@@ -1,7 +1,7 @@
 # FinPro — Master Deployment, Cloud & Firebase Guide
 **Project:** FinPro (AI-Powered Personal Finance & Investment Decision Support Platform)  
 **Owner:** Jinay Golecha (`jinay_golecha`)  
-**Target Environments:** Local Development | Docker Compose | Cloud (Render PaaS + Vercel CDN + Firebase BaaS + Supabase DB)
+**Target Environments:** Local Development | Docker Compose | Cloud (Render PaaS + Vercel CDN + Firebase BaaS + Render PostgreSQL)
 
 ---
 
@@ -16,7 +16,7 @@
 │   HTML5 / CSS3 / JS│  Express + Prisma│  Analytics + Crashlytics       │
 │                    │                  │                                │
 │   /api/* → proxy   │  PostgreSQL      │  google-services.json          │
-│   to Render        │  (Supabase / Neon│  Admin SDK on backend          │
+│   to Render        │  (Render Postgres│  Admin SDK on backend          │
 └────────────────────┴──────────────────┴────────────────────────────────┘
                                │
                      ┌─────────┴─────────┐
@@ -74,12 +74,13 @@ npx prisma generate
 npx prisma db push
 ```
 
-This project's database — local **and** production on Supabase — is maintained with
+This project's database — local **and** production on Render PostgreSQL — is maintained with
 `prisma db push`, so it has no `_prisma_migrations` history. Deployments therefore
 run `npm run db:reconcile` (`scripts/deploy-migrate.js`), which attempts
 `prisma migrate deploy` first and falls back to an additive `prisma db push` when the
-schema is non-empty and unrecorded. See `render.yaml` for the full start command and
-the optional `DIRECT_URL` migration connection.
+schema is non-empty and unrecorded. See `render.yaml` for the full start command. The
+optional `DIRECT_URL` migration connection is only needed when `DATABASE_URL` points at
+a transaction-mode pooler; Render PostgreSQL's internal connection is used directly.
 
 ### 2.4 Running the Application
 ```bash
@@ -123,7 +124,8 @@ npm run dev
 1. In [Render Dashboard](https://render.com), create a **New Blueprint Instance**.
 2. Connect this repository. Render automatically reads [`render.yaml`](../render.yaml) and configures the web service.
 3. Supply required production environment variables:
-   - `DATABASE_URL`: Supabase or Neon PostgreSQL connection URL.
+   - `DATABASE_URL`: Render PostgreSQL connection URL (use the service's internal
+     connection string when the app runs in the same Render region).
    - `GEMINI_API_KEY`: Google Gemini API key.
    - `FIREBASE_SERVICE_ACCOUNT_JSON`: Single-line Firebase service account JSON.
    - `JWT_SECRET` & `JWT_REFRESH_SECRET`: Secure cryptographic strings.
