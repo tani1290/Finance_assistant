@@ -49,6 +49,26 @@ const getTasks = async (req, res, next) => {
   }
 };
 
+// GET /api/v1/tasks/:id
+const getTask = async (req, res, next) => {
+  try {
+    const task = await prisma.financialTask.findFirst({
+      where: { id: req.params.id, userId: req.user.id },
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Task not found or access denied.' },
+      });
+    }
+
+    return res.status(200).json({ success: true, data: task });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // POST /api/v1/tasks
 const createTask = async (req, res, next) => {
   try {
@@ -164,6 +184,7 @@ const deleteTask = async (req, res, next) => {
 
 module.exports = {
   getTasks,
+  getTask,
   createTask,
   updateTask,
   deleteTask,

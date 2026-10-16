@@ -45,6 +45,25 @@ const getSubscriptions = async (req, res, next) => {
 };
 
 /**
+ * GET /api/v1/subscriptions/:id
+ */
+const getSubscription = async (req, res, next) => {
+  try {
+    const sub = await prisma.subscription.findFirst({
+      where: { id: req.params.id, userId: req.user.id },
+    });
+
+    if (!sub) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Subscription not found.' } });
+    }
+
+    return res.status(200).json({ success: true, data: { ...sub, formattedCost: formatINR(sub.cost) } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /api/v1/subscriptions
  */
 const createSubscription = async (req, res, next) => {
@@ -147,6 +166,7 @@ const deleteSubscription = async (req, res, next) => {
 
 module.exports = {
   getSubscriptions,
+  getSubscription,
   createSubscription,
   updateSubscription,
   deleteSubscription,

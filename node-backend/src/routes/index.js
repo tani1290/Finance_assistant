@@ -20,6 +20,7 @@ const exports_ = require('../controllers/exportController');
 const training = require('../controllers/trainingController');
 const cards = require('../controllers/cardController');
 const tasks = require('../controllers/taskController');
+const categories = require('../controllers/categoryController');
 const news = require('../controllers/newsController');
 const storage = require('../controllers/storageController');
 const creditHealth = require('../controllers/creditHealthController');
@@ -76,8 +77,16 @@ router.post('/transactions/parse-text', transactions.parseTextEntry);
 // Budgets
 router.get('/budgets', budgets.getBudgets);
 router.post('/budgets', budgets.createBudget);
+router.get('/budgets/:id', budgets.getBudget);
 router.patch('/budgets/:id', budgets.updateBudget);
 router.delete('/budgets/:id', budgets.deleteBudget);
+
+// Categories (ledger classification axis)
+router.get('/categories', categories.getCategories);
+router.post('/categories', categories.createCategory);
+router.get('/categories/:id', categories.getCategory);
+router.patch('/categories/:id', categories.updateCategory);
+router.delete('/categories/:id', categories.deleteCategory);
 
 // Goals
 router.get('/goals', goals.getGoals);
@@ -133,6 +142,7 @@ router.delete('/insurance/:id', insurance.deleteInsurancePolicy);
 // Subscriptions
 router.get('/subscriptions', subscriptions.getSubscriptions);
 router.post('/subscriptions', subscriptions.createSubscription);
+router.get('/subscriptions/:id', subscriptions.getSubscription);
 router.patch('/subscriptions/:id', subscriptions.updateSubscription);
 router.delete('/subscriptions/:id', subscriptions.deleteSubscription);
 
@@ -146,6 +156,7 @@ router.delete('/cards/:id', cards.deleteCard);
 // Financial Tasks & Reminders (Phase 29)
 router.get('/tasks', tasks.getTasks);
 router.post('/tasks', tasks.createTask);
+router.get('/tasks/:id', tasks.getTask);
 router.patch('/tasks/:id', tasks.updateTask);
 router.delete('/tasks/:id', tasks.deleteTask);
 

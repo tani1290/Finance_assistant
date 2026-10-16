@@ -90,6 +90,66 @@ const getBudgets = async (req, res, next) => {
 };
 
 /**
+ * GET /api/v1/budgets/:id
+ */
+const getBudget = async (req, res, next) => {
+  try {
+    const budget = await prisma.budget.findFirst({
+      where: { id: req.params.id, userId: req.user.id },
+      include: { category: { select: { id: true, name: true } } },
+    });
+
+    if (!budget) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Budget not found.' },
+      });
+    }
+
+    const startOfMonth = new Date(budget.year, budget.month - 1, 1, 0, 0, 0, 0);
+    const endOfMonth = new Date(budget.year, budget.month, 0, 23, 59, 59, 999);
+    const expenses = await prisma.transaction.findMany({
+      where: {
+        userId: req.user.id,
+        transactionType: 'EXPENSE',
+        date: { gte: startOfMonth, lte: endOfMonth },
+      },
+      include: { category: { select: { id: true, name: true } } },
+    });
+
+    const catName = (budget.category?.name || budget.categoryName || '').toLowerCase();
+    const spent = expenses.reduce((sum, t) => {
+      const matchesId = budget.categoryId && t.categoryId === budget.categoryId;
+      const matchesName = t.category?.name && t.category.name.toLowerCase() === catName;
+      return matchesId || matchesName ? sum + parseFloat(t.amount || 0) : sum;
+    }, 0);
+    const limit = parseFloat(budget.monthlyLimit);
+    const pct = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: budget.id,
+        category: budget.category?.name || budget.categoryName,
+        categoryName: budget.category?.name || budget.categoryName,
+        monthlyLimit: limit,
+        formattedLimit: formatINR(limit),
+        spent,
+        formattedSpent: formatINR(spent),
+        remaining: Math.max(0, limit - spent),
+        formattedRemaining: formatINR(Math.max(0, limit - spent)),
+        percentageUsed: pct,
+        status: pct >= 100 ? 'exceeded' : pct >= 90 ? 'alert' : pct >= 75 ? 'warning' : 'ok',
+        month: budget.month,
+        year: budget.year,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /api/v1/budgets
  */
 const createBudget = async (req, res, next) => {
@@ -201,4 +261,4 @@ const deleteBudget = async (req, res, next) => {
   }
 };
 
-module.exports = { getBudgets, createBudget, updateBudget, deleteBudget };
+module.exports = { getBudgets, getBudget, createBudget, updateBudget, deleteBudget };
