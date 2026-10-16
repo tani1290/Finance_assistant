@@ -118,9 +118,10 @@ How can I assist you today? You can ask about your spending, run a what-if finan
         <!-- Input Area -->
         <div class="input-area">
           <div class="quick-btns">
+            <button class="quick-btn" onclick="sendQuick('View user data')"><i class="ri-pie-chart-2-line"></i> View User Data</button>
+            <button class="quick-btn" onclick="sendQuick('add 10000 expense as bday party for 15/oct 26 , paid. by cash')"><i class="ri-add-circle-line"></i> Add ₹10k Bday Party</button>
             <button class="quick-btn" onclick="sendQuick('How much did I spend on food this month?')">Food spending</button>
             <button class="quick-btn" onclick="sendQuick('What is my savings rate and how can I improve it?')">Savings rate</button>
-            <button class="quick-btn" onclick="sendQuick('How is my investment portfolio performing?')">Portfolio review</button>
             <button class="quick-btn" onclick="sendQuick('What if my salary increases by 10%?')">What-If: Salary +10%</button>
             <button class="quick-btn" onclick="sendQuick('What is my financial health score?')">Health breakdown</button>
           </div>
@@ -525,13 +526,69 @@ How can I assist you today? You can ask about your spending, run a what-if finan
     const user = getUser() || {};
     const name = user.firstName || user.username || 'there';
 
-    let pendingVoicePayload = null;
+    function formatMarkdown(md) {
+      if (!md) return '';
+      let html = md;
+
+      // Process markdown tables
+      const lines = html.split('\n');
+      const processedLines = [];
+      let inTable = false;
+      let tableRows = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.startsWith('|') && line.endsWith('|')) {
+          inTable = true;
+          if (!line.includes('---')) {
+            const cells = line.split('|').slice(1, -1).map(c => c.trim());
+            tableRows.push(cells);
+          }
+        } else {
+          if (inTable && tableRows.length > 0) {
+            let tableHtml = '<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;background:rgba(0,0,0,0.04);border-radius:8px;overflow:hidden;border:1px solid var(--border);">';
+            tableRows.forEach((row, rIdx) => {
+              const tag = rIdx === 0 ? 'th' : 'td';
+              const bg = rIdx === 0 ? 'background:rgba(16,185,129,0.12);color:var(--primary);font-weight:700;' : 'border-top:1px solid var(--border);';
+              tableHtml += '<tr>' + row.map(cell => `<${tag} style="padding:7px 10px;text-align:left;${bg}">${cell}</${tag}>`).join('') + '</tr>';
+            });
+            tableHtml += '</table>';
+            processedLines.push(tableHtml);
+            tableRows = [];
+            inTable = false;
+          }
+          processedLines.push(line);
+        }
+      }
+      if (inTable && tableRows.length > 0) {
+        let tableHtml = '<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;background:rgba(0,0,0,0.04);border-radius:8px;overflow:hidden;border:1px solid var(--border);">';
+        tableRows.forEach((row, rIdx) => {
+          const tag = rIdx === 0 ? 'th' : 'td';
+          const bg = rIdx === 0 ? 'background:rgba(16,185,129,0.12);color:var(--primary);font-weight:700;' : 'border-top:1px solid var(--border);';
+          tableHtml += '<tr>' + row.map(cell => `<${tag} style="padding:7px 10px;text-align:left;${bg}">${cell}</${tag}>`).join('') + '</tr>';
+        });
+        tableHtml += '</table>';
+        processedLines.push(tableHtml);
+      }
+
+      html = processedLines.join('\n');
+      html = html
+        .replace(/^### (.*$)/gim, '<div style="font-size:14px;font-weight:700;margin:8px 0 4px 0;color:var(--primary);">$1</div>')
+        .replace(/^#### (.*$)/gim, '<div style="font-size:13px;font-weight:700;margin:6px 0 2px 0;color:#0284c7;">$1</div>')
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+        .replace(/`([^`]+)`/g, '<code style="background:rgba(16,185,129,0.1);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:11px;color:var(--primary);">$1</code>')
+        .replace(/^> (.*$)/gim, '<div style="border-left:3px solid var(--primary);margin:6px 0;padding-left:8px;color:var(--muted);font-style:italic;">$1</div>')
+        .replace(/\n\n/g, '<br><br>')
+        .replace(/\n/g, '<br>');
+
+      return html;
+    }
 
     const addMsg = (role, text, id = null, sources = []) => {
       const div = document.createElement('div');
       div.className = `msg ${role}`;
       const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-      const formattedText = (text || '').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+      const formattedText = formatMarkdown(text || '');
 
       if (role === 'ai') {
         let sourcesHtml = '';

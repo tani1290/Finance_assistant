@@ -686,6 +686,41 @@ async function runTests() {
 
     newsService.getFinancialNews = originalGetFinancialNews;
 
+    // ================================================================
+    // 👉 [26/26] Testing AI Action Engine (conversational actions)...
+    // ================================================================
+    console.log('\n👉 [26/26] Testing AI Action Engine (conversational Add/View)...');
+
+    const viewChat = await request(app)
+      .post('/api/v1/ai/chat')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ message: 'view user data' });
+    assert(
+      viewChat.status === 200 && String(viewChat.body?.data?.source || '').includes('ai_action_engine'),
+      'POST /api/v1/ai/chat routes "view user data" to the AI Action Engine (VIEW_DATA)'
+    );
+    assert(
+      String(viewChat.body?.data?.response || '').includes(testUserA.email),
+      'AI Action Engine VIEW_DATA response contains the authenticated user profile'
+    );
+
+    const count500 = () => prisma.transaction.count({ where: { userId: userA.id, amount: 500 } });
+    const before500 = await count500();
+
+    const addChat = await request(app)
+      .post('/api/v1/ai/chat')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ message: 'add 500 expense as automated regression coffee paid by cash' });
+    const addChatText = String(addChat.body?.data?.response || '');
+    assert(
+      addChat.status === 200 && String(addChat.body?.data?.source || '').includes('ADD_TRANSACTION'),
+      'POST /api/v1/ai/chat routes a natural-language expense to ADD_TRANSACTION'
+    );
+    assert(
+      addChatText.includes('500.00') && !addChatText.includes('₹₹'),
+      'AI Action Engine renders each amount with exactly one rupee sign (₹500.00, never ₹₹)'
+    );
+    assert((await count500()) === before500 + 1, 'AI Action Engine ADD_TRANSACTION persists the ₹500 expense to the ledger');
 
   } catch (err) {
     console.error('\n❌ UNEXPECTED ERROR DURING SUITE:', err);
