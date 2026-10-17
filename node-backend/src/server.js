@@ -6,6 +6,8 @@
 require('dotenv').config();
 const app = require('./app');
 const prisma = require('./config/database');
+const marketService = require('./services/marketService');
+const storageService = require('./services/storageService');
 
 const PORT = parseInt(process.env.PORT) || 5001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -13,6 +15,8 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 // Graceful shutdown handler
 const shutdown = async (signal) => {
   console.log(`\n[Server] ${signal} received. Shutting down gracefully...`);
+  // Stop the background market refresh worker (clears its timers) before exit.
+  marketService.stopMarketBackgroundWorker();
   await prisma.$disconnect();
   console.log('[Server] Database disconnected. Server stopped.');
   process.exit(0);
@@ -46,6 +50,10 @@ const startServer = async () => {
     }
 
     const server = app.listen(PORT, '0.0.0.0', () => {
+      // Surface the storage durability posture at boot: production must never
+      // silently serve uploads from an ephemeral local disk. Non-blocking — it
+      // only logs, and never requires credentials.
+      storageService.warnIfEphemeralInProduction();
       console.log('\n╔════════════════════════════════════════════════════════╗');
       console.log('║     FinPro — Personal Finance & Decision Support Platform ║');
       console.log('║     Owner: Jinay Golecha (jinay_golecha)               ║');
@@ -69,6 +77,12 @@ const startServer = async () => {
       }
       throw err;
     });
+
+    // Start the background market cache warmer (opt-in, skips during tests).
+    // It reuses the market service's existing cache and is stopped on shutdown.
+    if (NODE_ENV !== 'test' && process.env.MARKET_WORKER_ENABLED !== 'false') {
+      marketService.startMarketBackgroundWorker();
+    }
 
   } catch (error) {
     console.error('[Server] Failed to start:', error.message);

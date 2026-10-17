@@ -101,6 +101,20 @@
     .tf-btn { padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:#94a3b8; transition:.15s; }
     .tf-btn:hover { border-color:#10b981; color:#6ee7b7; }
     .tf-btn.active { background:rgba(16,185,129,.2); border-color:rgba(16,185,129,.4); color:#6ee7b7; }
+    /* ── Data Provenance Badges (Phase 9) ─────────────────────────────────
+       These resolve from the shared theme tokens declared in assets/css/app.css
+       (--surface-2, --border, --text, --muted, --success/--warning/--danger and
+       their -light variants) so they follow the app's light-mode override
+       (:root.light-mode) instead of a fixed palette. Fallbacks keep them
+       readable if the tokens are unavailable. */
+    .prov-badge { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:999px; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; vertical-align:middle; border:1px solid var(--border, rgba(255,255,255,.12)); background:var(--surface-2, rgba(255,255,255,.06)); color:var(--muted, #8b95b0); }
+    .prov-dot { width:6px; height:6px; border-radius:50%; background:currentColor; flex:0 0 auto; }
+    .prov-badge.prov-live { color:var(--success, #059669); border-color:var(--primary, #10b981); background:var(--primary-light, rgba(16,185,129,.12)); }
+    .prov-badge.prov-cached { color:var(--warning, #d97706); border-color:var(--warning, #d97706); background:var(--warning-light, rgba(217,119,6,.12)); }
+    .prov-badge.prov-stale { color:var(--danger, #dc2626); border-color:var(--danger, #dc2626); background:var(--danger-light, rgba(220,38,38,.12)); }
+    .prov-badge.prov-unavailable { color:var(--muted, #64748b); border-color:var(--border-dark, #3a4060); background:var(--surface-3, rgba(255,255,255,.08)); }
+    .prov-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
+    .prov-session { font-size:10.5px; color:var(--muted, #8b95b0); }
   </style>
 </head>
 <body>
@@ -115,10 +129,11 @@
       <div>
         <div class="topbar-title" style="display:flex;align-items:center;gap:10px;">
           📈 Live Market Dashboard
-          <span class="av-badge"><i class="ri-flashlight-line"></i> Live Data</span>
+          <span class="prov-badge prov-unknown" id="dashboardProvenance"><span class="prov-dot"></span><span id="dashboardProvenanceText">Checking…</span></span>
           <span class="market-pill closed" id="marketStatusPill">
             <span class="pulse"></span> <span id="marketStatusText">Checking...</span>
           </span>
+          <span class="prov-session" id="marketSessionLabel"></span>
         </div>
         <div class="topbar-sub" id="lastRefreshed">NSE Stocks · Gold 24K/22K · Silver · USD/INR · WTI Crude · Technical Indicators</div>
       </div>
@@ -217,6 +232,7 @@
           </div>
           <div id="stockDetailChart"></div>
           <div style="margin-top:8px;font-size:11px;color:#6b7280;" id="chartMeta">Live Price Data</div>
+          <div class="prov-row" id="quoteProvenance"></div>
         </div>
         <div class="card">
           <div class="sec-title" style="margin-bottom:8px;"><i class="ri-pulse-line"></i> Technical Indicators</div>
@@ -311,6 +327,30 @@
     const fmt = (v) => formatINR(v);
     const fmtUSD = (v) => '$' + parseFloat(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    // ── Data Provenance ──────────────────────────────────────────────────
+    // The badge always mirrors the status the API actually returned. An absent
+    // or unrecognised status degrades to "Status Unknown" — we never infer LIVE.
+    const KNOWN_STATUS = ['LIVE', 'CACHED', 'STALE', 'UNAVAILABLE'];
+    const statusOf = (obj) => {
+      const raw = String((obj && (obj.data_status || obj.dataStatus)) || '').toUpperCase().trim();
+      return KNOWN_STATUS.includes(raw) ? raw : 'UNKNOWN';
+    };
+    const provClass = (s) => s === 'LIVE' ? 'prov-live'
+      : s === 'CACHED' ? 'prov-cached'
+      : s === 'STALE' ? 'prov-stale'
+      : s === 'UNAVAILABLE' ? 'prov-unavailable'
+      : 'prov-unknown';
+    const statusText = (s) => s === 'UNKNOWN' ? 'Status Unknown' : s;
+    const provBadge = (s) =>
+      `<span class="prov-badge ${provClass(s)}" title="Data status as reported by the API"><span class="prov-dot"></span>${statusText(s)}</span>`;
+
+    const setBadge = (badgeId, textId, s) => {
+      const el = document.getElementById(badgeId);
+      if (el) el.className = `prov-badge ${provClass(s)}`;
+      const t = document.getElementById(textId);
+      if (t) t.textContent = statusText(s);
+    };
+
     let chartInstance = null;
     let currentSym = 'RELIANCE';
     let currentTf  = '1M';
@@ -349,6 +389,12 @@
 
       updateMarketStatus(d.marketStatus);
       document.getElementById('lastRefreshed').textContent = `Last updated: ${d.timestamp}`;
+
+      // Provenance reflects the status the dashboard actually reported, and the
+      // exchange session that produced it (never an assumed "LIVE").
+      setBadge('dashboardProvenance', 'dashboardProvenanceText', statusOf(d));
+      const sessLabel = document.getElementById('marketSessionLabel');
+      if (sessLabel) sessLabel.textContent = d.market_session?.name || '';
 
       // Gold
       document.getElementById('gold24kVal').textContent = fmt(d.gold.karat24.perGram);
@@ -400,7 +446,7 @@
           <td class="chg-cell ${up ? 'up' : 'down'}">${up ? '+' : ''}${fmt(s.change || 0)}</td>
           <td class="chg-cell ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(s.changePercent || 0).toFixed(2)}%</td>
           <td style="font-size:11px;color:#6b7280;">${(s.volume || 0).toLocaleString('en-IN')}</td>
-          <td><span class="source-dot ${srcClass}" title="${s.source}"></span> <span style="font-size:10px;color:#6b7280;">${(s.source || '').replace('ALPHA_VANTAGE', 'AV')}</span></td>
+          <td><span class="source-dot ${srcClass}" title="${s.source}"></span> <span style="font-size:10px;color:#6b7280;">${(s.source || '').replace('ALPHA_VANTAGE', 'AV')}</span><div style="margin-top:4px;">${provBadge(statusOf(s))}</div></td>
           <td><button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();selectSymbol('${s.symbol}')"><i class="ri-line-chart-line"></i></button></td>
         </tr>`;
       }).join('');
@@ -431,6 +477,21 @@
         document.getElementById('chartTitle').innerHTML =
           `<i class="ri-line-chart-line"></i> ${q.name || sym} (${sym}) &mdash; ${fmt(q.price)} <span style="font-size:12px;color:${upDown ? '#10b981' : '#ef4444'}">${upDown ? '▲' : '▼'} ${Math.abs(q.changePercent || 0).toFixed(2)}%</span>`;
         document.getElementById('chartMeta').textContent = `Source: ${q.provider || q.source} · ${q.timestamp}`;
+
+        // Provenance for the selected symbol, taken from this exact response.
+        const prov = document.getElementById('quoteProvenance');
+        if (prov) {
+          prov.innerHTML =
+            provBadge(statusOf(q)) +
+            (q.session_name ? `<span class="prov-session">${q.session_name}</span>` : '') +
+            (q.data_status === 'UNAVAILABLE' || q.price == null
+              ? `<span class="prov-session">No validated price available</span>`
+              : '');
+        }
+      } else {
+        // Do not leave a stale badge behind when the quote cannot be loaded.
+        const prov = document.getElementById('quoteProvenance');
+        if (prov) prov.innerHTML = provBadge('UNKNOWN');
       }
 
       if (histRes?.success && histRes.data.points?.length > 0) {

@@ -1,5 +1,19 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
+const analyticsEngine = require('../services/analyticsEngine');
+
+const BUDGET_TX_SELECT = {
+  amount: true,
+  transactionType: true,
+  date: true,
+  description: true,
+  merchant: true,
+  categoryId: true,
+  category: { select: { name: true } },
+};
+
+const previousMonthOf = (year, month) =>
+  month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
 
 /**
  * GET /api/v1/budgets
@@ -8,74 +22,65 @@ const getBudgets = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const now = new Date();
-    const month = parseInt(req.query.month) || now.getMonth() + 1;
-    const year = parseInt(req.query.year) || now.getFullYear();
+    const parsed = analyticsEngine.parsePeriodInput({ month: req.query.month, year: req.query.year, now });
+    if (!parsed.valid) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error } });
+    }
+    const { month, year } = parsed;
 
-    const startOfMonth = new Date(year, month - 1, 1, 0, 0, 0, 0);
-    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+    const { start: startOfMonth, end: endOfMonth } = analyticsEngine.getMonthBounds(year, month);
+    const prev = previousMonthOf(year, month);
+    const prevBounds = analyticsEngine.getMonthBounds(prev.year, prev.month);
 
-    // Get budgets for the month
-    const budgets = await prisma.budget.findMany({
-      where: { userId, month, year },
-      include: { category: { select: { id: true, name: true } } },
+    const [budgets, expenses, previousExpenses] = await Promise.all([
+      prisma.budget.findMany({
+        where: { userId, month, year },
+        include: { category: { select: { id: true, name: true } } },
+      }),
+      prisma.transaction.findMany({
+        where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
+        select: BUDGET_TX_SELECT,
+      }),
+      prisma.transaction.findMany({
+        where: { userId, transactionType: 'EXPENSE', date: { gte: prevBounds.start, lte: prevBounds.end } },
+        select: BUDGET_TX_SELECT,
+      }),
+    ]);
+
+    const evaluation = analyticsEngine.evaluateBudgets({
+      budgets,
+      transactions: expenses,
+      previousTransactions: previousExpenses,
+      year,
+      month,
+      warningThreshold: req.query.warningThreshold,
+      now,
     });
 
-    // Get all expense transactions for the month
-    const expenses = await prisma.transaction.findMany({
-      where: {
-        userId,
-        transactionType: 'EXPENSE',
-        date: { gte: startOfMonth, lte: endOfMonth },
-      },
-      include: { category: { select: { id: true, name: true } } },
-    });
+    const enrichedBudgets = evaluation.budgets.map((b) => ({
+      ...b,
+      formattedLimit: formatINR(b.monthlyLimit),
+      formattedSpent: formatINR(b.spent),
+      formattedRemaining: formatINR(b.remaining),
+      formattedPreviousMonthSpent: formatINR(b.previousMonthSpent),
+      formattedProjectedMonthEndSpent: formatINR(b.projectedMonthEndSpent),
+    }));
 
-    const enrichedBudgets = budgets.map((b) => {
-      const catName = (b.category?.name || b.categoryName || '').toLowerCase();
-      const catId = b.categoryId;
-
-      const spent = expenses.reduce((sum, t) => {
-        const matchesId = catId && t.categoryId === catId;
-        const matchesName = t.category?.name && t.category.name.toLowerCase() === catName;
-        if (matchesId || matchesName) {
-          return sum + parseFloat(t.amount || 0);
-        }
-        return sum;
-      }, 0);
-
-      const limit = parseFloat(b.monthlyLimit);
-      const pct = limit > 0 ? Math.round((spent / limit) * 100) : 0;
-
-      return {
-        id: b.id,
-        category: b.category?.name || b.categoryName,
-        categoryName: b.category?.name || b.categoryName,
-        monthlyLimit: limit,
-        formattedLimit: formatINR(limit),
-        spent,
-        formattedSpent: formatINR(spent),
-        remaining: Math.max(0, limit - spent),
-        formattedRemaining: formatINR(Math.max(0, limit - spent)),
-        percentageUsed: pct,
-        status: pct >= 100 ? 'exceeded' : pct >= 90 ? 'alert' : pct >= 75 ? 'warning' : 'ok',
-        month,
-        year,
-      };
-    });
-
-    const totalLimit = enrichedBudgets.reduce((s, b) => s + b.monthlyLimit, 0);
-    const totalSpent = enrichedBudgets.reduce((s, b) => s + b.spent, 0);
-    const totalRemaining = Math.max(0, totalLimit - totalSpent);
+    const totalLimit = evaluation.summary.totalBudgeted;
+    const totalSpent = evaluation.summary.totalSpent;
+    const totalRemaining = evaluation.summary.totalRemaining;
 
     return res.status(200).json({
       success: true,
       data: {
         month,
         year,
+        warningThreshold: evaluation.warningThreshold,
         summary: {
-          totalBudgeted: totalLimit,
-          totalSpent,
-          totalRemaining,
+          ...evaluation.summary,
+          formattedTotalBudgeted: formatINR(totalLimit),
+          formattedTotalSpent: formatINR(totalSpent),
+          formattedTotalRemaining: formatINR(totalRemaining),
         },
         totalLimit,
         totalSpent,
@@ -160,11 +165,16 @@ const createBudget = async (req, res, next) => {
     const { monthlyLimit, month = now.getMonth() + 1, year = now.getFullYear() } = req.body;
 
     const limit = parseFloat(monthlyLimit);
-    if (!categoryName || !limit || limit <= 0) {
+    if (!categoryName || typeof categoryName !== 'string' || !Number.isFinite(limit) || limit <= 0) {
       return res.status(400).json({
         success: false,
         error: { code: 'VALIDATION_ERROR', message: 'Category name and a positive monthly limit are required.' },
       });
+    }
+
+    const period = analyticsEngine.parsePeriodInput({ month, year, now });
+    if (!period.valid) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: period.error } });
     }
 
     // Find or create category
@@ -179,15 +189,15 @@ const createBudget = async (req, res, next) => {
 
     // Upsert budget
     const budget = await prisma.budget.upsert({
-      where: { userId_categoryName_month_year: { userId, categoryName, month: parseInt(month), year: parseInt(year) } },
+      where: { userId_categoryName_month_year: { userId, categoryName, month: period.month, year: period.year } },
       update: { monthlyLimit: limit, categoryId: category.id },
       create: {
         userId,
         categoryId: category.id,
         categoryName,
         monthlyLimit: limit,
-        month: parseInt(month),
-        year: parseInt(year),
+        month: period.month,
+        year: period.year,
       },
     });
 
@@ -221,11 +231,24 @@ const updateBudget = async (req, res, next) => {
     }
 
     const { monthlyLimit, categoryName } = req.body;
+
+    // Validate any provided monetary value — reject negative or non-finite input.
+    let nextLimit;
+    if (monthlyLimit !== undefined && monthlyLimit !== null && monthlyLimit !== '') {
+      nextLimit = parseFloat(monthlyLimit);
+      if (!Number.isFinite(nextLimit) || nextLimit <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'monthlyLimit must be a positive, finite amount.' },
+        });
+      }
+    }
+
     const updated = await prisma.budget.update({
       where: { id: req.params.id },
       data: {
-        ...(monthlyLimit && { monthlyLimit: parseFloat(monthlyLimit) }),
-        ...(categoryName && { categoryName: categoryName.trim() }),
+        ...(nextLimit !== undefined && { monthlyLimit: nextLimit }),
+        ...(categoryName && typeof categoryName === 'string' && { categoryName: categoryName.trim() }),
       },
     });
 

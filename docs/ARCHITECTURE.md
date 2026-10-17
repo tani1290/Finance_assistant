@@ -82,7 +82,7 @@ FinPro is a full-stack, enterprise-grade personal finance management and advisor
 ## 3. Directory Layout
 
 ```
-Final-Year-Project/
+FinPro/
 ├── docs/                     # Canonical architectural, QA, and deployment docs
 │   ├── API.md                # Complete REST API Specification
 │   ├── ARCHITECTURE.md       # Architecture & Tech Stack (This document)
@@ -98,7 +98,6 @@ Final-Year-Project/
 │   ├── prisma/               # Prisma schema & migrations
 │   ├── src/                  # Controllers, services, routes, middleware
 │   └── scripts/              # Secret scanner, linter, build scripts
-├── deployment/               # Nginx configs & Systemd service templates
 ├── docker-compose.yml        # Multi-container orchestration
 ├── render.yaml               # Render Cloud Blueprint
 └── vercel.json               # Vercel Frontend Reverse Proxy Config

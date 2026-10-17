@@ -397,7 +397,28 @@ exports.confirmPendingSms = async (req, res) => {
     const finalMerchant = overrideMerchant !== undefined ? overrideMerchant : pendingItem.merchant;
     const finalCategoryName = overrideCategoryName || pendingItem.suggestedCategory || 'General';
 
-    // Account resolution
+    if (!Number.isFinite(finalAmount) || finalAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: 'Amount must be a positive number.'
+      });
+    }
+
+    // Account resolution — any client-supplied accountId MUST belong to the caller
+    if (overrideAccountId) {
+      const ownedAccount = await prisma.financialAccount.findFirst({
+        where: { id: overrideAccountId, userId }
+      });
+      if (!ownedAccount) {
+        return res.status(404).json({
+          success: false,
+          error: 'NOT_FOUND',
+          message: 'Account not found or access denied'
+        });
+      }
+    }
+
     let targetAccountId = overrideAccountId || pendingItem.matchedAccountId;
     if (!targetAccountId) {
       let defaultAccount = await prisma.financialAccount.findFirst({

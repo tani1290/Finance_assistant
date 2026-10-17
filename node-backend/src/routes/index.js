@@ -165,6 +165,8 @@ router.get('/news', news.getNews);
 
 // Analytics & Reports
 router.get('/analytics', analytics.getAnalytics);
+router.get('/analytics/forecast', analytics.getForecast);
+router.get('/analytics/insights', analytics.getInsights);
 router.get('/reports/monthly', analytics.getMonthlyFinancialReport);
 
 // Calendar
@@ -205,6 +207,12 @@ router.post('/ai/retirement-plan', simulations.getRetirementPlan);
 router.get('/ai/goals/:id/forecast', simulations.getGoalForecast);
 
 // Receipts OCR & Bank Statement Import (Unified Ingestion Engine)
+// NOTE: static POST paths (/receipts/scan, /receipts/confirm) are registered
+// alongside the parameterized GET/DELETE routes; the :id handlers validate the
+// id as a UUID so they cannot shadow the static paths for other methods.
+router.get('/receipts', ocrImport.getReceipts);
+router.get('/receipts/:id', ocrImport.getReceiptById);
+router.delete('/receipts/:id', ocrImport.deleteReceipt);
 router.post('/receipts/scan', ocrImport.scanReceipt);
 router.post('/receipts/confirm', ocrImport.confirmReceipt);
 router.post('/import/bank-statement', ocrImport.parseBankStatement);

@@ -13,6 +13,25 @@ const { v4: uuidv4 } = require('uuid');
  * Unified Ingestion Engine: PDF Text/OCR, CSV, Receipt OCR with GST breakdown & ML classification.
  */
 
+// Bank-statement confirmation is the one multi-row write in the import flow, so
+// it runs under Serializable isolation: two simultaneous confirmations of the
+// same payload can no longer both miss the other's uncommitted rows and insert a
+// double set. Postgres aborts one of them (P2034 / SQLSTATE 40001); because the
+// whole transaction rolled back, a bounded retry re-reads the now-committed rows,
+// skips them as duplicates and reports that, so the client gets a meaningful
+// "nothing new to import" result instead of a raw error. A retry can never
+// double-apply: the aborted attempt left no rows and no balance change behind.
+const CONFIRM_IMPORT_MAX_ATTEMPTS = 3; // 1 initial attempt + 2 conflict retries
+const CONFIRM_IMPORT_RETRY_DELAY_MS = 25;
+
+const isRetryableConflict = (error) =>
+  !!error &&
+  (error.code === 'P2034' ||
+    error.code === '40001' ||
+    /serialization|deadlock|could not serialize/i.test(String(error.message || '')));
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Helper: Parse structured receipt fields from extracted text
 const parseReceiptText = (rawText) => {
   const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
@@ -310,16 +329,44 @@ const scanReceipt = async (req, res, next) => {
  * Atomically commits confirmed receipt to financial transactions table
  */
 const confirmReceipt = async (req, res, next) => {
+  // `userId`/`scanId` are declared outside the try so the catch block below can
+  // recover the winner's scan when this request loses the confirmation race.
+  const userId = req.user.id;
+  const { scanId, accountId, amount, merchant, category, date, notes } = req.body;
   try {
-    const userId = req.user.id;
-    const { scanId, accountId, amount, merchant, category, date, notes } = req.body;
-
     const txAmount = parseFloat(amount);
     if (!amount || isNaN(txAmount) || txAmount <= 0) {
       return res.status(400).json({
         success: false,
         error: { code: 'VALIDATION_ERROR', message: 'Valid positive amount is required.' },
       });
+    }
+
+    // Idempotency: confirming a receipt must be replay-safe. Mobile clients
+    // double-tap and retry on flaky networks, and each replay previously created
+    // a *second* expense and decremented the balance again. If the scan is
+    // already CONFIRMED we return the original transaction untouched.
+    if (scanId) {
+      const existingScan = await prisma.receiptScan.findFirst({ where: { id: scanId, userId } });
+      if (!existingScan) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Receipt scan not found.' },
+        });
+      }
+      if (existingScan.status === 'CONFIRMED') {
+        const existingTx = existingScan.transactionId
+          ? await prisma.transaction.findFirst({ where: { id: existingScan.transactionId, userId } })
+          : null;
+        return res.status(200).json({
+          success: true,
+          data: {
+            transaction: existingTx,
+            alreadyConfirmed: true,
+            message: 'This receipt was already confirmed.',
+          },
+        });
+      }
     }
 
     let account = await prisma.financialAccount.findFirst({
@@ -348,6 +395,22 @@ const confirmReceipt = async (req, res, next) => {
     const txDate = date ? new Date(date) : new Date();
 
     const transaction = await prisma.$transaction(async (tx) => {
+      // Atomically claim the scan *before* writing any money movement. The
+      // conditional updateMany is the concurrency guard: if two requests race,
+      // exactly one sees count === 1 and proceeds; the loser is rejected and
+      // surfaces `alreadyConfirmed` instead of creating a duplicate expense.
+      if (scanId) {
+        const claim = await tx.receiptScan.updateMany({
+          where: { id: scanId, userId, status: { not: 'CONFIRMED' } },
+          data: { status: 'CONFIRMED' },
+        });
+        if (claim.count === 0) {
+          const raceError = new Error('Receipt already confirmed by a concurrent request.');
+          raceError.code = 'RECEIPT_ALREADY_CONFIRMED';
+          throw raceError;
+        }
+      }
+
       const createdTx = await tx.transaction.create({
         data: {
           userId,
@@ -371,7 +434,7 @@ const confirmReceipt = async (req, res, next) => {
       if (scanId) {
         await tx.receiptScan.updateMany({
           where: { id: scanId, userId },
-          data: { status: 'CONFIRMED', transactionId: createdTx.id },
+          data: { transactionId: createdTx.id },
         });
       }
 
@@ -386,6 +449,22 @@ const confirmReceipt = async (req, res, next) => {
       },
     });
   } catch (error) {
+    // Lost the confirmation race: return the winner's transaction rather than an
+    // error, so the client converges on the same single expense.
+    if (error && error.code === 'RECEIPT_ALREADY_CONFIRMED') {
+      const scan = await prisma.receiptScan.findFirst({ where: { id: scanId, userId } });
+      const existingTx = scan && scan.transactionId
+        ? await prisma.transaction.findFirst({ where: { id: scan.transactionId, userId } })
+        : null;
+      return res.status(200).json({
+        success: true,
+        data: {
+          transaction: existingTx,
+          alreadyConfirmed: true,
+          message: 'This receipt was already confirmed.',
+        },
+      });
+    }
     next(error);
   }
 };
@@ -456,20 +535,10 @@ const parseBankStatementPDF = async (req, res, next) => {
       });
     }
 
-    // Persist to Cloud/Local storage in user-scoped directory
-    let storedDoc = null;
-    try {
-      const storageKey = `users/${userId}/documents/${Date.now()}_${(filename || 'statement.pdf').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      storedDoc = await storageService.upload({
-        buffer: pdfBuffer,
-        key: storageKey,
-        contentType: 'application/pdf',
-        metadata: { userId, documentType: 'bank-statement-pdf', originalName: filename || 'statement.pdf' },
-      });
-    } catch (storageErr) {
-      console.warn('[Storage] Notice during statement PDF upload:', storageErr.message);
-    }
-
+    // The ingestion service owns persistence for PDF statements (it uploads to
+    // the user-scoped `documents/` prefix as part of processing). Uploading here
+    // as well stored the same PDF twice and orphaned one copy, so the service's
+    // key/url are reused directly instead of a second upload.
     const result = await documentIngestionService.processStatementPDF({
       userId,
       pdfBuffer,
@@ -481,8 +550,8 @@ const parseBankStatementPDF = async (req, res, next) => {
       success: true,
       data: {
         ...result,
-        storageKey: storedDoc?.key || null,
-        documentUrl: storedDoc?.url || null,
+        storageKey: result.storageKey || null,
+        documentUrl: result.storageUrl || null,
       },
     });
   } catch (error) {
@@ -503,6 +572,16 @@ const confirmBankStatementImport = async (req, res, next) => {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'No valid rows to import.' } });
     }
 
+    // Guard against NaN/negative magnitudes before any balance is touched — a bad
+    // row would otherwise poison netBalanceImpact and corrupt the account balance.
+    const hasInvalidAmount = rows.some((r) => {
+      const amt = parseFloat(r && r.amount);
+      return !Number.isFinite(amt) || amt <= 0;
+    });
+    if (hasInvalidAmount) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Every row must have a positive numeric amount.' } });
+    }
+
     let account = await prisma.financialAccount.findFirst({
       where: {
         userId,
@@ -518,12 +597,47 @@ const confirmBankStatementImport = async (req, res, next) => {
     }
 
     let totalImported = 0;
+    let skippedDuplicateCount = 0;
     let netBalanceImpact = 0;
 
-    await prisma.$transaction(async (tx) => {
+    // The transactional body. It is invoked (and possibly re-invoked) by the
+    // Serializable retry loop below, so it resets the per-attempt tallies first.
+    const runImport = async (tx) => {
+      totalImported = 0;
+      skippedDuplicateCount = 0;
+      netBalanceImpact = 0;
+
+      // Re-check duplicates inside the transaction against what is already
+      // committed. The preview step de-duplicates too, but a client retry (or a
+      // double-tap on confirm) would otherwise re-insert every row and move the
+      // balance a second time. `existing` grows as rows are created so repeated
+      // rows within the same payload are skipped as well.
+      const existing = await tx.transaction.findMany({
+        where: { userId, accountId: account.id },
+        select: { id: true, amount: true, date: true, description: true, transactionType: true },
+        take: 200,
+      });
+
       for (const row of rows) {
         const amt = parseFloat(row.amount);
         const txType = row.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+
+        const rowDate = row.date ? new Date(row.date) : new Date();
+        const candidateDate = isNaN(rowDate.getTime())
+          ? new Date().toISOString().split('T')[0]
+          : rowDate.toISOString().split('T')[0];
+        const candidateDescription = String(row.description || 'Imported statement transaction').trim();
+
+        const dupCheck = documentIngestionService.isDuplicateTransaction(existing, {
+          description: candidateDescription,
+          date: candidateDate,
+          amount: amt,
+          type: txType,
+        });
+        if (dupCheck.isDuplicate) {
+          skippedDuplicateCount++;
+          continue;
+        }
 
         let categoryId = null;
         if (row.category && row.category !== 'General' && row.category !== 'Other') {
@@ -538,16 +652,35 @@ const confirmBankStatementImport = async (req, res, next) => {
           categoryId = categoryRecord.id;
         }
 
-        await tx.transaction.create({
+        const createdTx = await tx.transaction.create({
           data: {
             userId,
             accountId: account.id,
             categoryId,
             amount: amt,
             transactionType: txType,
-            description: row.description || 'Imported statement transaction',
-            date: row.date ? new Date(row.date) : new Date(),
+            description: candidateDescription,
+            merchant: row.merchant != null && String(row.merchant).trim() !== ''
+              ? String(row.merchant).trim()
+              : (row.description != null && String(row.description).trim() !== '' ? String(row.description).trim() : null),
+            notes: row.remarks != null && String(row.remarks).trim() !== ''
+              ? String(row.remarks).trim()
+              : (row.notes != null && String(row.notes).trim() !== '' ? String(row.notes).trim() : null),
+            paymentMethod: row.referenceId != null && String(row.referenceId).trim() !== ''
+              ? `Ref: ${String(row.referenceId).trim()}`
+              : (row.paymentMethod || null),
+            date: rowDate,
           },
+        });
+
+        // Track the newly-created row so later rows in this same payload that
+        // restate it are also treated as duplicates.
+        existing.push({
+          id: createdTx.id,
+          amount: createdTx.amount,
+          date: createdTx.date,
+          description: createdTx.description,
+          transactionType: createdTx.transactionType,
         });
 
         if (txType === 'INCOME') {
@@ -558,20 +691,41 @@ const confirmBankStatementImport = async (req, res, next) => {
         totalImported++;
       }
 
-      await tx.financialAccount.update({
-        where: { id: account.id },
-        data: { balance: { increment: netBalanceImpact } },
-      });
-    });
+      // Only move the balance when something was actually imported; a fully
+      // duplicate payload must not touch the account at all.
+      if (totalImported > 0) {
+        await tx.financialAccount.update({
+          where: { id: account.id },
+          data: { balance: { increment: netBalanceImpact } },
+        });
+      }
+    };
+
+    // Serializable so overlapping confirmations cannot both read a stale row set.
+    // On a serialization conflict the attempt is retried a bounded number of
+    // times; only genuine conflicts are retried, every other error propagates.
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        await prisma.$transaction(runImport, { isolationLevel: 'Serializable' });
+        break;
+      } catch (error) {
+        if (isRetryableConflict(error) && attempt < CONFIRM_IMPORT_MAX_ATTEMPTS) {
+          await delay(CONFIRM_IMPORT_RETRY_DELAY_MS * attempt);
+          continue;
+        }
+        throw error;
+      }
+    }
 
     return res.status(200).json({
       success: true,
       data: {
         importedCount: totalImported,
+        skippedDuplicateCount,
         accountName: account.name,
         netBalanceImpact,
         formattedNetImpact: formatINR(netBalanceImpact),
-        message: `Successfully imported ${totalImported} transactions into ${account.name}.`,
+        message: `Successfully imported ${totalImported} transaction${totalImported === 1 ? '' : 's'} into ${account.name}${skippedDuplicateCount > 0 ? ` (${skippedDuplicateCount} duplicate${skippedDuplicateCount === 1 ? '' : 's'} skipped)` : ''}.`,
       },
     });
   } catch (error) {
@@ -616,9 +770,184 @@ const recordCategoryFeedback = async (req, res, next) => {
   }
 };
 
+// ── Receipt History (read / delete) ──────────────────────────────────────────
+// Ownership is always enforced server-side: every query is scoped by
+// `userId: req.user.id`. A client-supplied user id is never trusted.
+
+const RECEIPT_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Reject malformed ids before they ever reach the database (a bad id would
+// otherwise surface as an opaque Prisma error / 500).
+const isValidReceiptId = (id) => typeof id === 'string' && RECEIPT_UUID_RE.test(id);
+
+// Normalize the persisted `items` JSON into a predictable shape. Older rows may
+// store a bare array; newer rows store an object with lineItems/gst/storageKey.
+const normalizeReceiptItems = (items) => {
+  const isObject = typeof items === 'object' && items !== null && !Array.isArray(items);
+  const obj = isObject ? items : {};
+  const lineItems = Array.isArray(items)
+    ? items
+    : (Array.isArray(obj.lineItems) ? obj.lineItems : []);
+  const gstBreakdown = obj.gstBreakdown || obj.gst || null;
+  return { obj, lineItems, gstBreakdown };
+};
+
+// Present a stored receipt to the client. Never invents values: unknown
+// confidence is returned as null rather than a hardcoded default.
+const formatReceiptForClient = (r) => {
+  const { obj, lineItems, gstBreakdown } = normalizeReceiptItems(r.items);
+  return {
+    id: r.id,
+    merchant: r.merchant || 'Unidentified Merchant',
+    amount: r.amount !== null && r.amount !== undefined ? parseFloat(r.amount) : null,
+    formattedAmount: r.amount !== null && r.amount !== undefined ? formatINR(parseFloat(r.amount)) : 'Pending',
+    date: r.date ? new Date(r.date).toISOString().split('T')[0] : null,
+    category: r.category || 'General',
+    status: r.status,
+    items: lineItems,
+    gstBreakdown,
+    metadata: { ...obj, gstBreakdown },
+    ocrConfidence: typeof obj.confidence === 'number' ? obj.confidence : null,
+    receiptImageUrl: obj.receiptImageUrl || null,
+    rawText: r.rawText,
+    transactionId: r.transactionId,
+    createdAt: r.createdAt,
+  };
+};
+
+/**
+ * GET /api/v1/receipts
+ * Returns all receipt scans belonging to the authenticated user (newest first).
+ */
+const getReceipts = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const receipts = await prisma.receiptScan.findMany({
+      where: { userId },
+      orderBy: [
+        { date: 'desc' },
+        { createdAt: 'desc' },
+      ],
+    });
+
+    const formatted = receipts.map(formatReceiptForClient);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        receipts: formatted,
+        count: formatted.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/v1/receipts/:id
+ * Returns a single receipt scan owned by the authenticated user.
+ */
+const getReceiptById = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    if (!isValidReceiptId(id)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Invalid receipt id.' },
+      });
+    }
+
+    const receipt = await prisma.receiptScan.findFirst({
+      where: { id, userId },
+    });
+
+    if (!receipt) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Receipt scan not found.' },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: formatReceiptForClient(receipt),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/v1/receipts/:id
+ * Deletes a receipt scan owned by the authenticated user, and best-effort
+ * removes its stored image. Only owner-scoped storage keys are ever touched.
+ */
+const deleteReceipt = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    if (!isValidReceiptId(id)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Invalid receipt id.' },
+      });
+    }
+
+    const receipt = await prisma.receiptScan.findFirst({
+      where: { id, userId },
+    });
+
+    if (!receipt) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Receipt scan not found.' },
+      });
+    }
+
+    // Best-effort image cleanup. The key MUST live under this user's own
+    // `users/<userId>/` namespace — a tampered or legacy key (e.g. another
+    // user's folder, or an `exports/` path) is never deleted.
+    const { obj } = normalizeReceiptItems(receipt.items);
+    const storageKey = typeof obj.storageKey === 'string' ? obj.storageKey : null;
+    const ownsKey = storageKey && !storageKey.includes('..') && storageKey.startsWith(`users/${userId}/`);
+    if (ownsKey) {
+      await storageService.delete(storageKey).catch(() => {});
+    }
+
+    await prisma.receiptScan.delete({ where: { id } });
+
+    // Audit log (non-blocking, mirrors transaction deletion accounting).
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'RECEIPT_DELETE',
+        entity: 'ReceiptScan',
+        entityId: id,
+        ipAddress: req.ip || null,
+        userAgent: req.headers['user-agent'] || null,
+      },
+    }).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      data: { message: 'Receipt scan deleted successfully.' },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   scanReceipt,
   confirmReceipt,
+  getReceipts,
+  getReceiptById,
+  deleteReceipt,
   parseBankStatement,
   parseBankStatementPDF,
   confirmBankStatementImport,

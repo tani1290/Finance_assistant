@@ -4,6 +4,17 @@ const mlCategorizerService = require('./mlCategorizerService');
 const http = require('http');
 const https = require('https');
 
+// Read the installed Prisma Client version instead of hardcoding it — a static
+// string silently drifts from package.json and misreports the running engine.
+const resolvePrismaVersion = () => {
+  try {
+    const { Prisma } = require('@prisma/client');
+    return (Prisma && Prisma.prismaVersion && Prisma.prismaVersion.client) || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+};
+
 /**
  * Cloud Health Service
  * Provides genuine, non-fabricated dependency telemetry across all 12 subsystems:
@@ -71,8 +82,12 @@ class CloudHealthService {
       mlEngine: mlHealth,
     };
 
+    // Critical checks must be genuinely CONNECTED for the platform to claim it
+    // is OPERATIONAL. Treating DEGRADED as healthy let the banner read "ALL
+    // CLOUD SYSTEMS OPERATIONAL" while a critical dependency (e.g. the cloud
+    // bucket) was in fact degraded.
     const criticalChecks = [dbHealth, prismaHealth, s3StorageHealth];
-    const isOverallHealthy = criticalChecks.every(c => c.status === 'CONNECTED' || c.status === 'DEGRADED');
+    const isOverallHealthy = criticalChecks.every(c => c.status === 'CONNECTED');
 
     return {
       success: true,
@@ -143,7 +158,7 @@ class CloudHealthService {
         latencyMs: Date.now() - start,
         lastChecked: new Date().toISOString(),
         details: {
-          ormVersion: '6.6.0',
+          ormVersion: resolvePrismaVersion(),
           schemaSync: 'Synchronized with schema.prisma',
           safeMessage: 'Prisma Client runtime is functional and queries schema models cleanly.',
         },
@@ -216,16 +231,24 @@ class CloudHealthService {
       const health = await storageService.checkStorageHealth();
 
       if (health.provider === 's3') {
+        // A reachable local fallback keeps the platform writable but does NOT
+        // mean the cloud bucket is healthy. Report the bucket truthfully so a
+        // paused/unreachable bucket is never surfaced as CONNECTED.
+        const cloudDegraded = health.cloudStatus === 'degraded' || health.cloudAvailable === false;
         return {
-          status: health.available ? 'CONNECTED' : 'DEGRADED',
+          status: health.available && !cloudDegraded ? 'CONNECTED' : 'DEGRADED',
           subsystem: 'Cloud Object Storage Bucket',
           latencyMs: health.latencyMs || Date.now() - start,
           lastChecked: new Date().toISOString(),
           details: {
             provider: 'S3-compatible object storage',
             bucket: health.bucket || 'finpro-documents',
+            cloudStatus: cloudDegraded ? 'degraded' : 'available',
+            fallbackProvider: health.fallbackProvider || null,
           },
-          safeMessage: 'Cloud object storage bucket reachable.',
+          safeMessage: cloudDegraded
+            ? 'Cloud bucket is unreachable; documents are being served from the local disk fallback.'
+            : 'Cloud object storage bucket reachable.',
         };
       }
 
@@ -251,15 +274,17 @@ class CloudHealthService {
     const start = Date.now();
     try {
       const storageHealth = await storageService.checkStorageHealth();
+      const cloudDegraded = storageHealth.cloudStatus === 'degraded' || storageHealth.cloudAvailable === false;
       return {
-        status: storageHealth.available ? 'CONNECTED' : 'DEGRADED',
+        status: storageHealth.available && !cloudDegraded ? 'CONNECTED' : 'DEGRADED',
         subsystem: 'Object / Document Storage',
         latencyMs: storageHealth.latencyMs || Date.now() - start,
         lastChecked: new Date().toISOString(),
         details: {
           provider: storageHealth.provider || 'local',
           target: storageHealth.bucket || storageHealth.directory || 'uploads/documents',
-          status: storageHealth.available ? 'Ready for uploads' : 'Fallback active',
+          cloudStatus: storageHealth.provider === 's3' ? (cloudDegraded ? 'degraded' : 'available') : 'not_applicable',
+          status: storageHealth.available ? (cloudDegraded ? 'Cloud unavailable — fallback active' : 'Ready for uploads') : 'Unavailable',
         },
       };
     } catch (err) {
@@ -292,15 +317,22 @@ class CloudHealthService {
       };
     }
 
+    // Presence of a key proves configuration, not connectivity. This probe is
+    // intentionally offline (no model call: it would cost money and leak the
+    // key into an outbound URL), so a configured-but-unverified integration is
+    // reported as DEGRADED rather than CONNECTED.
     return {
-      status: 'CONNECTED',
+      status: 'DEGRADED',
       subsystem: 'Cloud AI (Google Gemini)',
       latencyMs: Date.now() - start,
       lastChecked: new Date().toISOString(),
       details: {
         model: process.env.AI_MODEL || 'gemini-1.5-flash',
         provider: 'Google Vertex / Gemini AI',
-        status: 'Online and ready for advisory prompts',
+        configured: true,
+        verified: false,
+        configurationStatus: 'configured_unverified',
+        safeMessage: 'Gemini API key is configured but live connectivity is not verified by this health probe. Failed AI calls fall back to the offline reasoning engine.',
       },
     };
   }
@@ -350,14 +382,19 @@ class CloudHealthService {
       };
     }
 
+    // Same rule as the AI probe: a configured key is not a live feed. Without a
+    // real quote probe we report DEGRADED + verified:false instead of CONNECTED.
     return {
-      status: 'CONNECTED',
+      status: 'DEGRADED',
       subsystem: 'Live Market Data Feed',
       latencyMs: Date.now() - start,
       lastChecked: new Date().toISOString(),
       details: {
         provider: 'Finnhub Live Market Provider + MCX Gold/Silver',
-        status: 'Online',
+        configured: true,
+        verified: false,
+        configurationStatus: 'configured_unverified',
+        safeMessage: 'FINNHUB_API_KEY is configured but live feed connectivity is not verified by this health probe.',
       },
     };
   }
@@ -389,19 +426,62 @@ class CloudHealthService {
   }
 
   async checkAuth() {
+    const start = Date.now();
     const jwtConfigured = !!(process.env.JWT_SECRET && process.env.JWT_SECRET !== 'YOUR_JWT_SECRET');
 
-    return {
-      status: jwtConfigured ? 'CONNECTED' : 'DEGRADED',
-      subsystem: 'Authentication & Security',
-      latencyMs: 0,
-      lastChecked: new Date().toISOString(),
-      details: {
-        jwtAuth: jwtConfigured ? 'HMAC-SHA256 Active' : 'Default / Insecure Key',
-        passwordHashing: 'bcrypt (Salt rounds 10)',
-        userIsolation: 'Enforced via userId scoped queries',
-      },
-    };
+    if (!jwtConfigured) {
+      return {
+        status: 'DEGRADED',
+        subsystem: 'Authentication & Security',
+        latencyMs: 0,
+        lastChecked: new Date().toISOString(),
+        details: {
+          jwtAuth: 'Unconfigured / insecure default key',
+          passwordHashing: 'bcrypt (Salt rounds 10)',
+          userIsolation: 'Enforced via userId scoped queries',
+        },
+        safeMessage: 'JWT_SECRET is not configured; token issuance would use an insecure default.',
+      };
+    }
+
+    // Presence of a secret only proves configuration. Verify the mechanism by
+    // performing an offline sign→verify round-trip with the configured secret: if
+    // that succeeds, token issuance and verification genuinely work. The probe
+    // token is never returned or logged, so no secret material leaks.
+    try {
+      const jwt = require('jsonwebtoken');
+      const probe = jwt.sign({ sub: 'health-probe', scope: 'health:probe' }, process.env.JWT_SECRET, { expiresIn: '30s' });
+      const decoded = jwt.verify(probe, process.env.JWT_SECRET);
+      const verified = !!(decoded && decoded.sub === 'health-probe');
+      return {
+        status: verified ? 'CONNECTED' : 'DEGRADED',
+        subsystem: 'Authentication & Security',
+        latencyMs: Date.now() - start,
+        lastChecked: new Date().toISOString(),
+        details: {
+          jwtAuth: verified ? 'HMAC-SHA256 sign/verify verified' : 'Sign/verify round-trip mismatch',
+          tokenRoundTrip: verified,
+          passwordHashing: 'bcrypt (Salt rounds 10)',
+          userIsolation: 'Enforced via userId scoped queries',
+        },
+        safeMessage: verified
+          ? 'JWT signing and verification succeeded with the configured secret.'
+          : 'JWT sign/verify round-trip did not verify.',
+      };
+    } catch (err) {
+      return {
+        status: 'DEGRADED',
+        subsystem: 'Authentication & Security',
+        latencyMs: Date.now() - start,
+        lastChecked: new Date().toISOString(),
+        details: {
+          jwtAuth: 'Sign/verify failed',
+          passwordHashing: 'bcrypt (Salt rounds 10)',
+          userIsolation: 'Enforced via userId scoped queries',
+        },
+        safeError: 'JWT signing/verification failed: ' + String(err.message || '').slice(0, 100),
+      };
+    }
   }
 
   async checkMLEngine() {

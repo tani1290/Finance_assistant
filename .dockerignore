@@ -29,3 +29,20 @@ logs/
 docs/screenshots/
 .system_generated/
 scratch/
+
+# Flutter mobile sources (~2.5 GB) — never part of the backend image
+mobile/
+
+# Android build artifacts & signing material — not needed to run the backend
+*.apk
+*.aab
+*.jks
+*.keystore
+key.properties
+
+# Tooling / editor / OS artifacts
+.vercel/
+.DS_Store
+
+# The app's downloadable APK IS served by the backend — re-include it after *.apk
+!frontend/public/downloads/finpro-finance-ai.apk

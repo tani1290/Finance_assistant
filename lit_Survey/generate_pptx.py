@@ -1,3 +1,4 @@
+import os
 import sys
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -308,7 +309,8 @@ def create_deck():
         ("Future Roadmap & Frontiers", ["Automated Bank SMS / Text Message Parser, Multilingual Support (Hindi, Marathi, Gujarati) & SEBI Sandbox Testing."])
     ])
 
-    prs.save("/Volumes/Projects/Minor/Jinay Version/Fin_AI_Personal_Financial_Planner_AI_Final_Year_Project/lit_Survey/FinPro_AI_Financial_Planner_Deck.pptx")
+    out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "FinPro_AI_Financial_Planner_Deck.pptx")
+    prs.save(out_path)
     print("Successfully generated 17-slide PowerPoint deck: FinPro_AI_Financial_Planner_Deck.pptx")
 
 if __name__ == "__main__":

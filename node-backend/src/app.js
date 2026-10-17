@@ -21,11 +21,27 @@ const requestLogger = require('./middleware/requestLogger');
 const { securityHeaders, inputSanitizer, hppProtection } = require('./middleware/cybersecurity');
 const realtimePublisher = require('./middleware/realtimePublisher');
 const prisma = require('./config/database');
+const { sanitizeErrorForLog } = require('./utils/logSanitizer');
 
 const app = express();
 
 // Disable technology fingerprinting
 app.disable('x-powered-by');
+
+// Trust proxy — must mirror the real deployment topology.
+//   • Render puts exactly one reverse proxy in front of the service and appends
+//     the client address to X-Forwarded-For. render.yaml therefore sets
+//     TRUST_PROXY_HOPS=1 so req.ip (used for rate limiting and audit logs) is the
+//     real client instead of the shared proxy address.
+//   • Direct deployments (local dev, `docker compose`, which publish the port)
+//     leave it unset, so a client-supplied X-Forwarded-For is never trusted.
+// Only a finite hop count is safe: `true` lets anyone spoof their IP and evade
+// IP-based rate limiting (express-rate-limit rejects it), while the previous
+// unset default made every request behind the proxy share one rate-limit bucket.
+const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS, 10);
+if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+  app.set('trust proxy', trustProxyHops);
+}
 
 // ==================== SECURITY MIDDLEWARE ====================
 
@@ -44,7 +60,10 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
-// CORS — allow frontend origin
+// CORS — explicit allowlist only. `credentials: true` means echoing arbitrary
+// origins (the literal "null" from file:// pages, or any *.vercel.app
+// deployment) would let attacker-controlled sites read authenticated responses,
+// so every entry here must be a known, first-party origin.
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://127.0.0.1:3000',
   'https://fin-pro-wheat.vercel.app',
@@ -56,20 +75,20 @@ const allowedOrigins = [
   'http://localhost:5500',
   'http://127.0.0.1:3000',
   'http://localhost:3000',
-  'null', // File:// protocol for direct HTML opening
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'test') {
+    // Same-origin / non-browser requests carry no Origin header and are not
+    // subject to CORS; they must keep working (health checks, server-to-server).
+    if (!origin) {
       return callback(null, true);
     }
-    // Allow any Vercel deployment preview/production URL
-    if (/\.vercel\.app$/.test(origin)) {
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
     if (process.env.NODE_ENV !== 'production') {
-      // In development allow local loopback origins
+      // In development allow local loopback origins on any port.
       if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
@@ -158,6 +177,10 @@ app.get('/api/v1/health', async (req, res) => {
     databaseTier: dbHealth.isCloud ? 'cloud' : 'local',
     storage: storageHealth.available ? 'available' : 'unavailable',
     storageProvider: storageHealth.provider,
+    // True only when objects are persisted durably (reachable S3-compatible
+    // storage). A local-disk provider reports false so an uptime reader cannot
+    // mistake "available" for "will survive a redeploy".
+    storageDurable: storageHealth.durable === true,
     storageLatencyMs: storageHealth.latencyMs,
     timestamp: new Date().toISOString(),
     version: '1.1.0',
@@ -224,7 +247,13 @@ app.get('/api/v1/health/cloud-detailed', async (req, res) => {
     const health = await cloudHealthService.checkAllSubsystems();
     res.json(health);
   } catch (err) {
-    res.status(500).json({ success: false, error: 'Health probe failed: ' + err.message });
+    console.error(`[Health] cloud-detailed probe failed: ${sanitizeErrorForLog(err)}`);
+    res.status(500).json({
+      success: false,
+      status: 'error',
+      code: 'HEALTH_PROBE_FAILED',
+      error: 'Health probe failed',
+    });
   }
 });
 
@@ -262,9 +291,14 @@ app.get('/api/v1/health/auth', async (req, res) => {
 
   const jwtConfigured = !!(process.env.JWT_SECRET && process.env.JWT_SECRET !== 'YOUR_JWT_SECRET');
 
+  // Authentication is only healthy when BOTH a usable secret is configured and
+  // the database it issues tokens against is reachable. Reporting a hardcoded
+  // 'healthy' hid a missing secret or a down database from the status page.
+  const authentication = jwtConfigured && dbStatus === 'healthy' ? 'healthy' : 'degraded';
+
   res.json({
     success: true,
-    authentication: 'healthy',
+    authentication,
     database: dbStatus,
     jwt: jwtConfigured ? 'configured' : 'missing_secret',
     timestamp: new Date().toISOString(),
@@ -277,7 +311,8 @@ app.get('/api/v1/health/news', async (req, res) => {
     const health = await newsService.checkNewsHealth();
     res.json({ success: true, ...health });
   } catch (err) {
-    res.status(500).json({ success: false, status: 'error', message: err.message });
+    console.error(`[Health] news probe failed: ${sanitizeErrorForLog(err)}`);
+    res.status(500).json({ success: false, status: 'error', message: 'News health probe failed' });
   }
 });
 
@@ -293,10 +328,14 @@ app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) {
     return notFoundHandler(req, res);
   }
-  // Try to serve the specific HTML page, fallback to index
+  // Try to serve the specific HTML page, fallback to index.
+  // The resolved path MUST stay inside the public directory: path.join collapses
+  // "../" segments, so without this containment check a request such as
+  // "/../../etc/hosts" would resolve outside the frontend and leak server files.
   const requestedPage = path.join(frontendPath, req.path);
+  const withinFrontend = requestedPage === frontendPath || requestedPage.startsWith(frontendPath + path.sep);
   const fs = require('fs');
-  if (fs.existsSync(requestedPage) && fs.statSync(requestedPage).isFile()) {
+  if (withinFrontend && fs.existsSync(requestedPage) && fs.statSync(requestedPage).isFile()) {
     return res.sendFile(requestedPage);
   }
   res.sendFile(path.join(frontendPath, 'index.html'));

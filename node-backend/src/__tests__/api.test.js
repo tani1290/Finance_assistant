@@ -313,7 +313,9 @@ describe('Jinay Finance AI — Full API Test Suite', () => {
         .set('Authorization', `Bearer ${tokenA}`)
         .send({ amount: 20000 });
       expect(res.status).toBe(200);
-      expect(res.body.data.currentAmount).toBe(50000);
+      // Prisma Decimal serialises to a string over JSON; clients parse it
+      // (web parseFloat/formatINR, mobile double.tryParse).
+      expect(res.body.data.currentAmount).toBe('50000');
     });
   });
 
@@ -415,7 +417,7 @@ describe('Jinay Finance AI — Full API Test Suite', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.parsed.amount).toBe(500);
       expect(res.body.data.parsed.type).toBe('EXPENSE');
-      expect(res.body.data.parsed.category).toBe('Food');
+      expect(res.body.data.parsed.category).toBe('Food & Dining');
     });
 
     it('POST /api/v1/transactions/voice should parse income "Received 50000 salary"', async () => {
@@ -510,6 +512,112 @@ describe('Jinay Finance AI — Full API Test Suite', () => {
         .delete(`/api/v1/goals/${goalAId}`)
         .set('Authorization', `Bearer ${tokenB}`);
       expect(res.status).toBe(404);
+    });
+  });
+
+  // ==========================================
+  // PHASE 9 — RECEIPT HISTORY (CRUD & OWNERSHIP)
+  // ==========================================
+  describe('13. Receipt History (CRUD & Ownership)', () => {
+    let receiptAId;
+
+    beforeAll(async () => {
+      const receipt = await prisma.receiptScan.create({
+        data: {
+          userId: userA.id,
+          merchant: 'Test Merchant',
+          amount: 249.5,
+          date: new Date('2026-01-15'),
+          category: 'Food & Dining',
+          items: {
+            lineItems: [{ name: 'Latte', price: 249.5 }],
+            gst: { cgst: 5, sgst: 5 },
+            confidence: 92,
+            storageKey: `users/${userA.id}/receipts/seed_receipt.png`,
+          },
+          rawText: 'TEST RECEIPT RAW TEXT',
+          status: 'PENDING_CONFIRMATION',
+        },
+      });
+      receiptAId = receipt.id;
+    });
+
+    afterAll(async () => {
+      if (receiptAId) {
+        await prisma.receiptScan.delete({ where: { id: receiptAId } }).catch(() => {});
+      }
+    });
+
+    it('GET /api/v1/receipts should require authentication', async () => {
+      const res = await request(app).get('/api/v1/receipts');
+      expect(res.status).toBe(401);
+    });
+
+    it('User A sees their own receipt in the list', async () => {
+      const res = await request(app)
+        .get('/api/v1/receipts')
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data.receipts)).toBe(true);
+      const ids = res.body.data.receipts.map(r => r.id);
+      expect(ids).toContain(receiptAId);
+    });
+
+    it('User B does not see User A receipts in their list', async () => {
+      const res = await request(app)
+        .get('/api/v1/receipts')
+        .set('Authorization', `Bearer ${tokenB}`);
+      expect(res.status).toBe(200);
+      const ids = res.body.data.receipts.map(r => r.id);
+      expect(ids).not.toContain(receiptAId);
+    });
+
+    it('User A can fetch their receipt by id', async () => {
+      const res = await request(app)
+        .get(`/api/v1/receipts/${receiptAId}`)
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data.id).toBe(receiptAId);
+      expect(res.body.data.merchant).toBe('Test Merchant');
+      expect(res.body.data.amount).toBe(249.5);
+      // confidence is surfaced from stored metadata, never invented
+      expect(res.body.data.ocrConfidence).toBe(92);
+    });
+
+    it('User B cannot fetch User A receipt by id (404, no cross-tenant read)', async () => {
+      const res = await request(app)
+        .get(`/api/v1/receipts/${receiptAId}`)
+        .set('Authorization', `Bearer ${tokenB}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('Malformed receipt id is rejected with 400 before hitting the DB', async () => {
+      const res = await request(app)
+        .get('/api/v1/receipts/not-a-uuid')
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('User B cannot delete User A receipt (404) and it still exists', async () => {
+      const res = await request(app)
+        .delete(`/api/v1/receipts/${receiptAId}`)
+        .set('Authorization', `Bearer ${tokenB}`);
+      expect(res.status).toBe(404);
+      const stillThere = await prisma.receiptScan.findUnique({ where: { id: receiptAId } });
+      expect(stillThere).not.toBeNull();
+    });
+
+    it('User A can delete their own receipt', async () => {
+      const res = await request(app)
+        .delete(`/api/v1/receipts/${receiptAId}`)
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const gone = await prisma.receiptScan.findUnique({ where: { id: receiptAId } });
+      expect(gone).toBeNull();
+      receiptAId = null; // prevent afterAll double-delete
     });
   });
 });

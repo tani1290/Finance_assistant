@@ -1,32 +1,34 @@
 # Jinay Finance AI — Automated & Regression Testing Guide
 **Owner:** Jinay Golecha (`jinay_golecha`)  
-**Test Harness:** Supertest, Jest, Custom Automated Test Runners
+**Test Harness:** Supertest-based custom Node runners (configured) · Jest (separate, not CI-integrated)
 
 ---
 
 ## 1. Test Suite Architecture
 
-The platform includes three distinct, rigorous testing suites to ensure end-to-end reliability:
+The repository ships **four configured, independently counted test suites** (run by `npm test`, `npm run test:cloud`, and `npm run test:failure`), plus one separate Jest suite that is **not** wired into `npm test` or CI:
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                          TEST HARNESS INVENTORY                        │
-├───────────────────────────────┬───────────────────────┬────────────────┤
-│ Suite File                    │ Assertions / Tests    │ Focus Area     │
-├───────────────────────────────┼───────────────────────┼────────────────┤
-│ run-all-tests.js              │ 66 Assertions         │ Core APIs & DB │
-│ test-auth-comprehensive.js    │ 40 Assertions         │ Auth & Tenants │
-│ test-market-live.js           │ 6 Subsystems          │ External APIs  │
-│ src/__tests__/api.test.js     │ Jest Integration Suite│ Modular Units  │
-└───────────────────────────────┴───────────────────────┴────────────────┘
+┌────────────────────────────────┬────────────────────────┬------------------------------┐
+│ Suite File                     │ Assertions / Tests     │ Focus Area                   │
+├────────────────────────────────┼────────────────────────┼------------------------------┤
+│ run-all-tests.js               │ 135 Assertions         │ Core APIs & DB               │
+│ test-sms-mobile-suite.js       │ 36 Assertions          │ Mobile SMS Sync & Dedup      │
+│ test-cloud-verification.js     │ 29 Assertions          │ Cloud Persistence            │
+│ test-cloud-failure.js          │ 17 Assertions          │ Failure & Resiliency         │
+├────────────────────────────────┼────────────────────────┼------------------------------┤
+│ src/__tests__/api.test.js      │ 34 pass / 3 fail (Jest)│ Legacy Jest (not configured) │
+└────────────────────────────────┴────────────────────────┴------------------------------┘
 ```
+
+The four configured suites total **217 passing assertion checks** with 0 failures. The Jest suite in `src/__tests__/api.test.js` is a separate, currently failing legacy suite — it is not run by `npm test` or CI and is documented here for completeness only.
 
 ---
 
 ## 2. Executing Automated Tests
 
 ### 2.1 Master Integration & Acceptance Suite
-Runs the 66-point top-to-bottom pipeline:
+Runs the 135-point top-to-bottom pipeline:
 ```bash
 cd node-backend
 node run-all-tests.js
@@ -52,33 +54,44 @@ node run-all-tests.js
 - Authenticated CSV file exports
 - Multi-user tenant isolation (User A vs User B)
 
-### 2.2 Security & Authentication Suite
-Runs the 40-point security audit:
+### 2.2 Mobile SMS & Sync Acceptance Suite
+Runs the 36-point Android SMS detection and mobile sync pipeline:
 ```bash
 cd node-backend
-node test-auth-comprehensive.js
+node test-sms-mobile-suite.js
 ```
 **Coverage:**
-- Registration validation matrix (weak passwords, missing fields, email normalization)
-- PostgreSQL user persistence & bcrypt password hash verification
-- Multi-identifier login (email or username)
-- JWT validation, expiration, and malformed token rejection
-- Refresh token issuance and revocation on logout
-- Bearer vs Query token export authorization
-- Multi-tenant data leak prevention
+- Bank SMS ingestion & permission-gated sync endpoints
+- Merchant/category inference and ML fallback categorization
+- OTP and non-transaction message rejection
+- Duplicate protection via the `(userId, rawMessageHash)` unique constraint
+- Pending-transaction confirmation & atomic ledger mutation
 
-### 2.3 Live External Market Data Suite
-Validates external communication with Alpha Vantage & Finnhub:
+### 2.3 Cloud Data Persistence Suite
+Runs the 29-point cross-session persistence pipeline:
 ```bash
 cd node-backend
-node test-market-live.js
+node test-cloud-verification.js
 ```
 **Coverage:**
-- Live Alpha Vantage stock quote extraction
-- Live Finnhub crypto rates (BTC/USDT, ETH/USDT)
-- MCX Gold (24K/22K) and Silver spot rate conversion
-- Live market news feed (20 headlines)
-- Company profile & fundamental metrics normalization
+- Health, database, storage, and readiness diagnostics
+- Register/login/logout lifecycle and refresh-token revocation
+- Persistence of accounts, transactions, budgets, goals, investments, loans, insurance, subscriptions, tasks, and stored files across sessions
+
+### 2.4 Failure & Resiliency Suite
+Runs the 17-point degraded-state pipeline:
+```bash
+cd node-backend
+node test-cloud-failure.js
+```
+**Coverage:**
+- Graceful degradation under database outage
+- Storage backend failure handling
+- Path-traversal and unauthorized-access rejection
+- Health recovery after failure conditions
+
+### 2.5 Legacy Jest Suite (Not CI-integrated)
+`src/__tests__/api.test.js` is a separate Jest suite that is **not** executed by `npm test` or the CI workflow. It currently reports **34 passing / 3 failing** of 37 tests due to stale assertions (Decimal amounts serialized as strings, an updated parser category taxonomy) and a 5 s default timeout on a live network AI call. It is retained for reference only and is excluded from the passing totals above.
 
 ---
 
