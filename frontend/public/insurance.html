@@ -277,7 +277,7 @@
       e.preventDefault();
       try {
         const token = localStorage.getItem('jf_access_token');
-        const res = await fetch(`${API_BASE}/export/insurance.csv?token=${encodeURIComponent(token||'')}`, {
+        const res = await fetch(`${API_BASE}/export/insurance.csv`, {
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
         });
         if (!res.ok) throw new Error('Export failed');

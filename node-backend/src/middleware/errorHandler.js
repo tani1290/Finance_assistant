@@ -80,7 +80,7 @@ const errorHandler = (err, req, res, next) => {
 
   // ── Insufficient Credits Error ──
   if (err.code === 'INSUFFICIENT_CREDITS' ||
-      (err.message && err.message.toLowerCase().includes('insufficient') || err.message.toLowerCase().includes('credits'))) {
+      (err.message && (err.message.toLowerCase().includes('insufficient') || err.message.toLowerCase().includes('credits')))) {
     return res.status(402).json({
       success: false,
       error: {
@@ -92,7 +92,7 @@ const errorHandler = (err, req, res, next) => {
 
   // ── Model Not Found Error (404) ──
   if (err.code === 'NOT_FOUND' || err.status === 404 ||
-      (err.message && err.message.toLowerCase().includes('404') || err.message.toLowerCase().includes('not_found') || err.message.toLowerCase().includes('not found'))) {
+      (err.message && (err.message.toLowerCase().includes('404') || err.message.toLowerCase().includes('not_found') || err.message.toLowerCase().includes('not found')))) {
     return res.status(404).json({
       success: false,
       error: {

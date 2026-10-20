@@ -249,6 +249,40 @@ async function runSmsMobileTests() {
       .send({});
     assert(crossRes.status === 404, 'User B cannot access or confirm User A pending SMS (404 Not Found)');
 
+    // Tenant Isolation: the caller-supplied `accountId` override must belong to the
+    // caller. Before the guard it was trusted verbatim, which let anyone post a debit
+    // against *another* tenant's account (cross-tenant balance tampering).
+    const guardSms = 'Rs. 111.00 debited from A/c XX1234 on 13-Oct-2026 at SWIGGY. Avl Bal Rs 8,140. Ref: GUARD9988.';
+    const guardIngest = await request(app)
+      .post('/api/v1/sms/ingest')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ messageText: guardSms, sender: 'HDFCBK' });
+    assert(guardIngest.status === 201, 'Guard-test SMS ingested for isolation probe');
+    const guardPendingId = guardIngest.body.data.id;
+
+    const foreignAccountRes = await request(app)
+      .post(`/api/v1/sms/pending/${guardPendingId}/confirm`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ accountId: '00000000-0000-4000-8000-000000000000' });
+    assert(foreignAccountRes.status === 404, 'Confirming against an account the caller does not own is refused (404)');
+
+    // Non-numeric and non-positive override amounts must never reach the ledger.
+    const badAmountRes = await request(app)
+      .post(`/api/v1/sms/pending/${guardPendingId}/confirm`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ amount: 'not-a-number' });
+    assert(badAmountRes.status === 400, 'Confirming with a non-numeric amount is rejected (400)');
+
+    const negativeAmountRes = await request(app)
+      .post(`/api/v1/sms/pending/${guardPendingId}/confirm`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ amount: -500 });
+    assert(negativeAmountRes.status === 400, 'Confirming with a negative amount is rejected (400)');
+
+    // The rejected attempts must not have consumed the pending row.
+    const guardStillPending = await prisma.pendingSmsTransaction.findUnique({ where: { id: guardPendingId } });
+    assert(guardStillPending && guardStillPending.status === 'PENDING', 'Rejected confirmations leave the pending SMS untouched');
+
   } catch (err) {
     console.error('Test execution exception:', err);
     failedCount++;

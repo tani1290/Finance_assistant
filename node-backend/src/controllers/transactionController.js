@@ -315,6 +315,12 @@ const updateTransaction = async (req, res, next) => {
 
     const newAmountNum = amount !== undefined ? parseFloat(amount) : parseFloat(existing.amount);
     const oldAmountNum = parseFloat(existing.amount);
+    if (amount !== undefined && (!Number.isFinite(newAmountNum) || newAmountNum <= 0)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Amount must be a positive number.' },
+      });
+    }
     const amountChanged = amount !== undefined && !isNaN(newAmountNum) && newAmountNum !== oldAmountNum;
 
     const updated = await prisma.$transaction(async (tx) => {

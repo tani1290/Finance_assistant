@@ -1,6 +1,24 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
 const financialTwin = require('../services/financialTwinService');
+const analyticsEngine = require('../services/analyticsEngine');
+
+// Columns needed to feed the pure analytics engine for an authenticated user.
+// `id` is included so duplicate-suspect reports can identify individual rows for
+// the owner to review (rows are always user-scoped before they reach this).
+const ANALYTICS_TX_SELECT = {
+  id: true,
+  amount: true,
+  transactionType: true,
+  date: true,
+  description: true,
+  merchant: true,
+  categoryId: true,
+  category: { select: { name: true } },
+};
+
+const previousMonthOf = (year, month) =>
+  month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
 
 /**
  * Analytics, Health Scoring & Reports Controller
@@ -17,36 +35,71 @@ const getAnalytics = async (req, res, next) => {
     const period = req.query.period || 'month'; // month | year | week
 
     let startDate;
-    if (period === 'week') {
+    let endDate = null;
+    let moMonth = null;
+    let moYear = null;
+
+    // Explicit month/year takes precedence over the rolling `period`, and lets
+    // us compute a true month-over-month comparison.
+    if (req.query.month !== undefined || req.query.year !== undefined) {
+      const parsed = analyticsEngine.parsePeriodInput({ month: req.query.month, year: req.query.year, now });
+      if (!parsed.valid) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: parsed.error },
+        });
+      }
+      const bounds = analyticsEngine.getMonthBounds(parsed.year, parsed.month);
+      startDate = bounds.start;
+      endDate = bounds.end;
+      moMonth = parsed.month;
+      moYear = parsed.year;
+    } else if (period === 'week') {
       startDate = new Date(now);
       startDate.setDate(now.getDate() - 7);
     } else if (period === 'year') {
       startDate = new Date(now.getFullYear(), 0, 1);
     } else {
       startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      moMonth = now.getMonth() + 1;
+      moYear = now.getFullYear();
     }
 
-    const [income, expenses, categoryBreakdown, monthlyTrend] = await Promise.all([
+    const dateFilter = endDate ? { gte: startDate, lte: endDate } : { gte: startDate };
+
+    const [income, expenses, categoryBreakdown, monthlyTrend, incomeTrend, expenseTrend] = await Promise.all([
       prisma.transaction.aggregate({
-        where: { userId, transactionType: 'INCOME', date: { gte: startDate } },
+        where: { userId, transactionType: 'INCOME', date: dateFilter },
         _sum: { amount: true },
         _count: true,
       }),
       prisma.transaction.aggregate({
-        where: { userId, transactionType: 'EXPENSE', date: { gte: startDate } },
+        where: { userId, transactionType: 'EXPENSE', date: dateFilter },
         _sum: { amount: true },
         _count: true,
       }),
       prisma.transaction.groupBy({
         by: ['categoryId'],
-        where: { userId, transactionType: 'EXPENSE', date: { gte: startDate } },
+        where: { userId, transactionType: 'EXPENSE', date: dateFilter },
         _sum: { amount: true },
         orderBy: { _sum: { amount: 'desc' } },
         take: 10,
       }),
       prisma.transaction.groupBy({
         by: ['date'],
-        where: { userId, date: { gte: startDate } },
+        where: { userId, date: dateFilter },
+        _sum: { amount: true },
+        orderBy: { date: 'asc' },
+      }),
+      prisma.transaction.groupBy({
+        by: ['date'],
+        where: { userId, transactionType: 'INCOME', date: dateFilter },
+        _sum: { amount: true },
+        orderBy: { date: 'asc' },
+      }),
+      prisma.transaction.groupBy({
+        by: ['date'],
+        where: { userId, transactionType: 'EXPENSE', date: dateFilter },
         _sum: { amount: true },
         orderBy: { date: 'asc' },
       }),
@@ -64,10 +117,55 @@ const getAnalytics = async (req, res, next) => {
     const totalExpenses = parseFloat(expenses._sum.amount || 0);
     const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0;
 
+    // Month-over-month (only meaningful when a calendar month is in play).
+    let monthOverMonth = null;
+    if (moMonth && moYear) {
+      const prev = previousMonthOf(moYear, moMonth);
+      const prevBounds = analyticsEngine.getMonthBounds(prev.year, prev.month);
+      const [prevIncome, prevExpenses] = await Promise.all([
+        prisma.transaction.aggregate({
+          where: { userId, transactionType: 'INCOME', date: { gte: prevBounds.start, lte: prevBounds.end } },
+          _sum: { amount: true },
+          _count: true,
+        }),
+        prisma.transaction.aggregate({
+          where: { userId, transactionType: 'EXPENSE', date: { gte: prevBounds.start, lte: prevBounds.end } },
+          _sum: { amount: true },
+          _count: true,
+        }),
+      ]);
+      const prevIncomeTotal = parseFloat(prevIncome._sum.amount || 0);
+      const prevExpenseTotal = parseFloat(prevExpenses._sum.amount || 0);
+      const toSummary = (inc, exp) => ({
+        income: inc,
+        expenses: exp,
+        netCashFlow: inc - exp,
+        savings: inc - exp,
+        savingsRate: inc > 0 ? analyticsEngine.round1(((inc - exp) / inc) * 100) : null,
+      });
+      monthOverMonth = analyticsEngine.monthOverMonth(
+        toSummary(totalIncome, totalExpenses),
+        toSummary(prevIncomeTotal, prevExpenseTotal)
+      );
+    }
+
+    // Merge the per-day income/expense series so the frontend can plot a true
+    // income-vs-expense trend (the legacy `monthlyTrend` is preserved as-is).
+    const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
+    const incomeByDay = new Map(incomeTrend.map((t) => [dayKey(t.date), parseFloat(t._sum.amount || 0)]));
+    const expenseByDay = new Map(expenseTrend.map((t) => [dayKey(t.date), parseFloat(t._sum.amount || 0)]));
+    const allDays = Array.from(new Set([...incomeByDay.keys(), ...expenseByDay.keys()])).sort();
+    const dailyFlow = allDays.map((day) => {
+      const dayIncome = incomeByDay.get(day) || 0;
+      const dayExpense = expenseByDay.get(day) || 0;
+      return { date: day, income: dayIncome, expenses: dayExpense, net: analyticsEngine.round2(dayIncome - dayExpense) };
+    });
+
     return res.status(200).json({
       success: true,
       data: {
         period,
+        ...(moMonth && moYear ? { month: moMonth, year: moYear } : {}),
         summary: {
           totalIncome,
           formattedIncome: formatINR(totalIncome),
@@ -79,6 +177,7 @@ const getAnalytics = async (req, res, next) => {
           incomeTransactions: income._count,
           expenseTransactions: expenses._count,
         },
+        monthOverMonth,
         categoryBreakdown: categoryBreakdown.map(c => ({
           category: catMap[c.categoryId] || 'Uncategorized',
           amount: parseFloat(c._sum.amount || 0),
@@ -89,6 +188,7 @@ const getAnalytics = async (req, res, next) => {
           date: t.date,
           amount: parseFloat(t._sum.amount || 0),
         })),
+        dailyFlow,
       },
     });
   } catch (error) {
@@ -698,8 +798,151 @@ const getCreditHealth = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/v1/analytics/forecast?month=&year=
+ * Transparent baseline spending projection from the user's real transactions.
+ * Every figure is derived from persisted EXPENSE rows; the method and
+ * supporting numbers are returned so the estimate can be explained.
+ */
+const getForecast = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const now = new Date();
+    const parsed = analyticsEngine.parsePeriodInput({ month: req.query.month, year: req.query.year, now });
+    if (!parsed.valid) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error } });
+    }
+
+    const bounds = analyticsEngine.getMonthBounds(parsed.year, parsed.month);
+    const transactions = await prisma.transaction.findMany({
+      where: { userId, transactionType: 'EXPENSE', date: { gte: bounds.start, lte: bounds.end } },
+      select: ANALYTICS_TX_SELECT,
+    });
+
+    const result = analyticsEngine.forecast({ transactions, year: parsed.year, month: parsed.month, now });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...result,
+        formattedSpentSoFar: formatINR(result.spentSoFar),
+        formattedProjectedExpense: result.projectedExpense === null ? null : formatINR(result.projectedExpense),
+        formattedAverageDailySpend: formatINR(result.averageDailySpend),
+        categories: result.categories.map((c) => ({
+          ...c,
+          formattedSpentSoFar: formatINR(c.spentSoFar),
+          formattedProjectedExpense: formatINR(c.projectedExpense),
+        })),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/v1/analytics/insights?month=&year=&warningThreshold=
+ * Deterministic, traceable insights. Each entry reports the figures it was
+ * derived from, its comparison period and a fact/estimate flag. No figures are
+ * invented and no AI provider is required.
+ */
+const getInsights = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const now = new Date();
+    const parsed = analyticsEngine.parsePeriodInput({ month: req.query.month, year: req.query.year, now });
+    if (!parsed.valid) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error } });
+    }
+
+    const { year, month } = parsed;
+    const bounds = analyticsEngine.getMonthBounds(year, month);
+    const prev = previousMonthOf(year, month);
+    const prevBounds = analyticsEngine.getMonthBounds(prev.year, prev.month);
+
+    const [currentTx, previousTx, budgets] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { userId, date: { gte: bounds.start, lte: bounds.end } },
+        select: ANALYTICS_TX_SELECT,
+      }),
+      prisma.transaction.findMany({
+        where: { userId, date: { gte: prevBounds.start, lte: prevBounds.end } },
+        select: ANALYTICS_TX_SELECT,
+      }),
+      prisma.budget.findMany({
+        where: { userId, month, year },
+        include: { category: { select: { id: true, name: true } } },
+      }),
+    ]);
+
+    const current = analyticsEngine.summarize(currentTx);
+    const previous = analyticsEngine.summarize(previousTx);
+    const forecastResult = analyticsEngine.forecast({ transactions: currentTx, year, month, now });
+    const budgetEval = analyticsEngine.evaluateBudgets({
+      budgets,
+      transactions: currentTx,
+      previousTransactions: previousTx,
+      year,
+      month,
+      warningThreshold: req.query.warningThreshold,
+      now,
+    });
+
+    const insights = analyticsEngine.generateInsights({
+      current,
+      previous,
+      budgets: budgetEval.budgets,
+      forecast: forecastResult,
+      monthLabel: `${month}/${year}`,
+      previousLabel: `${prev.month}/${prev.year}`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        month,
+        year,
+        warningThreshold: budgetEval.warningThreshold,
+        current: {
+          income: current.income,
+          expenses: current.expenses,
+          netCashFlow: current.netCashFlow,
+          savingsRate: current.savingsRate,
+          refunds: current.refunds,
+          duplicateSuspects: current.duplicateSuspects,
+        },
+        previous: {
+          income: previous.income,
+          expenses: previous.expenses,
+          netCashFlow: previous.netCashFlow,
+          savingsRate: previous.savingsRate,
+          refunds: previous.refunds,
+        },
+        // Exact-duplicate imports are reported, never silently removed from the
+        // recorded totals. Only the forecast de-duplicates (and says so).
+        duplicates: {
+          suspects: current.duplicateSuspects,
+          groups: current.duplicateGroups.length,
+        },
+        // Additive: the identifying detail (date/amount/narration/id) of every
+        // flagged group, so the owner can review the suspects themselves. The
+        // counts above are unchanged for existing consumers.
+        duplicateGroups: current.duplicateGroups,
+        monthOverMonth: analyticsEngine.monthOverMonth(current, previous),
+        forecast: forecastResult,
+        insights,
+        note: 'Insights flagged isEstimate are projections based on your recorded transactions, not guarantees.',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAnalytics,
+  getForecast,
+  getInsights,
   getFinancialHealth,
   getCreditHealth,
   getCashFlowPrediction,

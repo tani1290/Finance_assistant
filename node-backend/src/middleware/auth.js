@@ -2,8 +2,26 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../config/database');
 
 /**
+ * Routes that may authenticate with a `?token=` query parameter.
+ *
+ * This exists only for the Server-Sent Events stream: the browser EventSource
+ * API cannot set an Authorization header, and the stream is the one endpoint
+ * that genuinely needs it (polling, exports and every other call use
+ * `Authorization: Bearer`). Keeping the allowlist explicit means all other
+ * endpoints reject query tokens, so JWTs can no longer leak through URLs
+ * (browser history, Referer, proxy/access logs, shared links).
+ */
+const QUERY_TOKEN_PATHS = new Set(['/api/v1/realtime/stream']);
+
+const allowsQueryToken = (req) => {
+  const pathname = (req.originalUrl || req.url || '').split('?')[0];
+  return QUERY_TOKEN_PATHS.has(pathname);
+};
+
+/**
  * JWT Authentication Middleware
- * Verifies the Bearer token in Authorization header
+ * Verifies the Bearer token in Authorization header (or, on the SSE stream
+ * route only, a `?token=` query parameter).
  * Sets req.user to the authenticated user object
  */
 const authenticate = async (req, res, next) => {
@@ -12,7 +30,7 @@ const authenticate = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
-    } else if (req.query && req.query.token) {
+    } else if (req.query && req.query.token && allowsQueryToken(req)) {
       token = req.query.token;
     }
 

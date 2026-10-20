@@ -520,7 +520,22 @@ const runRAGPipeline = async (userId, userMessage, chatHistory = []) => {
       parts: [{ text: msg.content }],
     }));
 
+    // The AI provider is OPTIONAL infrastructure. A slow or unreachable provider
+    // must degrade gracefully to the deterministic grounded engine instead of
+    // blocking the request handler for (candidateModels × per-model timeout)
+    // seconds. We therefore impose a single bounded budget across all attempts;
+    // each individual attempt is additionally capped by the remaining budget.
+    const PER_MODEL_TIMEOUT_MS = 12000;
+    const parsedBudget = parseInt(process.env.AI_LLM_TOTAL_TIMEOUT_MS, 10);
+    const TOTAL_BUDGET_MS = Number.isFinite(parsedBudget) && parsedBudget > 0 ? parsedBudget : 4000;
+    const deadline = Date.now() + TOTAL_BUDGET_MS;
+
     for (const modelName of CANDIDATE_MODELS) {
+      const remaining = deadline - Date.now();
+      if (remaining < 200) {
+        console.warn('[RAG] AI provider budget exhausted; using deterministic grounded engine.');
+        break;
+      }
       try {
         const model = client.getGenerativeModel({
           model: modelName,
@@ -534,12 +549,21 @@ const runRAGPipeline = async (userId, userMessage, chatHistory = []) => {
           },
         });
 
+        const attemptTimeoutMs = Math.min(PER_MODEL_TIMEOUT_MS, remaining);
+        let timer;
         const callPromise = chatSession.sendMessage(userMessage);
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('AI response timeout (12s)')), 12000)
-        );
+        const timeoutPromise = new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`AI response timeout (${attemptTimeoutMs}ms)`)), attemptTimeoutMs);
+        });
 
-        const result = await Promise.race([callPromise, timeoutPromise]);
+        let result;
+        try {
+          result = await Promise.race([callPromise, timeoutPromise]);
+        } finally {
+          // Always clear the timer so a successful (or failed) call never leaves
+          // a lingering 12s handle keeping the event loop alive.
+          clearTimeout(timer);
+        }
         responseText = result.response.text();
         modelSource = `gemini-rag (${modelName})`;
         break;

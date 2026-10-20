@@ -8,6 +8,12 @@ const storageService = require('../services/storageService');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
+// Storage keys embed the owner's user id as the first path segment. Every tenant
+// — regardless of the storage prefix (user uploads, generated exports, …) — may
+// only read or delete keys it owns.
+const OWNER_SCOPED_PREFIXES = ['users/', 'exports/'];
+const requiresOwnershipCheck = (key) => OWNER_SCOPED_PREFIXES.some((prefix) => key.startsWith(prefix));
+
 /**
  * POST /api/v1/storage/upload
  * Accepts base64 encoded document/image or raw payload and stores via storageService
@@ -95,7 +101,7 @@ const getFile = async (req, res, next) => {
     const decodedKey = decodeURIComponent(rawKey).replace(/^\/+/, '');
 
     // Strict Tenant Isolation: Never allow one user to access another user's files
-    if (decodedKey.startsWith('users/')) {
+    if (requiresOwnershipCheck(decodedKey)) {
       const parts = decodedKey.split('/');
       const keyOwnerId = parts[1];
       if (req.user && req.user.id !== keyOwnerId && req.user.role !== 'admin') {
@@ -130,7 +136,7 @@ const deleteFile = async (req, res, next) => {
     const decodedKey = decodeURIComponent(rawKey).replace(/^\/+/, '');
 
     // Strict Tenant Isolation: Never allow one user to delete another user's files
-    if (decodedKey.startsWith('users/')) {
+    if (requiresOwnershipCheck(decodedKey)) {
       const parts = decodedKey.split('/');
       const keyOwnerId = parts[1];
       if (req.user && req.user.id !== keyOwnerId && req.user.role !== 'admin') {

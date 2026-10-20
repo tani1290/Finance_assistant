@@ -19,6 +19,7 @@ const LIVE_TTL_MS    = 3  * 60 * 1000;   // 3 min — fresh live cache
 const CACHE_TTL_MS   = 15 * 60 * 1000;   // 15 min — cached threshold
 const STALE_TTL_MS   = 60 * 60 * 1000;   // 1 hour — stale threshold
 const memCache = new Map();
+const inFlightRequests = new Map(); // Request coalescing / singleflight map (see getQuote)
 
 const getCached = (key) => {
   if (!memCache.has(key)) return null;
@@ -36,6 +37,21 @@ const getCached = (key) => {
 
 const setCached = (key, data) => {
   memCache.set(key, { data, ts: Date.now() });
+};
+
+// Monotonic write: never replace a NEWER validated observation with an older
+// one. This protects against out-of-order provider responses (e.g. a slow fetch
+// resolving after a fresher one) when background warming overlaps live requests.
+const setCachedIfNewer = (key, quote) => {
+  const existing = memCache.get(key);
+  if (!existing) {
+    setCached(key, quote);
+    return;
+  }
+  const prev = existing?.data?.fetched_at ? new Date(existing.data.fetched_at).getTime() : existing.ts;
+  const next = quote?.fetched_at ? new Date(quote.fetched_at).getTime() : Date.now();
+  if (Number.isFinite(prev) && Number.isFinite(next) && next < prev) return;
+  setCached(key, quote);
 };
 
 // ── Instrument & Symbol Mappings (Standard Symbol -> Provider Symbol) ─────────
@@ -86,12 +102,115 @@ const COMMODITY_MAP = {
   SILVER      : { yf: 'SI=F', name: 'Silver',          unit: 'USD/troy oz' },
 };
 
-// ── Time & Market Status ──────────────────────────────────────────────────────
-const isMarketOpen = () => {
-  const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-  const day = ist.getDay();
-  const mins = ist.getHours() * 60 + ist.getMinutes();
-  return day >= 1 && day <= 5 && mins >= 555 && mins <= 930; // 09:15 to 15:30 IST weekdays
+// ── Time, NSE Holiday Calendar & Market Status ────────────────────────────────
+// Convenience calendar used for display/refresh decisions only. It is NOT an
+// authoritative live exchange feed. Dates are NSE trading holidays (IST calendar
+// dates, YYYY-MM-DD). Outside this range no false holiday is assumed.
+const NSE_HOLIDAYS = new Set([
+  // 2025
+  '2025-01-26', '2025-02-26', '2025-03-14', '2025-03-31', '2025-04-10', '2025-04-14', '2025-04-18', '2025-05-01',
+  '2025-08-15', '2025-08-27', '2025-10-02', '2025-10-21', '2025-11-05', '2025-12-25',
+  // 2026
+  '2026-01-26', '2026-03-03', '2026-03-20', '2026-04-03', '2026-04-14', '2026-05-01',
+  '2026-08-15', '2026-10-02', '2026-10-20', '2026-11-09', '2026-12-25',
+  // 2027
+  '2027-01-26', '2027-03-23', '2027-03-26', '2027-04-14', '2027-05-01', '2027-08-15',
+  '2027-10-02', '2027-11-08', '2027-12-25',
+]);
+
+const TRADING_HOURS_LABEL = '09:15 - 15:30 IST (Mon-Fri)';
+
+const getMarketSession = (d = new Date()) => {
+  // Resolve the IST calendar date/time explicitly. The weekday is derived from
+  // the IST calendar date (via a UTC-anchored Date) — never from the raw UTC day.
+  const istDateStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d); // YYYY-MM-DD
+  const istTimeStr = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit',
+  }).format(d); // HH:mm
+
+  const [y, mo, da] = istDateStr.split('-').map(Number);
+  const day = new Date(Date.UTC(y, mo - 1, da)).getUTCDay(); // 0=Sun .. 6=Sat (IST weekday)
+  const [h, m] = istTimeStr.split(':').map(Number);
+  const mins = h * 60 + m;
+
+  if (day === 0 || day === 6) {
+    return {
+      isOpen: false,
+      status: 'CLOSED',
+      sessionName: day === 0 ? 'Weekend (Sunday)' : 'Weekend (Saturday)',
+      tradingHours: TRADING_HOURS_LABEL,
+    };
+  }
+  if (NSE_HOLIDAYS.has(istDateStr)) {
+    return { isOpen: false, status: 'CLOSED', sessionName: 'Exchange Holiday', tradingHours: TRADING_HOURS_LABEL };
+  }
+  if (mins >= 555 && mins <= 930) {
+    return { isOpen: true, status: 'OPEN', sessionName: 'Regular Trading Session', tradingHours: TRADING_HOURS_LABEL };
+  }
+  if (mins >= 540 && mins < 555) {
+    return { isOpen: false, status: 'CLOSED', sessionName: 'Pre-Market Order Session (09:00 - 09:15 IST)', tradingHours: TRADING_HOURS_LABEL };
+  }
+  return { isOpen: false, status: 'CLOSED', sessionName: 'Market Closed (After Hours)', tradingHours: TRADING_HOURS_LABEL };
+};
+
+const isMarketOpen = () => getMarketSession().isOpen;
+
+// ── Quote Consistency & Validation Engine ─────────────────────────────────────
+// Rejects invalid provider payloads rather than coercing them into plausible
+// prices. Legitimate zero values for optional metrics are tolerated where noted.
+const validateQuoteMetrics = ({ price, open, high, low, previousClose, providerTimestamp }) => {
+  // `Number.isFinite` (not `isNaN`) so Infinity/-Infinity are rejected too.
+  if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
+    return { valid: false, error: 'Price must be a finite positive number' };
+  }
+
+  const safePrice = Math.round(price * 100) / 100;
+  const safePrevClose = (typeof previousClose === 'number' && Number.isFinite(previousClose) && previousClose > 0)
+    ? Math.round(previousClose * 100) / 100
+    : safePrice;
+
+  let safeHigh = (typeof high === 'number' && Number.isFinite(high) && high > 0) ? Math.round(high * 100) / 100 : safePrice;
+  let safeLow  = (typeof low === 'number' && Number.isFinite(low) && low > 0) ? Math.round(low * 100) / 100 : safePrice;
+
+  // Consistency: high must not be below low.
+  if (safeHigh < safeLow) {
+    const tmp = safeHigh;
+    safeHigh = safeLow;
+    safeLow = tmp;
+  }
+  safeHigh = Math.max(safeHigh, safePrice);
+  safeLow  = Math.min(safeLow, safePrice);
+
+  const safeOpen = (typeof open === 'number' && Number.isFinite(open) && open > 0) ? Math.round(open * 100) / 100 : safePrevClose;
+
+  const change = Math.round((safePrice - safePrevClose) * 100) / 100;
+  const changePercent = safePrevClose > 0 ? Math.round(((change / safePrevClose) * 100) * 100) / 100 : 0;
+
+  // Clock-skew guard: a provider timestamp more than 15 minutes in the future is
+  // rejected outright.
+  const maxFuture = Date.now() + 15 * 60 * 1000;
+  const pTime = new Date(providerTimestamp || Date.now()).getTime();
+  if (providerTimestamp && pTime > maxFuture) {
+    return { valid: false, error: 'Provider timestamp rejected: excessive future clock skew (> 15m)' };
+  }
+  if (isNaN(pTime)) {
+    return { valid: false, error: 'Provider timestamp is not a valid date' };
+  }
+  const safeTimestamp = new Date(pTime).toISOString();
+
+  return {
+    valid: true,
+    price: safePrice,
+    open: safeOpen,
+    high: safeHigh,
+    low: safeLow,
+    previousClose: safePrevClose,
+    change,
+    changePercent,
+    providerTimestamp: safeTimestamp,
+  };
 };
 
 const getISTTimestamp = (d = new Date()) =>
@@ -262,11 +381,12 @@ const persistCommodityToDB = async (type, pricePerGram, provider, timestamp) => 
 // ── 1. Stock Quote Engine ─────────────────────────────────────────────────────
 
 /**
- * Fetch verified live quote for a symbol.
- * Trace: Provider Response -> Validation -> DB Persistence -> Response.
+ * Core quote acquisition & validation engine.
+ * Trace: Provider Response -> validateQuoteMetrics -> setCached -> DB Persistence -> Response.
+ * NOTE: `rawSymbol` is expected to already be normalized (upper-cased/trimmed)
+ * by the public `getQuote` accessor.
  */
-const getQuote = async (symbol) => {
-  const rawSymbol = (symbol || 'RELIANCE').toUpperCase().trim();
+const fetchAndValidateQuote = async (rawSymbol) => {
   const symbolInfo = SYMBOL_MAP[rawSymbol] || {
     yf: rawSymbol.includes('.') ? rawSymbol : `${rawSymbol}.NS`,
     av: `${rawSymbol}.BSE`,
@@ -278,18 +398,13 @@ const getQuote = async (symbol) => {
   };
 
   const cacheKey = `QUOTE_${rawSymbol}`;
+  // `cached` is used only for the stale/cached fallback below; the fresh
+  // fast-path is handled by getQuote().
   const cached = getCached(cacheKey);
-  // Return immediately only if cache is fresh (< LIVE_TTL_MS)
-  if (cached && cached.is_fresh) {
-    return {
-      ...cached,
-      data_status: 'LIVE',
-      market_status: isMarketOpen() ? 'OPEN' : 'CLOSED',
-    };
-  }
 
   const now = new Date();
   const serverTimestamp = now.toISOString();
+  const session = getMarketSession(now);
 
   // 1. Primary Live Engine (Yahoo Finance Engine with Session & Crumb)
   try {
@@ -298,53 +413,67 @@ const getQuote = async (symbol) => {
     const meta = res?.meta;
 
     if (meta && typeof meta.regularMarketPrice === 'number' && meta.regularMarketPrice > 0) {
-      const price = Math.round(meta.regularMarketPrice * 100) / 100;
-      const prevClose = typeof meta.chartPreviousClose === 'number' && meta.chartPreviousClose > 0 ? meta.chartPreviousClose : (meta.previousClose || price);
-      const change = Math.round((price - prevClose) * 100) / 100;
-      const changePercent = Math.round(((change / prevClose) * 100) * 100) / 100;
-      const open = meta.regularMarketOpen || meta.chartPreviousClose || price;
-      const high = meta.regularMarketDayHigh || meta.dayHigh || price;
-      const low = meta.regularMarketDayLow || meta.dayLow || price;
-      const volume = meta.regularMarketVolume || 0;
-      const currency = meta.currency || symbolInfo.currency || 'INR';
-      const providerTimestamp = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString() : serverTimestamp;
+      const prevCloseRaw = typeof meta.chartPreviousClose === 'number' && meta.chartPreviousClose > 0
+        ? meta.chartPreviousClose
+        : (meta.previousClose || meta.regularMarketPrice);
 
-      const quote = {
-        symbol            : rawSymbol,
-        name              : symbolInfo.name,
-        asset_type        : symbolInfo.assetType,
-        price,
-        currency,
-        open              : Math.round(open * 100) / 100,
-        high              : Math.round(high * 100) / 100,
-        low               : Math.round(low * 100) / 100,
-        previousClose     : Math.round(prevClose * 100) / 100,
-        change,
-        changePercent,
-        volume,
-        dayHigh           : Math.round(high * 100) / 100,
-        dayLow            : Math.round(low * 100) / 100,
-        week52High        : meta.fiftyTwoWeekHigh || null,
-        week52Low         : meta.fiftyTwoWeekLow || null,
-        exchange          : symbolInfo.exchange,
-        source            : `Live Market Feed (${symbolInfo.exchange}: ${yfSymbol})`,
-        provider          : 'Live Market Feed (NSE / Global)',
-        provider_symbol   : yfSymbol,
-        timestamp         : getISTTimestamp(providerTimestamp),
-        provider_timestamp: providerTimestamp,
-        fetched_at        : serverTimestamp,
-        server_timestamp  : serverTimestamp,
-        cache_age_seconds : 0,
-        market_status     : isMarketOpen() ? 'OPEN' : 'CLOSED',
-        marketStatus      : isMarketOpen() ? 'OPEN' : 'CLOSED',
-        data_status       : 'LIVE',
-        dataStatus        : 'LIVE',
-        error_status      : null,
-      };
+      // Validate BEFORE building a quote: reject NaN/negative/inconsistent values
+      // and future-skewed timestamps instead of coercing them into plausible prices.
+      const metrics = validateQuoteMetrics({
+        price: meta.regularMarketPrice,
+        open: meta.regularMarketOpen || prevCloseRaw,
+        high: meta.regularMarketDayHigh || meta.dayHigh || meta.regularMarketPrice,
+        low: meta.regularMarketDayLow || meta.dayLow || meta.regularMarketPrice,
+        previousClose: prevCloseRaw,
+        providerTimestamp: meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString() : serverTimestamp,
+      });
 
-      setCached(cacheKey, quote);
-      await persistPriceToDB(quote);
-      return quote;
+      if (metrics.valid) {
+        const currency = meta.currency || symbolInfo.currency || 'INR';
+        // A fully verified provider fetch is only LIVE while the exchange session
+        // is open; off-session it is the last verified observation => CACHED.
+        const dataStatus = session.isOpen ? 'LIVE' : 'CACHED';
+
+        const quote = {
+          symbol            : rawSymbol,
+          name              : symbolInfo.name,
+          asset_type        : symbolInfo.assetType,
+          price             : metrics.price,
+          currency,
+          open              : metrics.open,
+          high              : metrics.high,
+          low               : metrics.low,
+          previousClose     : metrics.previousClose,
+          change            : metrics.change,
+          changePercent     : metrics.changePercent,
+          volume            : meta.regularMarketVolume || 0,
+          dayHigh           : metrics.high,
+          dayLow            : metrics.low,
+          week52High        : meta.fiftyTwoWeekHigh || null,
+          week52Low         : meta.fiftyTwoWeekLow || null,
+          exchange          : symbolInfo.exchange,
+          source            : `Live Market Feed (${symbolInfo.exchange}: ${yfSymbol})`,
+          provider          : 'Live Market Feed (NSE / Global)',
+          provider_symbol   : yfSymbol,
+          timestamp         : getISTTimestamp(metrics.providerTimestamp),
+          provider_timestamp: metrics.providerTimestamp,
+          fetched_at        : serverTimestamp,
+          server_timestamp  : serverTimestamp,
+          last_market_update: getISTTimestamp(metrics.providerTimestamp),
+          last_successful_refresh: serverTimestamp,
+          cache_age_seconds : 0,
+          market_status     : session.status,
+          marketStatus      : session.status,
+          session_name      : session.sessionName,
+          data_status       : dataStatus,
+          dataStatus        : dataStatus,
+          error_status      : null,
+        };
+
+        setCachedIfNewer(cacheKey, quote);
+        await persistPriceToDB(quote);
+        return quote;
+      }
     }
   } catch (err) {
     console.debug(`[MarketService] Primary quote fetch notice for ${rawSymbol}:`, err.message);
@@ -361,54 +490,60 @@ const getQuote = async (symbol) => {
       });
       const q = r.data?.['Global Quote'];
       if (q && q['05. price'] && parseFloat(q['05. price']) > 0) {
-        const usdInr = await fetchLiveUSDINR();
-        const multiplier = avSymbol.includes('.BSE') ? usdInr : 1;
-        const price = Math.round(parseFloat(q['05. price']) * multiplier * 100) / 100;
-        const open = Math.round(parseFloat(q['02. open']) * multiplier * 100) / 100;
-        const high = Math.round(parseFloat(q['03. high']) * multiplier * 100) / 100;
-        const low = Math.round(parseFloat(q['04. low']) * multiplier * 100) / 100;
-        const prevClose = Math.round(parseFloat(q['08. previous close']) * multiplier * 100) / 100;
-        const change = Math.round(parseFloat(q['09. change']) * multiplier * 100) / 100;
-        const changePercent = parseFloat(q['10. change percent']?.replace('%', '') || '0');
-        const volume = parseInt(q['06. volume'] || '0', 10);
-        const providerDate = q['07. latest trading day'] || now.toISOString().slice(0, 10);
+        // NOTE: Alpha Vantage quotes for BSE/NSE symbols are already denominated in
+        // INR, so no FX scaling is applied. (An erroneous USD->INR multiplication on
+        // '.BSE' symbols was removed — it inflated local-currency prices ~84x.)
+        const metrics = validateQuoteMetrics({
+          price: parseFloat(q['05. price']),
+          open: parseFloat(q['02. open']) || null,
+          high: parseFloat(q['03. high']) || null,
+          low: parseFloat(q['04. low']) || null,
+          previousClose: parseFloat(q['08. previous close']) || null,
+          providerTimestamp: new Date(q['07. latest trading day'] || now.toISOString().slice(0, 10)).toISOString(),
+        });
 
-        const quote = {
-          symbol            : rawSymbol,
-          name              : symbolInfo.name,
-          asset_type        : symbolInfo.assetType,
-          price,
-          currency          : 'INR',
-          open,
-          high,
-          low,
-          previousClose     : prevClose,
-          change,
-          changePercent     : Math.round(changePercent * 100) / 100,
-          volume,
-          dayHigh           : high,
-          dayLow            : low,
-          week52High        : null,
-          week52Low         : null,
-          exchange          : symbolInfo.exchange,
-          source            : `Alpha Vantage (${avSymbol})`,
-          provider          : 'Alpha Vantage',
-          provider_symbol   : avSymbol,
-          timestamp         : getISTTimestamp(providerDate),
-          provider_timestamp: new Date(providerDate).toISOString(),
-          fetched_at        : serverTimestamp,
-          server_timestamp  : serverTimestamp,
-          cache_age_seconds : 0,
-          market_status     : isMarketOpen() ? 'OPEN' : 'CLOSED',
-          marketStatus      : isMarketOpen() ? 'OPEN' : 'CLOSED',
-          data_status       : 'LIVE',
-          dataStatus        : 'LIVE',
-          error_status      : null,
-        };
+        if (metrics.valid) {
+          const dataStatus = session.isOpen ? 'LIVE' : 'CACHED';
+          const quote = {
+            symbol            : rawSymbol,
+            name              : symbolInfo.name,
+            asset_type        : symbolInfo.assetType,
+            price             : metrics.price,
+            currency          : 'INR',
+            open              : metrics.open,
+            high              : metrics.high,
+            low               : metrics.low,
+            previousClose     : metrics.previousClose,
+            change            : metrics.change,
+            changePercent     : metrics.changePercent,
+            volume            : parseInt(q['06. volume'] || '0', 10) || 0,
+            dayHigh           : metrics.high,
+            dayLow            : metrics.low,
+            week52High        : null,
+            week52Low         : null,
+            exchange          : symbolInfo.exchange,
+            source            : `Alpha Vantage (${avSymbol})`,
+            provider          : 'Alpha Vantage',
+            provider_symbol   : avSymbol,
+            timestamp         : getISTTimestamp(metrics.providerTimestamp),
+            provider_timestamp: metrics.providerTimestamp,
+            fetched_at        : serverTimestamp,
+            server_timestamp  : serverTimestamp,
+            last_market_update: getISTTimestamp(metrics.providerTimestamp),
+            last_successful_refresh: serverTimestamp,
+            cache_age_seconds : 0,
+            market_status     : session.status,
+            marketStatus      : session.status,
+            session_name      : session.sessionName,
+            data_status       : dataStatus,
+            dataStatus        : dataStatus,
+            error_status      : null,
+          };
 
-        setCached(cacheKey, quote);
-        await persistPriceToDB(quote);
-        return quote;
+          setCachedIfNewer(cacheKey, quote);
+          await persistPriceToDB(quote);
+          return quote;
+        }
       }
     }
   } catch (err) {
@@ -426,46 +561,55 @@ const getQuote = async (symbol) => {
       });
       const d = r.data;
       if (d && typeof d.c === 'number' && d.c > 0) {
-        const price = Math.round(d.c * 100) / 100;
-        const prevClose = Math.round(d.pc * 100) / 100;
-        const change = Math.round(d.d * 100) / 100;
-        const changePercent = Math.round(d.dp * 100) / 100;
-        const providerTimestamp = d.t ? new Date(d.t * 1000).toISOString() : serverTimestamp;
+        const metrics = validateQuoteMetrics({
+          price: d.c,
+          open: typeof d.o === 'number' ? d.o : null,
+          high: typeof d.h === 'number' ? d.h : null,
+          low: typeof d.l === 'number' ? d.l : null,
+          previousClose: typeof d.pc === 'number' ? d.pc : null,
+          providerTimestamp: d.t ? new Date(d.t * 1000).toISOString() : serverTimestamp,
+        });
 
-        const quote = {
-          symbol            : rawSymbol,
-          name              : symbolInfo.name,
-          asset_type        : symbolInfo.assetType,
-          price,
-          currency          : symbolInfo.currency || 'USD',
-          open              : Math.round(d.o * 100) / 100,
-          high              : Math.round(d.h * 100) / 100,
-          low               : Math.round(d.l * 100) / 100,
-          previousClose     : prevClose,
-          change,
-          changePercent,
-          volume            : 0,
-          dayHigh           : Math.round(d.h * 100) / 100,
-          dayLow            : Math.round(d.l * 100) / 100,
-          exchange          : symbolInfo.exchange,
-          source            : `Finnhub (${fhSymbol})`,
-          provider          : 'Finnhub',
-          provider_symbol   : fhSymbol,
-          timestamp         : getISTTimestamp(providerTimestamp),
-          provider_timestamp: providerTimestamp,
-          fetched_at        : serverTimestamp,
-          server_timestamp  : serverTimestamp,
-          cache_age_seconds : 0,
-          market_status     : 'OPEN',
-          marketStatus      : 'OPEN',
-          data_status       : 'LIVE',
-          dataStatus        : 'LIVE',
-          error_status      : null,
-        };
+        if (metrics.valid) {
+          const dataStatus = session.isOpen ? 'LIVE' : 'CACHED';
+          const quote = {
+            symbol            : rawSymbol,
+            name              : symbolInfo.name,
+            asset_type        : symbolInfo.assetType,
+            price             : metrics.price,
+            currency          : symbolInfo.currency || 'USD',
+            open              : metrics.open,
+            high              : metrics.high,
+            low               : metrics.low,
+            previousClose     : metrics.previousClose,
+            change            : metrics.change,
+            changePercent     : metrics.changePercent,
+            volume            : 0,
+            dayHigh           : metrics.high,
+            dayLow            : metrics.low,
+            exchange          : symbolInfo.exchange,
+            source            : `Finnhub (${fhSymbol})`,
+            provider          : 'Finnhub',
+            provider_symbol   : fhSymbol,
+            timestamp         : getISTTimestamp(metrics.providerTimestamp),
+            provider_timestamp: metrics.providerTimestamp,
+            fetched_at        : serverTimestamp,
+            server_timestamp  : serverTimestamp,
+            last_market_update: getISTTimestamp(metrics.providerTimestamp),
+            last_successful_refresh: serverTimestamp,
+            cache_age_seconds : 0,
+            market_status     : session.status,
+            marketStatus      : session.status,
+            session_name      : session.sessionName,
+            data_status       : dataStatus,
+            dataStatus        : dataStatus,
+            error_status      : null,
+          };
 
-        setCached(cacheKey, quote);
-        await persistPriceToDB(quote);
-        return quote;
+          setCachedIfNewer(cacheKey, quote);
+          await persistPriceToDB(quote);
+          return quote;
+        }
       }
     }
   } catch (err) {
@@ -478,7 +622,12 @@ const getQuote = async (symbol) => {
     return {
       ...cached,
       data_status: dataStatus,
-      market_status: isMarketOpen() ? 'OPEN' : 'CLOSED',
+      dataStatus: dataStatus,
+      market_status: session.status,
+      marketStatus: session.status,
+      session_name: session.sessionName,
+      stale: dataStatus === 'STALE',
+      error_status: dataStatus === 'STALE' ? 'Provider unreachable; serving last verified in-memory observation.' : null,
     };
   }
 
@@ -517,11 +666,13 @@ const getQuote = async (symbol) => {
           fetched_at        : new Date(dbObs.timestamp).toISOString(),
           server_timestamp  : serverTimestamp,
           cache_age_seconds : ageSec,
-          market_status     : 'CLOSED',
-          marketStatus      : 'CLOSED',
+          market_status     : session.status,
+          marketStatus      : session.status,
+          session_name      : session.sessionName,
           data_status       : dataStatus,
           dataStatus        : dataStatus,
-          error_status      : null,
+          stale             : dataStatus === 'STALE',
+          error_status      : dataStatus === 'STALE' ? 'Market data provider unreachable; displaying last known verified observation from database.' : null,
         };
       }
     }
@@ -554,10 +705,59 @@ const getQuote = async (symbol) => {
     cache_age_seconds : null,
     market_status     : 'UNAVAILABLE',
     marketStatus      : 'UNAVAILABLE',
+    session_name      : session.sessionName,
     data_status       : 'UNAVAILABLE',
     dataStatus        : 'UNAVAILABLE',
     error_status      : 'Market data currently unavailable from external providers.',
   };
+};
+
+/**
+ * Public quote accessor: fresh in-memory cache fast-path + in-flight request
+ * coalescing (singleflight).
+ *
+ * Concurrent callers for the same symbol share a single upstream fetch. The
+ * in-flight promise is ALWAYS evicted in a `finally` once it settles, so a slow
+ * or failed fetch can never poison the map, and callers always receive the real
+ * result (including a validated CACHED/STALE/UNAVAILABLE fallback). Symbols are
+ * normalized before keying so spelling differences cannot cross-share a result.
+ */
+const getQuote = async (symbol) => {
+  const rawSymbol = (symbol || 'RELIANCE').toUpperCase().trim();
+  const cacheKey = `QUOTE_${rawSymbol}`;
+
+  const cached = getCached(cacheKey);
+  const session = getMarketSession();
+  // Fresh (< LIVE_TTL_MS): serve immediately. LIVE only during an open session.
+  if (cached && cached.is_fresh) {
+    const dataStatus = session.isOpen ? 'LIVE' : 'CACHED';
+    return {
+      ...cached,
+      data_status: dataStatus,
+      dataStatus: dataStatus,
+      market_status: session.status,
+      marketStatus: session.status,
+      session_name: session.sessionName,
+    };
+  }
+
+  // Singleflight: reuse an identical in-flight request.
+  if (inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey);
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      return await fetchAndValidateQuote(rawSymbol);
+    } finally {
+      inFlightRequests.delete(cacheKey);
+    }
+  })();
+
+  inFlightRequests.set(cacheKey, fetchPromise);
+  // Guard against an unhandled rejection while still returning the real promise.
+  fetchPromise.catch(() => {});
+  return fetchPromise;
 };
 
 // ── 2. Historical Chart Data Engine ───────────────────────────────────────────
@@ -1525,6 +1725,7 @@ const getMarketDashboard = async () => {
   ]);
 
   const usdToInr = fx?.exchangeRate || liveUsdToInr;
+  const session = getMarketSession();
 
   const dashboard = {
     stocks      : popularQuotes,
@@ -1532,7 +1733,15 @@ const getMarketDashboard = async () => {
     silver      : metals.silver,
     usdToInr,
     wtiCrude    : wti?.latest?.value ? { priceUSD: wti.latest.value, priceINR: Math.round(wti.latest.value * usdToInr * 100) / 100, unit: wti.unit } : null,
-    marketStatus: isMarketOpen() ? 'OPEN' : 'CLOSED',
+    marketStatus: session.status,
+    // Additive, non-breaking session metadata so the UI can show WHY a status
+    // was reported (regular / pre-market / after-hours / weekend / holiday).
+    market_session: {
+      is_open      : session.isOpen,
+      status       : session.status,
+      name         : session.sessionName,
+      trading_hours: session.tradingHours,
+    },
     data_status : metals.data_status,
     timestamp   : getISTTimestamp(),
     providers   : {
@@ -1545,6 +1754,79 @@ const getMarketDashboard = async () => {
 
   setCached(cacheKey, dashboard);
   return dashboard;
+};
+
+// ── 10. Background Market Refresh Worker (controlled, opt-in) ──────────────────
+// Reuses the EXISTING getQuote()/getPreciousMetals() pipeline and the shared
+// in-memory cache — it does not create a second cache. It only warms symbols the
+// dashboard already depends on, so client requests become cache hits instead of
+// fan-out provider calls.
+//
+// Interval is derived from the existing freshness window (LIVE_TTL_MS = 3 min):
+// refreshing once per window keeps the dashboards "fresh" without increasing
+// upstream request volume beyond what the pre-existing TTL already implies.
+// (The alternate project's 60s cadence was deliberately NOT adopted — it is not
+// justified by this codebase's TTLs and would triple provider usage.)
+const WARM_INTERVAL_MS = LIVE_TTL_MS;
+const WARM_SYMBOLS = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'SBIN'];
+
+let marketWorkerInterval = null;
+let marketWorkerInitialTimeout = null;
+let marketWorkerRunning = false;
+
+const startMarketBackgroundWorker = (intervalMs = WARM_INTERVAL_MS) => {
+  // Idempotent: never start a second worker.
+  if (marketWorkerInterval || marketWorkerInitialTimeout) {
+    return marketWorkerInterval;
+  }
+  console.log(`[MarketWorker] Starting background market refresh worker (interval: ${intervalMs}ms)`);
+
+  const tick = async () => {
+    // Skip overlapping ticks (a slow tick must not stack on the next one).
+    if (marketWorkerRunning) return;
+    marketWorkerRunning = true;
+    try {
+      const session = getMarketSession();
+      const startTime = Date.now();
+
+      // Only warm during an open session: off-hours the last close is stable, so
+      // refreshing would burn provider quota for immutable data. Cached entries
+      // are served (and naturally throttled) off-hours by the normal request path.
+      if (session.isOpen) {
+        await Promise.allSettled(WARM_SYMBOLS.map((sym) => getQuote(sym)));
+        await getPreciousMetals().catch(() => null);
+      }
+
+      const latency = Date.now() - startTime;
+      console.log(`[MarketWorker] Refresh tick complete. Session: ${session.status} (${session.sessionName}), Latency: ${latency}ms`);
+    } catch (err) {
+      // Never crash the process on a warming failure.
+      console.warn(`[MarketWorker] Refresh tick issue: ${err && err.message ? err.message : err}`);
+    } finally {
+      marketWorkerRunning = false;
+    }
+  };
+
+  // Delayed first run so startup stays fast; unref so it never blocks exit.
+  marketWorkerInitialTimeout = setTimeout(tick, 5000);
+  if (marketWorkerInitialTimeout.unref) marketWorkerInitialTimeout.unref();
+
+  marketWorkerInterval = setInterval(tick, intervalMs);
+  if (marketWorkerInterval.unref) marketWorkerInterval.unref();
+
+  return marketWorkerInterval;
+};
+
+const stopMarketBackgroundWorker = () => {
+  if (marketWorkerInitialTimeout) {
+    clearTimeout(marketWorkerInitialTimeout);
+    marketWorkerInitialTimeout = null;
+  }
+  if (marketWorkerInterval) {
+    clearInterval(marketWorkerInterval);
+    marketWorkerInterval = null;
+    console.log('[MarketWorker] Background market refresh worker stopped.');
+  }
 };
 
 module.exports = {
@@ -1579,4 +1861,10 @@ module.exports = {
   // Helpers
   isMarketOpen,
   getISTTimestamp,
+
+  // Session, validation & background worker (Phase 9 market reliability engine)
+  getMarketSession,
+  validateQuoteMetrics,
+  startMarketBackgroundWorker,
+  stopMarketBackgroundWorker,
 };

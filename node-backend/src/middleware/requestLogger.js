@@ -19,13 +19,19 @@ const requestLogger = (req, res, next) => {
     const diff = process.hrtime(startTime);
     const durationMs = (diff[0] * 1e3 + diff[1] * 1e-6).toFixed(2);
 
-    // Use appropriate log level based on status
+    // Categorise the outcome so logs are machine-parseable without re-deriving
+    // it from the status code, and so 4xx/5xx lines carry the correlation id
+    // needed to join them with the originating request.
+    const outcome = res.statusCode >= 500 ? 'server_error'
+      : res.statusCode >= 400 ? 'client_error'
+        : 'success';
+
     if (res.statusCode >= 500) {
-      console.error(`[REQ-ERROR] ${req.method} ${req.path} ${res.statusCode} ${durationMs}ms - RequestId: ${requestId}`);
+      console.error(`[REQ-ERROR] ${req.method} ${req.path} ${res.statusCode} ${durationMs}ms outcome=${outcome} - RequestId: ${requestId}`);
     } else if (res.statusCode >= 400) {
-      console.warn(`[REQ-WARN] ${req.method} ${req.path} ${res.statusCode} ${durationMs}ms`);
+      console.warn(`[REQ-WARN] ${req.method} ${req.path} ${res.statusCode} ${durationMs}ms outcome=${outcome} - RequestId: ${requestId}`);
     } else {
-      console.log(`[REQ-INFO] ${req.method} ${req.path} ${res.statusCode} ${durationMs}ms`);
+      console.log(`[REQ-INFO] ${req.method} ${req.path} ${res.statusCode} ${durationMs}ms outcome=${outcome}`);
     }
   });
 

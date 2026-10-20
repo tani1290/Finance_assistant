@@ -34,7 +34,7 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      PORT: 5001
+      PORT: 5000
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres2905}@postgres:5432/${POSTGRES_DB:-finance_jinay}?schema=public
       JWT_SECRET: ${JWT_SECRET:-jinay_finance_ai_jwt_secret_production_key_32chars}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-jinay_finance_ai_jwt_refresh_secret_production_key_32chars}
@@ -44,7 +44,7 @@ services:
       LOCALE: en-IN
       TIMEZONE: Asia/Kolkata
     ports:
-      - "5001:5001"
+      - "5000:5000"
 
 volumes:
   postgres_data:

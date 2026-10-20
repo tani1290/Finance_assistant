@@ -23,8 +23,8 @@ Thank you for your interest in contributing to **FinPro** (Personal Finance & In
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/jinaygolecha/Fin_AI_Personal_Financial_Planner_AI_Final_Year_Project.git
-   cd Fin_AI_Personal_Financial_Planner_AI_Final_Year_Project
+   git clone https://github.com/tani1290/Finance_assistant.git
+   cd Finance_assistant
    ```
 
 2. **Environment Configuration**:
@@ -41,12 +41,7 @@ Thank you for your interest in contributing to **FinPro** (Personal Finance & In
    npm run setup
    ```
 
-4. **Seed Sample Data (Optional)**:
-   ```bash
-   npm run db:seed
-   ```
-
-5. **Start Development Server**:
+4. **Start Development Server**:
    ```bash
    npm run dev
    ```
@@ -81,7 +76,7 @@ Always run the full acceptance test suite before submitting a pull request:
 npm test
 ```
 
-All 47+ test assertions must pass with 0 failures.
+All 217 assertion checks across the configured suites (`npm test`, `npm run test:cloud`, `npm run test:failure`) must pass with 0 failures (`npm test` alone runs 171 checks).
 
 ---
 

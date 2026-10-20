@@ -123,7 +123,9 @@ export const apiFetch = async (endpoint, options = {}) => {
 
 export const downloadFile = async (endpoint, filename) => {
   const token = getToken();
-  const res = await fetch(`${API_BASE}${endpoint}?token=${encodeURIComponent(token || '')}`, {
+  // Authenticated with the Bearer header only — exports must not carry the JWT
+  // in the query string (it would leak via history/logs/Referer).
+  const res = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
@@ -324,6 +326,24 @@ export const aiAPI = {
   voiceIntent: (speechText) => apiFetch('/ai/voice-intent', { method: 'POST', body: JSON.stringify({ speechText }) }),
 };
 
+// ===== Credit Health & CIBIL API =====
+// Consumed by the AI Advisor credit modal (ai-advisor.html). The binding was
+// missing entirely, so `api.creditAPI.getCreditScore()` threw before the
+// request was ever sent.
+
+export const creditAPI = {
+  getCreditScore: () => apiFetch('/credit-score'),
+};
+
+// ===== GST Verification & Tax API =====
+// Consumed by the AI Advisor GST modal (ai-advisor.html). The binding was
+// missing entirely, so both the lookup and calculator tabs failed.
+
+export const gstAPI = {
+  lookup: (gstin) => apiFetch('/gst/lookup', { method: 'POST', body: JSON.stringify({ gstin }) }),
+  calculate: (data) => apiFetch('/gst/calculate', { method: 'POST', body: JSON.stringify(data) }),
+};
+
 // ===== Cards API (Phase 26) =====
 
 export const cardsAPI = {
@@ -477,6 +497,8 @@ export default {
   calendarAPI,
   notificationsAPI,
   aiAPI,
+  creditAPI,
+  gstAPI,
   trainingAPI,
   receiptsAPI,
   importAPI,

@@ -25,6 +25,11 @@ services:
         value: production
       - key: PORT
         value: 5000
+      # Exactly one reverse proxy (Render's edge) sits in front of the service, so
+      # Express must trust one X-Forwarded-For hop to see the real client IP for
+      # rate limiting and audit logs. Direct deployments leave this unset.
+      - key: TRUST_PROXY_HOPS
+        value: 1
 
       # Render PostgreSQL Database URL — used by the running server.
       # Use the instance's *internal* connection string when the web service runs

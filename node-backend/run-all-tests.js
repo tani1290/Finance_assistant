@@ -7,8 +7,10 @@ process.env.NODE_ENV = 'test';
 require('dotenv').config();
 
 const request = require('supertest');
+const express = require('express');
 const app = require('./src/app');
 const prisma = require('./src/config/database');
+const { authenticate } = require('./src/middleware/auth');
 
 let passedCount = 0;
 let failedCount = 0;
@@ -439,10 +441,46 @@ async function runTests() {
     assert(expTxHeader.status === 200 && expTxHeader.headers['content-type'].includes('text/csv'), 'GET /api/v1/export/transactions.csv with Bearer header exports CSV');
 
     const expTxQuery = await request(app).get(`/api/v1/export/transactions.csv?token=${encodeURIComponent(tokenA)}`);
-    assert(expTxQuery.status === 200 && expTxQuery.headers['content-type'].includes('text/csv'), 'GET /api/v1/export/transactions.csv with query token exports CSV');
+    assert(expTxQuery.status === 401, 'GET /api/v1/export/transactions.csv rejects a query-string token (401)');
 
     const expSum = await request(app).get('/api/v1/export/summary.csv').set('Authorization', `Bearer ${tokenA}`);
     assert(expSum.status === 200 && expSum.text.includes('Summary Report'), 'GET /api/v1/export/summary.csv exports financial summary');
+
+    // 19b. Authentication scope & CORS allowlist (security regression guards)
+    console.log('\n👉 [19b] Testing Query-Token Scope & CORS Allowlist...');
+
+    // Query tokens are restricted to the SSE stream: a guarded API route must
+    // reject a valid token supplied only in the query string...
+    const dashQuery = await request(app).get(`/api/v1/dashboard?token=${encodeURIComponent(tokenA)}`);
+    assert(dashQuery.status === 401, 'Guarded API route rejects a query-string token without an Authorization header (401)');
+
+    // ...while the same route still works with the Bearer header.
+    const dashHeader = await request(app).get('/api/v1/dashboard').set('Authorization', `Bearer ${tokenA}`);
+    assert(dashHeader.status === 200, 'Guarded API route still accepts the Authorization: Bearer header');
+
+    // The SSE stream still requires authentication...
+    const sseNoToken = await request(app).get('/api/v1/realtime/stream');
+    assert(sseNoToken.status === 401, 'SSE stream route requires authentication (401 without a token)');
+
+    // ...and a focused probe (mounting the real middleware exactly like the API
+    // router does) proves the query token is honoured on the SSE path only.
+    const probe = express();
+    probe.use(authenticate);
+    probe.get('/api/v1/realtime/stream', (req, res) => res.json({ success: true, userId: req.user.id }));
+    probe.get('/api/v1/realtime/changes', (req, res) => res.json({ success: true }));
+    const probeStream = await request(probe).get(`/api/v1/realtime/stream?token=${encodeURIComponent(tokenA)}`);
+    assert(probeStream.status === 200 && probeStream.body.userId === userA.id, 'SSE stream route authenticates with a query-string token (EventSource cannot set headers)');
+    const probeOther = await request(probe).get(`/api/v1/realtime/changes?token=${encodeURIComponent(tokenA)}`);
+    assert(probeOther.status === 401, 'Non-SSE realtime route still rejects a query-string token (401)');
+
+    // CORS admits known first-party origins...
+    const corsAllowed = await request(app).options('/api/v1/health').set('Origin', 'https://finpro-finance-ai.vercel.app');
+    assert(corsAllowed.headers['access-control-allow-origin'] === 'https://finpro-finance-ai.vercel.app', 'CORS reflects an allow-listed first-party origin');
+    // ...and refuses an arbitrary *.vercel.app deployment and the literal "null" origin.
+    const corsVercel = await request(app).options('/api/v1/health').set('Origin', 'https://evil-attacker.vercel.app');
+    assert(!corsVercel.headers['access-control-allow-origin'], 'CORS refuses an arbitrary *.vercel.app origin');
+    const corsNull = await request(app).options('/api/v1/health').set('Origin', 'null');
+    assert(!corsNull.headers['access-control-allow-origin'], 'CORS refuses the literal "null" origin');
 
     // 20. Multi-User Tenant Isolation
     console.log('\n👉 [20/20] Testing Multi-User Tenant Isolation (User A vs User B)...');
@@ -687,20 +725,77 @@ async function runTests() {
     newsService.getFinancialNews = originalGetFinancialNews;
 
     // ================================================================
-    // 👉 [26/26] Testing AI Action Engine (conversational actions)...
+    // 👉 [26/26] Testing AI Chat Endpoint (deterministic, provider stubbed)...
     // ================================================================
-    console.log('\n👉 [26/26] Testing AI Action Engine (conversational Add/View)...');
+    console.log('\n👉 [26/26] Testing AI Chat Endpoint (conversational Add/View)...');
 
-    // The endpoint is assistant-first (Gemini tool-calling) with a deterministic
-    // action-engine fallback, so either engine is a valid source. Behavioural
-    // guarantees below must hold on both paths.
+    // The /ai/chat route is assistant-first: it tries Gemini tool-calling and
+    // only falls back to the deterministic action engine when the provider is
+    // unavailable. Letting the *live* provider run here made these assertions
+    // nondeterministic — the model's wording, and whether it calls a tool at
+    // all, vary per call. We therefore stub the provider at the service
+    // boundary and drive the REAL controller, assistant service, tool
+    // executors and database writes from scripted responses. A live-provider
+    // smoke test is kept separate and opt-in (AI_LIVE_SMOKE=1) so provider
+    // flakiness can never invalidate the deterministic run.
+    const aiServiceModule = require('./src/services/aiService');
+    const realGetGeminiClient = aiServiceModule.getGeminiClient;
+
+    const geminiModelResponse = ({ calls = [], text = '' }) => ({
+      response: {
+        functionCalls: () => calls,
+        text: () => text,
+        candidates: [
+          {
+            content: {
+              parts: [
+                ...calls.map((c) => ({ functionCall: c })),
+                ...(text ? [{ text }] : []),
+              ],
+            },
+          },
+        ],
+      },
+    });
+    // Scripted provider: `responder(round)` returns a model response, or throws
+    // to simulate a provider error.
+    const stubGeminiModel = (responder) => {
+      aiServiceModule.getGeminiClient = () => ({
+        getGenerativeModel: () => {
+          let round = 0;
+          return {
+            generateContent: async () => {
+              round += 1;
+              return responder(round);
+            },
+          };
+        },
+      });
+    };
+    // Provider cannot be initialised at all (missing key / init failure).
+    const stubGeminiUnavailable = () => {
+      aiServiceModule.getGeminiClient = () => {
+        const err = new Error('GEMINI_API_KEY not configured. Using rule-based AI fallback.');
+        err.code = 'API_KEY_ERROR';
+        throw err;
+      };
+    };
+    const restoreGeminiClient = () => {
+      aiServiceModule.getGeminiClient = realGetGeminiClient;
+    };
+
+    const count500 = () => prisma.transaction.count({ where: { userId: userA.id, amount: 500 } });
+    const addExpenseMessage = 'add 500 expense as automated regression coffee paid by cash';
+
+    // --- A. Provider unavailable → deterministic action-engine fallback ---
+    stubGeminiUnavailable();
+
     const viewChat = await request(app)
       .post('/api/v1/ai/chat')
       .set('Authorization', `Bearer ${tokenA}`)
       .send({ message: 'view user data' });
     assert(
-      viewChat.status === 200 &&
-        /ai_action_engine|gemini-tools/.test(String(viewChat.body?.data?.source || '')),
+      viewChat.status === 200 && /ai_action_engine/.test(String(viewChat.body?.data?.source || '')),
       'POST /api/v1/ai/chat routes "view user data" to an AI engine (assistant or action engine)'
     );
     assert(
@@ -708,26 +803,110 @@ async function runTests() {
       'AI chat VIEW_DATA response contains the authenticated user profile'
     );
 
-    const count500 = () => prisma.transaction.count({ where: { userId: userA.id, amount: 500 } });
     const before500 = await count500();
 
     const addChat = await request(app)
       .post('/api/v1/ai/chat')
       .set('Authorization', `Bearer ${tokenA}`)
-      .send({ message: 'add 500 expense as automated regression coffee paid by cash' });
+      .send({ message: addExpenseMessage });
     const addChatText = String(addChat.body?.data?.response || '');
     assert(
       addChat.status === 200 &&
-        /ai_action_engine|gemini-tools|ADD_TRANSACTION/.test(
-          String(addChat.body?.data?.source || '')
-        ),
+        /ai_action_engine \(ADD_TRANSACTION\)/.test(String(addChat.body?.data?.source || '')),
       'POST /api/v1/ai/chat routes a natural-language expense to a transaction handler'
     );
     assert(
       addChatText.includes('500') && !addChatText.includes('₹₹'),
       'AI chat renders each amount with exactly one rupee sign (never ₹₹)'
     );
-    assert((await count500()) === before500 + 1, 'AI chat ADD_TRANSACTION persists the ₹500 expense to the ledger');
+    assert(
+      (await count500()) === before500 + 1,
+      'AI chat ADD_TRANSACTION persists the ₹500 expense to the ledger'
+    );
+
+    // --- B. Provider answers with a tool call → the REAL tool executor runs ---
+    stubGeminiModel((round) =>
+      round === 1
+        ? geminiModelResponse({
+            calls: [
+              {
+                name: 'create_transaction',
+                args: {
+                  amount: 500,
+                  transactionType: 'EXPENSE',
+                  description: 'automated regression coffee',
+                  merchant: 'Automated Regression Cafe',
+                  category: 'Food & Dining',
+                  paymentMethod: 'Cash',
+                },
+              },
+            ],
+          })
+        : geminiModelResponse({ text: 'Done — I recorded your ₹500 coffee expense.' })
+    );
+    const beforeToolCall = await count500();
+    const toolChat = await request(app)
+      .post('/api/v1/ai/chat')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ message: addExpenseMessage });
+    const toolStep = toolChat.body?.data?.action?.steps?.[0];
+    assert(
+      toolChat.status === 200 &&
+        toolChat.body?.data?.source === 'gemini-tools' &&
+        toolStep?.name === 'create_transaction' &&
+        toolStep?.ok === true,
+      'AI chat dispatches the model-chosen create_transaction tool through the real assistant service'
+    );
+    assert(
+      (await count500()) === beforeToolCall + 1 &&
+        String(toolStep?.summary || '').includes('500') &&
+        !String(toolStep?.summary || '').includes('₹₹'),
+      'AI tool-calling path persists the ₹500 expense and renders one rupee sign per amount'
+    );
+
+    // --- C. Provider error mid-flight → handled gracefully, no 500 surfaced ---
+    const beforeProviderErr = await count500();
+    stubGeminiModel(() => {
+      throw new Error('simulated Gemini provider outage');
+    });
+    const errChat = await request(app)
+      .post('/api/v1/ai/chat')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ message: addExpenseMessage });
+    assert(
+      errChat.status === 200 &&
+        /ai_action_engine \(ADD_TRANSACTION\)/.test(String(errChat.body?.data?.source || '')) &&
+        (await count500()) === beforeProviderErr + 1,
+      'AI chat degrades to the deterministic engine when the provider errors (no 500, action still applied)'
+    );
+
+    // --- D. Request validation at the AI boundary ---
+    const emptyChat = await request(app)
+      .post('/api/v1/ai/chat')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ message: '   ' });
+    assert(
+      emptyChat.status === 400 && emptyChat.body?.error?.code === 'VALIDATION_ERROR',
+      'AI chat rejects an empty message with 400 VALIDATION_ERROR'
+    );
+
+    restoreGeminiClient();
+
+    // --- Separate, opt-in live-provider smoke test (excluded from the default run) ---
+    if (process.env.AI_LIVE_SMOKE === '1') {
+      const liveChat = await request(app)
+        .post('/api/v1/ai/chat')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ message: 'view user data' });
+      assert(
+        liveChat.status === 200 && Boolean(liveChat.body?.data?.response),
+        '[live smoke] real Gemini provider answers POST /api/v1/ai/chat'
+      );
+    } else {
+      console.log(
+        '  ℹ️  Live Gemini smoke test skipped — run with AI_LIVE_SMOKE=1 to exercise the real provider.'
+      );
+    }
 
     // ================================================================
     // 👉 [27/27] Testing Category Resource & Full AI Assistant CRUD Surface...
@@ -875,6 +1054,108 @@ async function runTests() {
     assert(aiAccountDelete.ok === true && aiAccountRow.isActive === false, 'AI tool delete_account soft-deletes (isActive=false) instead of destroying history');
     const aiAccountGuard = await TOOL_MAP.delete_account.execute(userA.id, { account: 'Nonexistent Account XYZ' });
     assert(aiAccountGuard.ok === false, 'AI tool delete_account fails cleanly on an unknown account');
+
+    // ================================================================
+    // 👉 [28/28] Regression Guards — Security & Financial-Input Validation
+    // ================================================================
+    console.log('\n👉 [28/28] Testing Regression Guards (Path Traversal, Tenant Isolation, Amount Validation)...');
+
+    // (a) SPA fallback must never serve files outside frontend/public. path.join()
+    // collapses "../", so before the containment guard a raw request such as
+    // "/../../node-backend/package.json" leaked the backend package.json.
+    const http = require('http');
+    const net = require('net');
+    const spaServer = http.createServer(app);
+    await new Promise((resolve) => spaServer.listen(0, '127.0.0.1', resolve));
+    const spaPort = spaServer.address().port;
+    const rawGet = (rawPath) => new Promise((resolve) => {
+      const sock = net.connect(spaPort, '127.0.0.1', () => {
+        sock.write(`GET ${rawPath} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n`);
+      });
+      let buf = '';
+      sock.on('data', (c) => { buf += c; });
+      sock.on('end', () => resolve(buf));
+      sock.on('error', () => resolve(''));
+    });
+    const traversalProbe = await rawGet('/../../node-backend/package.json');
+    assert(
+      traversalProbe.includes('<!DOCTYPE html>') && !traversalProbe.includes('finpro-backend'),
+      'SPA fallback refuses path traversal (never serves files outside frontend/public)'
+    );
+    const legitProbe = await rawGet('/dashboard.html');
+    assert(legitProbe.includes('<!DOCTYPE html>') && !legitProbe.includes('finpro-backend'), 'SPA fallback still serves legitimate public pages');
+    await new Promise((resolve) => spaServer.close(resolve));
+
+    // (b) A transaction amount must be a positive, finite number. Before the guard a
+    // negative/NaN PATCH silently rewrote the ledger and desynced the account balance.
+    const guardTxCreate = await request(app)
+      .post('/api/v1/transactions')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ accountId: accountAId, amount: 500, transactionType: 'EXPENSE', description: 'Regression guard expense' });
+    assert(guardTxCreate.status === 201, 'Created scratch transaction for the amount-validation guard');
+    const guardTxId = guardTxCreate.body.data.id;
+
+    const negUpdate = await request(app)
+      .patch(`/api/v1/transactions/${guardTxId}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ amount: -100 });
+    assert(negUpdate.status === 400, 'PATCH /api/v1/transactions/:id rejects a negative amount (400)');
+
+    const nanUpdate = await request(app)
+      .patch(`/api/v1/transactions/${guardTxId}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ amount: 'not-a-number' });
+    assert(nanUpdate.status === 400, 'PATCH /api/v1/transactions/:id rejects a non-numeric amount (400)');
+
+    const guardTxRow = await prisma.transaction.findUnique({ where: { id: guardTxId } });
+    assert(Number(guardTxRow.amount) === 500, 'Rejected amount updates leave the transaction unchanged');
+
+    // (c) Tenant isolation must cover every user-scoped storage prefix, not just "users/".
+    // Generated exports live under "exports/<userId>/" and were previously unprotected.
+    const foreignGet = await request(app)
+      .get(`/api/v1/storage/file/${encodeURIComponent(`exports/${userB.id}/leak.csv`)}`)
+      .set('Authorization', `Bearer ${tokenA}`);
+    assert(foreignGet.status === 403, 'Storage refuses User A reading User B export key (403 tenant isolation)');
+
+    const foreignDel = await request(app)
+      .delete(`/api/v1/storage/file/${encodeURIComponent(`exports/${userB.id}/leak.csv`)}`)
+      .set('Authorization', `Bearer ${tokenA}`);
+    assert(foreignDel.status === 403, 'Storage refuses User A deleting User B export key (403 tenant isolation)');
+
+    const ownGet = await request(app)
+      .get(`/api/v1/storage/file/${encodeURIComponent(`exports/${userA.id}/nonexistent.csv`)}`)
+      .set('Authorization', `Bearer ${tokenA}`);
+    assert(ownGet.status !== 403, 'Storage permits probing a key in the caller own export namespace (not 403)');
+
+    // (d) Statement import must reject invalid magnitudes before touching any balance.
+    const badImport = await request(app)
+      .post('/api/v1/import/confirm')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ rows: [{ amount: 'not-a-number', transactionType: 'EXPENSE', category: 'General' }] });
+    assert(badImport.status === 400, 'Statement import rejects a non-numeric row amount (400)');
+
+    const negImport = await request(app)
+      .post('/api/v1/import/confirm')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ rows: [{ amount: -25, transactionType: 'EXPENSE', category: 'General' }] });
+    assert(negImport.status === 400, 'Statement import rejects a negative row amount (400)');
+
+    // (e) The error handler must not crash when an error carries no message. An
+    // operator-precedence bug previously dereferenced `err.message` when falsy
+    // (Cannot read properties of undefined), turning a handled 500 into a crash.
+    const { errorHandler } = require('./src/middleware/errorHandler');
+    let ehResult = null;
+    let ehThrew = false;
+    const ehMockRes = {
+      status(code) { this._s = code; return this; },
+      json(body) { ehResult = { status: this._s, body }; return this; },
+    };
+    try {
+      errorHandler({ code: 'SOMETHING' }, { path: '/x', method: 'GET', originalUrl: '/x' }, ehMockRes, () => {});
+    } catch (e) {
+      ehThrew = true;
+    }
+    assert(!ehThrew && ehResult && ehResult.status === 500, 'Error handler survives an error with no message (no TypeError)');
 
   } catch (err) {
     console.error('\n❌ UNEXPECTED ERROR DURING SUITE:', err);

@@ -34,6 +34,11 @@
       color: #f87171;
       border: 1px solid rgba(239, 68, 68, 0.3);
     }
+    .status-unknown {
+      background: rgba(100, 116, 139, 0.15);
+      color: #94a3b8;
+      border: 1px solid rgba(100, 116, 139, 0.3);
+    }
     .pulse-dot {
       width: 8px;
       height: 8px;
@@ -110,7 +115,7 @@
 
     <div class="content">
       <!-- Master Banner -->
-      <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.06)); border-color: rgba(16,185,129,0.25);">
+      <div class="card" id="overallCard" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.06)); border-color: rgba(16,185,129,0.25);">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
           <div>
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
@@ -257,13 +262,40 @@
         const ready = readyRes.status === 'fulfilled' ? readyRes.value : null;
         const detailed = detailedRes.status === 'fulfilled' ? detailedRes.value : null;
 
-        const isOverallOk = detailed?.overallStatus === 'OPERATIONAL' || ready?.ready === true;
+        // The banner must never claim "all operational" from a partial signal.
+        // It is OPERATIONAL only when the detailed probe (which gates critical
+        // subsystems on a genuine CONNECTED) says so; DEGRADED when any
+        // subsystem needs attention; and UNKNOWN when the probe itself could not
+        // be read. In particular, a healthy /health/ready must NOT be promoted
+        // into "all systems operational" while a critical subsystem is degraded.
+        const hasDetailed = !!(detailed && detailed.subsystems);
+        const overallState = !hasDetailed
+          ? 'unknown'
+          : (detailed.overallStatus === 'OPERATIONAL' ? 'operational' : 'degraded');
 
         // Overall Banner
         const overallBadge = document.getElementById('overallBadge');
         const overallText = document.getElementById('overallText');
-        overallBadge.className = `status-badge ${isOverallOk ? 'status-online' : 'status-degraded'}`;
-        overallText.textContent = isOverallOk ? 'ALL CLOUD SYSTEMS OPERATIONAL' : 'SYSTEM DEGRADED / OFFLINE';
+        const overallClass = overallState === 'operational'
+          ? 'status-online'
+          : (overallState === 'degraded' ? 'status-degraded' : 'status-unknown');
+        const overallLabel = overallState === 'operational'
+          ? 'ALL CLOUD SYSTEMS OPERATIONAL'
+          : (overallState === 'degraded' ? 'DEGRADED — SOME SUBSYSTEMS NEED ATTENTION' : 'STATUS UNKNOWN — TELEMETRY UNAVAILABLE');
+        overallBadge.className = `status-badge ${overallClass}`;
+        overallText.textContent = overallLabel;
+
+        const overallCard = document.getElementById('overallCard');
+        if (overallCard) {
+          const themes = {
+            operational: ['linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.06))', 'rgba(16,185,129,0.25)'],
+            degraded: ['linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.06))', 'rgba(245,158,11,0.3)'],
+            unknown: ['linear-gradient(135deg, rgba(100,116,139,0.12), rgba(71,85,105,0.06))', 'rgba(100,116,139,0.3)'],
+          };
+          const [bg, border] = themes[overallState];
+          overallCard.style.background = bg;
+          overallCard.style.borderColor = border;
+        }
 
         document.getElementById('lastCheckedText').textContent = `Last checked: ${new Date().toLocaleTimeString('en-IN')}`;
 
@@ -271,63 +303,115 @@
         document.getElementById('appEnv').textContent = (health?.environment || 'Development').toUpperCase();
         document.getElementById('appVersion').textContent = `Version ${health?.version || '1.0.0'} · Project FinPro`;
 
-        // 2. Database Card
+        // 2. Database Card — distinguish unknown (probe unreachable) from a real
+        // unavailable state instead of collapsing every non-connected value to
+        // DISCONNECTED.
         const dbBadge = document.getElementById('dbBadge');
-        const dbConnected = db?.healthy || db?.status === 'connected';
-        dbBadge.className = `status-badge ${dbConnected ? 'status-online' : 'status-offline'}`;
-        dbBadge.textContent = dbConnected ? 'CONNECTED' : 'DISCONNECTED';
+        const dbConnected = db?.healthy === true || db?.status === 'connected' || db?.status === 'healthy';
+        let dbLabel = 'UNKNOWN';
+        let dbClass = 'status-unknown';
+        if (dbConnected) { dbLabel = 'CONNECTED'; dbClass = 'status-online'; }
+        else if (db) { dbLabel = 'UNAVAILABLE'; dbClass = 'status-offline'; }
+        dbBadge.className = `status-badge ${dbClass}`;
+        dbBadge.textContent = dbLabel;
         document.getElementById('dbLatency').textContent = db?.latencyMs ? `${db.latencyMs} ms` : '-- ms';
         document.getElementById('dbTier').textContent = `${db?.provider || 'PostgreSQL'} (${db?.isCloud ? 'Managed Cloud' : 'Local Instance'})`;
 
-        // 3. Storage Card
+        // 3. Storage Card — the platform can keep persisting via a local
+        // fallback while the cloud bucket is down, so a bare `available` must
+        // not be shown as a healthy green state. Surface the cloud degradation.
         const storageBadge = document.getElementById('storageBadge');
-        const storageAvail = storage?.available || storage?.status === 'available';
-        storageBadge.className = `status-badge ${storageAvail ? 'status-online' : 'status-offline'}`;
-        storageBadge.textContent = storageAvail ? 'AVAILABLE' : 'UNAVAILABLE';
+        const storageAvail = storage?.available === true || storage?.status === 'available';
+        const storageCloudDegraded = storage?.cloudStatus === 'degraded' || storage?.cloudAvailable === false;
+        let storageLabel = 'UNKNOWN';
+        let storageClass = 'status-unknown';
+        if (storageCloudDegraded) { storageLabel = 'DEGRADED'; storageClass = 'status-degraded'; }
+        else if (storageAvail) { storageLabel = 'AVAILABLE'; storageClass = 'status-online'; }
+        else if (storage) { storageLabel = 'UNAVAILABLE'; storageClass = 'status-offline'; }
+        storageBadge.className = `status-badge ${storageClass}`;
+        storageBadge.textContent = storageLabel;
         document.getElementById('storageProvider').textContent = (storage?.provider || 'local').toUpperCase().includes('S3') ? 'S3 Object Storage' : 'Local Disk Storage';
-        document.getElementById('storageLatency').textContent = `Latency: ${storage?.latencyMs ? storage.latencyMs + ' ms' : 'Active'}`;
+        document.getElementById('storageLatency').textContent = storageCloudDegraded
+          ? 'Cloud bucket unreachable — local fallback active'
+          : `Latency: ${storage?.latencyMs ? storage.latencyMs + ' ms' : 'Active'}`;
 
         // 4. Readiness Card
         const readyBadge = document.getElementById('readyBadge');
         const isReady = ready?.ready === true;
-        readyBadge.className = `status-badge ${isReady ? 'status-online' : 'status-offline'}`;
-        readyBadge.textContent = isReady ? 'READY' : 'NOT READY';
-        document.getElementById('readyStatus').textContent = isReady ? 'PASS (200 OK)' : 'FAIL (503 Service Unavailable)';
-
-        // 12 Subsystems Telemetry Table
-        let rows = [];
-        if (detailed?.subsystems) {
-          const s = detailed.subsystems;
-          rows = [
-            { subsystem: 'Application Core', probe: 'GET /api/v1/health', config: `${s.application?.details?.runtime} · Uptime ${s.application?.details?.uptimeSeconds}s · Heap ${s.application?.details?.heapUsedMB}MB`, latency: `${s.application?.latencyMs || 0} ms`, state: s.application?.status, ok: s.application?.status === 'CONNECTED' },
-            { subsystem: 'PostgreSQL Database', probe: 'GET /api/v1/health/database', config: `${s.postgresql?.details?.engine} · DB: ${s.postgresql?.details?.database}`, latency: `${s.postgresql?.latencyMs || 0} ms`, state: s.postgresql?.status, ok: s.postgresql?.status === 'CONNECTED' },
-            { subsystem: 'Prisma ORM Engine', probe: 'GET /api/v1/health/ready', config: `${s.prisma?.details?.ormVersion} · Schema Sync Active`, latency: `${s.prisma?.latencyMs || 0} ms`, state: s.prisma?.status, ok: s.prisma?.status === 'CONNECTED' },
-            { subsystem: 'PostgreSQL Connection Pooler', probe: 'TELEMETRY: POOLER', config: s.dbPooler?.details?.route || s.dbPooler?.safeMessage || 'Direct connection active', latency: `${s.dbPooler?.latencyMs || 0} ms`, state: s.dbPooler?.status, ok: s.dbPooler?.status === 'CONNECTED' },
-            { subsystem: 'Cloud Object Storage Bucket', probe: 'TELEMETRY: S3 BUCKET', config: `${s.objectStorage?.details?.provider || 'S3-compatible'} · ${s.objectStorage?.safeMessage || 'Local fallback active'}`, latency: `${s.objectStorage?.latencyMs || 0} ms`, state: s.objectStorage?.status, ok: s.objectStorage?.status === 'CONNECTED' },
-            { subsystem: 'Object / Document Storage', probe: 'GET /api/v1/health/storage', config: `Provider: ${s.s3Storage?.details?.provider?.toUpperCase()} · Target: ${s.s3Storage?.details?.target}`, latency: `${s.s3Storage?.latencyMs || 0} ms`, state: s.s3Storage?.status, ok: s.s3Storage?.status === 'CONNECTED' || s.s3Storage?.status === 'DEGRADED' },
-            { subsystem: 'Cloud AI (Google Gemini)', probe: 'GET /api/v1/health/ai', config: `Model: ${s.geminiAI?.details?.model || 'Fallback'} · ${s.geminiAI?.details?.provider}`, latency: `${s.geminiAI?.latencyMs || 0} ms`, state: s.geminiAI?.status, ok: s.geminiAI?.status === 'CONNECTED' },
-            { subsystem: 'OCR Document Engine', probe: 'TESSERACT OCR WORKER', config: `${s.ocrSubsystem?.details?.engine} · Formats: PNG, JPEG, PDF`, latency: `${s.ocrSubsystem?.latencyMs || 0} ms`, state: s.ocrSubsystem?.status, ok: s.ocrSubsystem?.status === 'CONNECTED' },
-            { subsystem: 'Live Market Data Feed', probe: 'GET /api/v1/health/market', config: s.marketAPI?.details?.provider, latency: `${s.marketAPI?.latencyMs || 0} ms`, state: s.marketAPI?.status, ok: s.marketAPI?.status === 'CONNECTED' },
-            { subsystem: 'Financial News Feed', probe: 'GET /api/v1/health/news', config: `${s.newsAPI?.details?.provider} (${s.newsAPI?.details?.articleCount || 20} items)`, latency: `${s.newsAPI?.latencyMs || 0} ms`, state: s.newsAPI?.status, ok: s.newsAPI?.status === 'CONNECTED' || s.newsAPI?.status === 'DEGRADED' },
-            { subsystem: 'Authentication & Security', probe: 'GET /api/v1/health/auth', config: `${s.oauthConfig?.details?.jwtAuth} · bcrypt salt 10 · Tenant Isolation`, latency: `${s.oauthConfig?.latencyMs || 0} ms`, state: s.oauthConfig?.status, ok: s.oauthConfig?.status === 'CONNECTED' },
-            { subsystem: 'ML Transaction Intelligence', probe: 'GET /api/v1/training/runs', config: `${s.mlEngine?.details?.algorithm} (${s.mlEngine?.details?.classes} classes, ${s.mlEngine?.details?.features} features)`, latency: `${s.mlEngine?.latencyMs || 0} ms`, state: s.mlEngine?.status, ok: s.mlEngine?.status === 'CONNECTED' },
-          ];
+        if (!ready) {
+          readyBadge.className = 'status-badge status-unknown';
+          readyBadge.textContent = 'UNKNOWN';
+          document.getElementById('readyStatus').textContent = '-- (probe unreachable)';
+        } else {
+          readyBadge.className = `status-badge ${isReady ? 'status-online' : 'status-offline'}`;
+          readyBadge.textContent = isReady ? 'READY' : 'NOT READY';
+          document.getElementById('readyStatus').textContent = isReady ? 'PASS (200 OK)' : 'FAIL (503 Service Unavailable)';
         }
 
+        // ---- Health-state → badge mapping (single source of truth) ----
+        // CONNECTED             → green
+        // CONFIGURED_UNVERIFIED → amber, labelled distinctly: a key is present
+        //                         but live connectivity is NOT proven
+        // DEGRADED              → amber
+        // NOT_CONFIGURED        → amber, labelled "NOT CONFIGURED"
+        // UNAVAILABLE           → red
+        // (missing / anything)  → grey "UNKNOWN"
+        const badgeFor = (state, unverified) => {
+          if (unverified && state === 'DEGRADED') return { cls: 'status-degraded', label: 'CONFIGURED · UNVERIFIED' };
+          switch (state) {
+            case 'CONNECTED': return { cls: 'status-online', label: 'CONNECTED' };
+            case 'DEGRADED': return { cls: 'status-degraded', label: 'DEGRADED' };
+            case 'NOT_CONFIGURED': return { cls: 'status-degraded', label: 'NOT CONFIGURED' };
+            case 'UNAVAILABLE': return { cls: 'status-offline', label: 'UNAVAILABLE' };
+            default: return { cls: 'status-unknown', label: 'UNKNOWN' };
+          }
+        };
+        const isUnverified = (sub) => sub?.details?.configurationStatus === 'configured_unverified' || sub?.details?.verified === false;
+
+        // 12 Subsystems Telemetry Table
         const tbody = document.getElementById('telemetryRows');
-        tbody.innerHTML = rows.map(r => `
-          <tr>
-            <td style="font-weight:700; color:#0f172a;">${r.subsystem}</td>
-            <td><code class="metric-mono" style="color:#10b981;font-weight:600;">${r.probe}</code></td>
-            <td style="color:#475569;font-size:12px;">${r.config}</td>
-            <td class="metric-mono" style="color:#0f172a;font-weight:600;">${r.latency}</td>
-            <td>
-              <span class="status-badge ${r.state === 'CONNECTED' ? 'status-online' : (r.state === 'DEGRADED' || r.state === 'NOT_CONFIGURED' ? 'status-degraded' : 'status-offline')}">
-                <span class="pulse-dot"></span>${r.state}
-              </span>
-            </td>
-          </tr>
-        `).join('');
+        if (!hasDetailed) {
+          // The probe failed: say so explicitly rather than rendering an empty
+          // table that could be mistaken for "everything fine".
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="5" style="text-align:center; padding:32px;">
+                <span class="status-badge status-unknown"><span class="pulse-dot"></span>UNKNOWN</span>
+                <div style="color:#64748b; font-size:13px; margin-top:10px;">Subsystem telemetry unavailable — the /health/cloud-detailed probe could not be reached. States below are unknown, not healthy.</div>
+              </td>
+            </tr>`;
+        } else {
+          const s = detailed.subsystems;
+          const rows = [
+            { subsystem: 'Application Core', probe: 'GET /api/v1/health', config: `${s.application?.details?.runtime} · Uptime ${s.application?.details?.uptimeSeconds}s · Heap ${s.application?.details?.heapUsedMB}MB`, latency: `${s.application?.latencyMs || 0} ms`, sub: s.application },
+            { subsystem: 'PostgreSQL Database', probe: 'GET /api/v1/health/database', config: `${s.postgresql?.details?.engine} · DB: ${s.postgresql?.details?.database}`, latency: `${s.postgresql?.latencyMs || 0} ms`, sub: s.postgresql },
+            { subsystem: 'Prisma ORM Engine', probe: 'GET /api/v1/health/ready', config: `${s.prisma?.details?.ormVersion} · Schema Sync Active`, latency: `${s.prisma?.latencyMs || 0} ms`, sub: s.prisma },
+            { subsystem: 'PostgreSQL Connection Pooler', probe: 'TELEMETRY: POOLER', config: s.dbPooler?.details?.route || s.dbPooler?.safeMessage || 'Direct connection active', latency: `${s.dbPooler?.latencyMs || 0} ms`, sub: s.dbPooler },
+            { subsystem: 'Cloud Object Storage Bucket', probe: 'TELEMETRY: S3 BUCKET', config: `${s.objectStorage?.details?.provider || 'S3-compatible'} · ${s.objectStorage?.safeMessage || 'Local fallback active'}`, latency: `${s.objectStorage?.latencyMs || 0} ms`, sub: s.objectStorage },
+            { subsystem: 'Object / Document Storage', probe: 'GET /api/v1/health/storage', config: `Provider: ${(s.s3Storage?.details?.provider || 'n/a').toUpperCase()} · Target: ${s.s3Storage?.details?.target || 'n/a'}`, latency: `${s.s3Storage?.latencyMs || 0} ms`, sub: s.s3Storage },
+            { subsystem: 'Cloud AI (Google Gemini)', probe: 'GET /api/v1/health/ai', config: `Model: ${s.geminiAI?.details?.model || 'Fallback'} · ${s.geminiAI?.details?.provider || ''}`, latency: `${s.geminiAI?.latencyMs || 0} ms`, sub: s.geminiAI },
+            { subsystem: 'OCR Document Engine', probe: 'TESSERACT OCR WORKER', config: `${s.ocrSubsystem?.details?.engine} · Formats: PNG, JPEG, PDF`, latency: `${s.ocrSubsystem?.latencyMs || 0} ms`, sub: s.ocrSubsystem },
+            { subsystem: 'Live Market Data Feed', probe: 'GET /api/v1/health/market', config: s.marketAPI?.details?.provider || '—', latency: `${s.marketAPI?.latencyMs || 0} ms`, sub: s.marketAPI },
+            { subsystem: 'Financial News Feed', probe: 'GET /api/v1/health/news', config: `${s.newsAPI?.details?.provider} (${s.newsAPI?.details?.articleCount || 20} items)`, latency: `${s.newsAPI?.latencyMs || 0} ms`, sub: s.newsAPI },
+            { subsystem: 'Authentication & Security', probe: 'GET /api/v1/health/auth', config: `${s.oauthConfig?.details?.jwtAuth} · bcrypt salt 10 · Tenant Isolation`, latency: `${s.oauthConfig?.latencyMs || 0} ms`, sub: s.oauthConfig },
+            { subsystem: 'ML Transaction Intelligence', probe: 'GET /api/v1/training/runs', config: `${s.mlEngine?.details?.algorithm} (${s.mlEngine?.details?.classes} classes, ${s.mlEngine?.details?.features} features)`, latency: `${s.mlEngine?.latencyMs || 0} ms`, sub: s.mlEngine },
+          ];
+          tbody.innerHTML = rows.map(r => {
+            const badge = badgeFor(r.sub?.status, isUnverified(r.sub));
+            return `
+            <tr>
+              <td style="font-weight:700; color:#0f172a;">${r.subsystem}</td>
+              <td><code class="metric-mono" style="color:#10b981;font-weight:600;">${r.probe}</code></td>
+              <td style="color:#475569;font-size:12px;">${r.config}</td>
+              <td class="metric-mono" style="color:#0f172a;font-weight:600;">${r.latency}</td>
+              <td>
+                <span class="status-badge ${badge.cls}">
+                  <span class="pulse-dot"></span>${badge.label}
+                </span>
+              </td>
+            </tr>`;
+          }).join('');
+        }
 
       } catch (err) {
         console.error('Failed to probe cloud health:', err);

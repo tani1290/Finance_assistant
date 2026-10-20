@@ -7,7 +7,7 @@
 - 31231521 — Diksha Choraghe
 - 31231787 — Parth Hande
 **Academic Year:** 2025–2026 | Department of Computer Engineering (Vishwakarma University)  
-**Companion PPTX File:** [FinPro_AI_Financial_Planner_Deck.pptx](file:///Volumes/Projects/Minor/Jinay%20Version/Fin_AI_Personal_Financial_Planner_AI_Final_Year_Project/lit_Survey/FinPro_AI_Financial_Planner_Deck.pptx)
+**Companion PPTX File:** [FinPro_AI_Financial_Planner_Deck.pptx](FinPro_AI_Financial_Planner_Deck.pptx)
 
 ---
 

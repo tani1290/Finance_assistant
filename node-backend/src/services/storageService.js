@@ -133,6 +133,17 @@ class LocalDiskProvider {
 // S3-Compatible Cloud Object Storage Provider (Production)
 // Implements AWS Signature V4 REST API without external bloat
 // ----------------------------------------------------------------------------
+// Every S3 network call MUST be bounded. Without a timeout a stalled provider
+// (paused bucket, black-holed TCP, half-open connection) keeps the caller's
+// request open until the OS gives up — turning one slow object store into a
+// pinned HTTP worker. Operators can tune this per environment.
+const DEFAULT_S3_TIMEOUT_MS = 15000;
+const resolveS3TimeoutMs = (override) => {
+  const parsed = Number.parseInt(override, 10);
+  if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  return DEFAULT_S3_TIMEOUT_MS;
+};
+
 class S3CloudProvider {
   constructor(config = {}) {
     this.endpoint = config.endpoint || process.env.S3_ENDPOINT || 'https://s3.amazonaws.com';
@@ -142,6 +153,7 @@ class S3CloudProvider {
     this.secretAccessKey = config.secretAccessKey || process.env.S3_SECRET_ACCESS_KEY || '';
     this.forcePathStyle = config.forcePathStyle === true || process.env.S3_FORCE_PATH_STYLE === 'true';
     this.publicUrl = config.publicUrl || process.env.S3_PUBLIC_URL || '';
+    this.requestTimeoutMs = resolveS3TimeoutMs(config.requestTimeoutMs || process.env.S3_TIMEOUT_MS);
   }
 
   _isConfigured() {
@@ -227,7 +239,7 @@ class S3CloudProvider {
       const transport = parsed.protocol === 'http:' ? http : https;
       const req = transport.request(
         url,
-        { method: 'PUT', headers: signedHeaders },
+        { method: 'PUT', headers: signedHeaders, timeout: this.requestTimeoutMs },
         (res) => {
           if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve({
@@ -249,6 +261,9 @@ class S3CloudProvider {
         }
       );
 
+      req.on('timeout', () => {
+        req.destroy(Object.assign(new Error(`S3 upload timed out after ${this.requestTimeoutMs}ms`), { code: 'S3_TIMEOUT' }));
+      });
       req.on('error', reject);
       req.write(buffer);
       req.end();
@@ -265,7 +280,7 @@ class S3CloudProvider {
     return new Promise((resolve, reject) => {
       const parsed = new URL(url);
       const transport = parsed.protocol === 'http:' ? http : https;
-      const req = transport.request(url, { method: 'GET', headers: signedHeaders }, (res) => {
+      const req = transport.request(url, { method: 'GET', headers: signedHeaders, timeout: this.requestTimeoutMs }, (res) => {
         if (res.statusCode === 404) {
           return reject(Object.assign(new Error(`File not found in storage (${key})`), { statusCode: 404 }));
         }
@@ -285,6 +300,9 @@ class S3CloudProvider {
           });
         });
       });
+      req.on('timeout', () => {
+        req.destroy(Object.assign(new Error(`S3 download timed out after ${this.requestTimeoutMs}ms`), { code: 'S3_TIMEOUT' }));
+      });
       req.on('error', reject);
       req.end();
     });
@@ -298,8 +316,11 @@ class S3CloudProvider {
     return new Promise((resolve) => {
       const parsed = new URL(url);
       const transport = parsed.protocol === 'http:' ? http : https;
-      const req = transport.request(url, { method: 'DELETE', headers: signedHeaders }, (res) => {
+      const req = transport.request(url, { method: 'DELETE', headers: signedHeaders, timeout: this.requestTimeoutMs }, (res) => {
         resolve({ success: res.statusCode >= 200 && res.statusCode < 300, key, provider: 's3' });
+      });
+      req.on('timeout', () => {
+        req.destroy(Object.assign(new Error(`S3 delete timed out after ${this.requestTimeoutMs}ms`), { code: 'S3_TIMEOUT' }));
       });
       req.on('error', err => resolve({ success: false, error: err.message, key }));
       req.end();
@@ -335,10 +356,14 @@ class S3CloudProvider {
         : `${endpointUrl.protocol}//${this.bucket}.${endpointUrl.host}`;
       const signedHeaders = this._signRequest('HEAD', url, {});
 
+      // The probe must stay cheap: never wait longer than the request timeout,
+      // and cap it at 5s so a stalled endpoint cannot slow the health endpoint.
+      const probeTimeoutMs = Math.min(this.requestTimeoutMs, 5000);
+
       return await new Promise((resolve) => {
         const parsed = new URL(url);
         const transport = parsed.protocol === 'http:' ? http : https;
-        const req = transport.request(url, { method: 'HEAD', headers: signedHeaders, timeout: 5000 }, (res) => {
+        const req = transport.request(url, { method: 'HEAD', headers: signedHeaders, timeout: probeTimeoutMs }, (res) => {
           const latencyMs = Date.now() - start;
           const ok = res.statusCode >= 200 && res.statusCode < 400;
           resolve({
@@ -379,6 +404,10 @@ class StorageService {
   constructor() {
     this.localProvider = new LocalDiskProvider(process.env.STORAGE_LOCAL_DIR);
     this.cloudProvider = new S3CloudProvider();
+    // Most recent silent cloud→local fallback, if any. Kept in-memory only:
+    // it holds no secrets and is surfaced through the health endpoints so a
+    // cloud outage is observable instead of being hidden behind the fallback.
+    this.lastFallback = null;
   }
 
   get activeProvider() {
@@ -391,11 +420,72 @@ class StorageService {
     return (prov === 's3' || prov === 'cloud') ? 's3' : 'local';
   }
 
+  /**
+   * Where objects are persisted *right now* and whether that survives a
+   * redeploy. Local disk lives inside the container/host and is lost on
+   * redeploy, restart or crash; S3-compatible object storage is durable.
+   * Reported through the health endpoints so production can never *look* like
+   * it has durable cloud storage while writing to an ephemeral disk.
+   */
+  getDurability() {
+    const provider = this.providerName;
+    const durable = provider === 's3';
+    return {
+      provider,
+      durable,
+      ephemeral: !durable,
+      reason: durable
+        ? 'Objects are stored in S3-compatible cloud object storage.'
+        : 'Objects are stored on local disk and are lost on redeploy or restart.',
+    };
+  }
+
+  /**
+   * One loud, credential-free startup warning when the process is about to
+   * serve production traffic from ephemeral local disk. Nothing is invented or
+   * required here: it only makes the existing default visible. Returns true
+   * when the warning was emitted.
+   */
+  warnIfEphemeralInProduction() {
+    const isProduction = (process.env.NODE_ENV || '').toLowerCase() === 'production';
+    const { provider, durable, reason } = this.getDurability();
+    if (isProduction && !durable) {
+      console.warn(
+        `[Storage] WARNING: object storage provider is "${provider}" — ${reason} ` +
+          'Set STORAGE_PROVIDER=s3 plus S3_ENDPOINT, S3_REGION, S3_BUCKET, ' +
+          'S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY for durable cloud storage.'
+      );
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Records that the configured cloud provider failed and the local fallback
+   * was used instead. Deliberately stores only a short, non-sensitive message:
+   * never the bucket, credentials, signed URL or exact object key.
+   */
+  _recordFallback(operation, err) {
+    this.lastFallback = {
+      operation,
+      at: new Date().toISOString(),
+      message: (err && err.message ? String(err.message) : 'Unknown storage error').slice(0, 200),
+      provider: 's3',
+      fallbackProvider: 'local',
+    };
+    return this.lastFallback;
+  }
+
+  getLastFallback() {
+    return this.lastFallback ? { ...this.lastFallback } : null;
+  }
+
   async upload({ buffer, key, contentType, metadata, isPublic }) {
     try {
       return await this.activeProvider.upload({ buffer, key, contentType, metadata, isPublic });
     } catch (err) {
       if (this.providerName === 's3') {
+        this._recordFallback('upload', err);
         console.warn(`[Storage] Cloud S3 upload notice (${err.message}). Engaging resilient local fallback...`);
         return await this.localProvider.upload({ buffer, key, contentType, metadata, isPublic });
       }
@@ -408,6 +498,7 @@ class StorageService {
       return await this.activeProvider.download(key);
     } catch (err) {
       if (this.providerName === 's3') {
+        this._recordFallback('download', err);
         return await this.localProvider.download(key);
       }
       throw err;
@@ -419,6 +510,7 @@ class StorageService {
       return await this.activeProvider.delete(key);
     } catch (err) {
       if (this.providerName === 's3') {
+        this._recordFallback('delete', err);
         return await this.localProvider.delete(key);
       }
       throw err;
@@ -430,6 +522,7 @@ class StorageService {
       return await this.activeProvider.getPublicOrSignedUrl(key, options);
     } catch (err) {
       if (this.providerName === 's3') {
+        this._recordFallback('getPublicOrSignedUrl', err);
         return await this.localProvider.getPublicOrSignedUrl(key, options);
       }
       throw err;
@@ -438,6 +531,7 @@ class StorageService {
 
   async checkStorageHealth() {
     const health = await this.activeProvider.checkHealth();
+    const lastFallback = this.getLastFallback();
     // If cloud S3 is paused or unreachable, check if local storage fallback is operational
     if (this.providerName === 's3' && !health.available) {
       const localHealth = await this.localProvider.checkHealth();
@@ -446,17 +540,34 @@ class StorageService {
           available: true,
           status: 'available',
           provider: 's3',
+          // `available` means "the platform can still persist documents" (local
+          // fallback), NOT "the cloud bucket is healthy". `cloudStatus` carries
+          // that truth so callers/reporting never present a downed cloud as up.
           cloudStatus: 'degraded',
+          cloudAvailable: false,
           fallbackProvider: 'local',
+          // Falling back to local disk means objects are ephemeral right now,
+          // regardless of what STORAGE_PROVIDER is configured to.
+          durable: false,
+          ephemeral: true,
           latencyMs: health.latencyMs || localHealth.latencyMs,
+          cloudError: health.error || health.status || 'unreachable',
+          lastFallback,
           note: 'Cloud S3 endpoint unreachable; resilient local disk fallback is active and operational.',
         };
       }
     }
-    return health;
+    const durability = this.getDurability();
+    const durable = durability.provider === 's3' && health.available === true;
+    return { ...health, cloudAvailable: health.available, durable, ephemeral: !durable, lastFallback };
   }
 }
 
 const storageService = new StorageService();
+
+// Exposed for targeted unit tests and for operators building custom providers.
+// The classes hold no shared state and are safe to reference.
+storageService.LocalDiskProvider = LocalDiskProvider;
+storageService.S3CloudProvider = S3CloudProvider;
 
 module.exports = storageService;

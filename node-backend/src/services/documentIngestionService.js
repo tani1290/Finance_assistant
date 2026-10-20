@@ -173,6 +173,56 @@ class DocumentIngestionService {
   }
 
   /**
+   * Determines whether a statement row is INCOME, EXPENSE or TRANSFER.
+   *
+   * Statement CSV layouts are wildly inconsistent: some banks expose separate
+   * Debit/Credit columns, some only a single signed Amount column, some an
+   * explicit DR/CR "Type" column, and many a single *positive* Amount column
+   * where the direction only exists in the narration. The previous logic fell
+   * back to "any positive amount with no debit column ⇒ INCOME", which silently
+   * flipped every outgoing debit in a single-Amount layout into income and
+   * inflated the user's reported earnings.
+   *
+   * Precedence: explicit column origin > explicit type/suffix > narration
+   * semantics > conservative EXPENSE default. Defaulting to EXPENSE is the
+   * financially safe direction: an unknown row must never overstate income.
+   */
+  detectTransactionType({ rawType = '', rawAmount = '', description = '', isDebitCol = false, isCreditCol = false }) {
+    const desc = String(description || '').toLowerCase();
+    const typeStr = String(rawType || '').toUpperCase();
+    const amtStr = String(rawAmount || '').toUpperCase();
+
+    // 1. Internal Transfer Check (e.g. self transfer, own account transfer)
+    if (/\b(self transfer|own account|internal transfer|to self|from self|transfer to own|transfer between accounts)\b/i.test(desc)) {
+      return 'TRANSFER';
+    }
+
+    // 2. Explicit Column Origin (a populated Debit/Credit column is authoritative)
+    if (isCreditCol) return 'INCOME';
+    if (isDebitCol) return 'EXPENSE';
+
+    // 3. Explicit Type Column or Amount Suffix (CR / DR)
+    if (typeStr.includes('CR') || typeStr.includes('CREDIT') || typeStr.includes('INCOME') || amtStr.includes('CR') || amtStr.startsWith('+')) {
+      return 'INCOME';
+    }
+    if (typeStr.includes('DR') || typeStr.includes('DEBIT') || typeStr.includes('EXPENSE') || amtStr.includes('DR') || amtStr.startsWith('-')) {
+      return 'EXPENSE';
+    }
+
+    // 4. Description Semantic Clues for Indian Banking
+    if (/\b(salary|interest|dividend|refund|cashback|bonus|stipend|received from|credited by|upi\/cr|neft cr|rtgs cr|imps cr|customer payment|received payment)\b/i.test(desc)) {
+      return 'INCOME';
+    }
+
+    if (/\b(paid to|payment to|spent|bill|electricity|water|wifi|recharge|dth|broadband|rent|emi|loan|tax|fee|charge|pos|purchase|swiggy|zomato|amazon|flipkart|uber|ola|upi\/dr|neft dr|rtgs dr|imps dr|atm|withdrawal)\b/i.test(desc)) {
+      return 'EXPENSE';
+    }
+
+    // 5. Conservative default — never overstate income on an ambiguous row.
+    return 'EXPENSE';
+  }
+
+  /**
    * Process Bank Statement CSV
    */
   async processStatementCSV({ userId, csvContent, accountId }) {
@@ -193,6 +243,9 @@ class DocumentIngestionService {
     const creditIdx = headers.findIndex(h => h.includes('credit') || h.includes('deposit'));
     const typeIdx = headers.findIndex(h => h.includes('type'));
     const catIdx = headers.findIndex(h => h.includes('category'));
+    const balanceIdx = headers.findIndex(h => h.includes('balance') || h.includes('bal'));
+    const refIdx = headers.findIndex(h => h.includes('ref') || h.includes('chq') || h.includes('cheque') || h.includes('utr') || h.includes('txn') || h.includes('transaction id'));
+    const remarksIdx = headers.findIndex(h => h.includes('remark') || h.includes('note') || h.includes('comment'));
 
     // Fetch existing user transactions for strict multi-attribute duplicate checking
     const existing = await prisma.transaction.findMany({
@@ -214,22 +267,17 @@ class DocumentIngestionService {
       const rawDesc = descIdx >= 0 ? cols[descIdx] : `Transaction #${i}`;
 
       let amount = null;
-      let type = 'EXPENSE';
+      let isDebitCol = false;
+      let isCreditCol = false;
 
       if (debitIdx >= 0 && cols[debitIdx] && this.normalizeAmount(cols[debitIdx])) {
         amount = this.normalizeAmount(cols[debitIdx]);
-        type = 'EXPENSE';
+        isDebitCol = true;
       } else if (creditIdx >= 0 && cols[creditIdx] && this.normalizeAmount(cols[creditIdx])) {
         amount = this.normalizeAmount(cols[creditIdx]);
-        type = 'INCOME';
+        isCreditCol = true;
       } else if (amountIdx >= 0 && cols[amountIdx]) {
         amount = this.normalizeAmount(cols[amountIdx]);
-        const rawTypeStr = typeIdx >= 0 ? cols[typeIdx].toUpperCase() : '';
-        if (rawTypeStr.includes('CR') || rawTypeStr.includes('INC') || (parseFloat(cols[amountIdx]) > 0 && debitIdx < 0)) {
-          type = rawTypeStr.includes('DR') ? 'EXPENSE' : 'INCOME';
-        } else {
-          type = 'EXPENSE';
-        }
       }
 
       if (!amount || amount <= 0) {
@@ -237,12 +285,27 @@ class DocumentIngestionService {
         continue;
       }
 
+      const rawTypeStr = typeIdx >= 0 ? cols[typeIdx] : '';
+      const rawAmtStr = amountIdx >= 0 ? cols[amountIdx] : (debitIdx >= 0 ? cols[debitIdx] : (creditIdx >= 0 ? cols[creditIdx] : ''));
       const normalizedDate = this.normalizeDate(rawDate);
       const cleanDesc = (rawDesc || 'Bank Transaction').trim();
+
+      const type = this.detectTransactionType({
+        rawType: rawTypeStr,
+        rawAmount: rawAmtStr,
+        description: cleanDesc,
+        isDebitCol,
+        isCreditCol,
+      });
 
       // ML Category Prediction
       const mlPrediction = mlCategorizerService.predict(cleanDesc, amount, type);
       const category = catIdx >= 0 && cols[catIdx] ? cols[catIdx] : mlPrediction.category;
+
+      const rawBalance = balanceIdx >= 0 ? cols[balanceIdx] : null;
+      const runningBalance = rawBalance ? this.normalizeAmount(rawBalance) : null;
+      const rawRef = refIdx >= 0 ? cols[refIdx] : null;
+      const rawRemarks = remarksIdx >= 0 ? cols[remarksIdx] : '';
 
       const candidateObj = {
         row: i,
@@ -251,6 +314,9 @@ class DocumentIngestionService {
         amount,
         type,
         category,
+        runningBalance,
+        referenceId: rawRef ? rawRef.trim() : null,
+        remarks: (rawRemarks || '').trim(),
         predictedCategory: mlPrediction.predictedCategory,
         confidence: mlPrediction.confidence,
         mlStatus: mlPrediction.status,

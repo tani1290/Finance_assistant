@@ -1,6 +1,6 @@
 # FinPro — Personal Finance & Investment Decision Support Platform
 
-[![CI / Build & Test](https://github.com/jinaygolecha/Fin_AI_Personal_Financial_Planner_AI_Final_Year_Project/actions/workflows/ci.yml/badge.svg)](https://github.com/jinaygolecha/Fin_AI_Personal_Financial_Planner_AI_Final_Year_Project/actions/workflows/ci.yml)
+[![CI / Build & Test](https://github.com/tani1290/Finance_assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/tani1290/Finance_assistant/actions/workflows/ci.yml)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
 [![Database](https://img.shields.io/badge/PostgreSQL-17-blue.svg)](https://www.postgresql.org/)
 [![ORM](https://img.shields.io/badge/Prisma-5.22-darkblue.svg)](https://www.prisma.io/)
@@ -126,8 +126,8 @@ FinPro is an integrated, full-stack personal finance and investment decision sup
 
 ### 1. Clone & Configure
 ```bash
-git clone https://github.com/jinaygolecha/Fin_AI_Personal_Financial_Planner_AI_Final_Year_Project.git
-cd Fin_AI_Personal_Financial_Planner_AI_Final_Year_Project
+git clone https://github.com/tani1290/Finance_assistant.git
+cd Finance_assistant
 
 # Copy environment template
 cp .env.example .env
@@ -172,7 +172,7 @@ FinPro contains a comprehensive suite of automated backend acceptance tests, SMS
 ```bash
 npm test
 ```
-*Runs all 126 backend integration tests across authentication, core finance, AI, loans, cards, tasks, news, multi-tenant isolation, Android SMS candidate parsing, deduplication, and atomic ledger confirmation.*
+*Runs 171 backend assertion checks across the two `npm test` suites: `run-all-tests.js` (135 checks covering authentication, core finance, AI, loans, cards, tasks, news, and multi-tenant isolation) and `test-sms-mobile-suite.js` (36 checks covering Android SMS candidate parsing, deduplication, and atomic ledger confirmation). Across all four configured suites the repository verifies **217 assertion checks** (`npm test` 135 + 36, `npm run test:cloud` 29, `npm run test:failure` 17) with 0 failures.*
 
 ### Run Mobile Flutter Tests & Static Analysis
 ```bash
@@ -182,12 +182,12 @@ flutter analyze
 ```
 *Executes unit and widget tests covering on-device SMS parsing, INR formatting, date relative stamps, model serialization, and static lint analysis with 0 warnings.*
 
-### Run Market Resilience Suite
+### Run Cloud Verification & Resiliency Suites
 ```bash
-cd node-backend
-node test-market-10-scenarios.js
+npm run test:cloud
+npm run test:failure
 ```
-*Verifies system resilience against timeouts, rate limits, closed markets, and invalid symbols.*
+*`test:cloud` verifies end-to-end data persistence across sessions (29 checks). `test:failure` verifies graceful degradation against database outages, storage failures, and path-traversal attempts (17 checks).*
 
 ---
 

@@ -8,12 +8,42 @@
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/app.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+  <style>
+    .analytics-two-col { display:grid; grid-template-columns:3fr 2fr; gap:16px; margin-bottom:16px; }
+    .analytics-panels { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+    @media (max-width: 980px) {
+      .analytics-two-col, .analytics-panels { grid-template-columns:1fr; }
+    }
+    .metric-delta { font-size:11px; margin-top:4px; color:#6b7280; min-height:14px; }
+    .metric-delta.up { color:#10b981; }
+    .metric-delta.down { color:#ef4444; }
+    .chart-empty { text-align:center; padding:36px 12px; color:#6b7280; font-size:13px; }
+    .forecast-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:12px; }
+    @media (max-width: 640px) { .forecast-grid { grid-template-columns:1fr; } }
+    .stat-label { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#6b7280; }
+    .stat-value { font-size:20px; font-weight:700; margin-top:2px; }
+    .stat-sub { font-size:11px; color:#6b7280; margin-top:2px; }
+    .forecast-note { font-size:12px; color:#6b7280; line-height:1.5; margin:12px 0 0; }
+    .insight-list { display:flex; flex-direction:column; gap:10px; }
+    .insight-item { display:flex; gap:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.06); border-radius:10px; background:rgba(255,255,255,.02); }
+    .insight-dot { width:8px; height:8px; border-radius:50%; margin-top:6px; flex:0 0 8px; background:#6b7280; }
+    .insight-dot.critical { background:#ef4444; }
+    .insight-dot.warning { background:#f59e0b; }
+    .insight-dot.info { background:#3b82f6; }
+    .insight-title { font-weight:600; font-size:13px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .insight-explanation { font-size:12px; color:#9ca3af; margin-top:3px; line-height:1.45; }
+    .insight-values { font-size:12px; margin-top:4px; color:#d1d5db; }
+    .insight-period { font-size:11px; color:#6b7280; margin-top:3px; }
+    .card-sub { font-size:11px; color:#6b7280; }
+    .panel-error { text-align:center; padding:28px 12px; color:#ef4444; font-size:13px; }
+    .panel-loading { text-align:center; padding:28px 12px; color:#6b7280; font-size:13px; }
+  </style>
 </head>
 <body>
   <div id="sidebarRoot"></div>
   <main class="main-content">
     <div class="topbar">
-      <div><div class="topbar-title">Analytics & Insights</div><div class="topbar-sub">Deep dive into your spending patterns and trends</div></div>
+      <div><div class="topbar-title">Analytics & Insights</div><div class="topbar-sub">Deep dive into your spending patterns and trends <span id="periodContext"></span></div></div>
       <div class="topbar-actions">
         <button class="btn btn-secondary" onclick="loadAnalytics('week')" id="btnW">Week</button>
         <button class="btn btn-primary" onclick="loadAnalytics('month')" id="btnM">Month</button>
@@ -23,25 +53,44 @@
     </div>
     <div class="content">
       <div class="metrics-grid">
-        <div class="metric-card"><div class="metric-icon mi-green"><i class="ri-arrow-down-line"></i></div><div class="metric-label">Total Income</div><div class="metric-value" id="aIncome">...</div><div class="metric-sub" id="aIncomeTx">-- transactions</div></div>
-        <div class="metric-card"><div class="metric-icon mi-red"><i class="ri-arrow-up-line"></i></div><div class="metric-label">Total Expenses</div><div class="metric-value" id="aExpense">...</div><div class="metric-sub" id="aExpenseTx">-- transactions</div></div>
-        <div class="metric-card"><div class="metric-icon mi-blue"><i class="ri-save-line"></i></div><div class="metric-label">Net Savings</div><div class="metric-value" id="aSavings">...</div><div class="metric-sub" id="aSavingsRate">-- savings rate</div></div>
+        <div class="metric-card"><div class="metric-icon mi-green"><i class="ri-arrow-down-line"></i></div><div class="metric-label">Total Income</div><div class="metric-value" id="aIncome">...</div><div class="metric-sub" id="aIncomeTx">-- transactions</div><div class="metric-delta" id="aIncomeDelta"></div></div>
+        <div class="metric-card"><div class="metric-icon mi-red"><i class="ri-arrow-up-line"></i></div><div class="metric-label">Total Expenses</div><div class="metric-value" id="aExpense">...</div><div class="metric-sub" id="aExpenseTx">-- transactions</div><div class="metric-delta" id="aExpenseDelta"></div></div>
+        <div class="metric-card"><div class="metric-icon mi-blue"><i class="ri-save-line"></i></div><div class="metric-label">Net Savings</div><div class="metric-value" id="aSavings">...</div><div class="metric-sub" id="aSavingsRate">-- savings rate</div><div class="metric-delta" id="aSavingsDelta"></div></div>
         <div class="metric-card"><div class="metric-icon mi-amber"><i class="ri-bar-chart-line"></i></div><div class="metric-label">Transactions</div><div class="metric-value" id="aTxCount">--</div><div class="metric-sub">This period</div></div>
       </div>
 
-      <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px">
+      <div class="analytics-two-col">
         <div class="card">
-          <div class="card-header"><span class="card-title">Income vs Expenses Trend</span></div>
-          <div id="trendChart" style="height:240px"></div>
+          <div class="card-header"><span class="card-title">Income vs Expenses Trend</span><span class="card-sub" id="trendCaption">Daily flow</span></div>
+          <div id="trendChart" style="height:240px" role="img" aria-label="Bar chart comparing income and expenses across the selected period"></div>
+          <div id="trendEmpty" class="chart-empty" style="display:none"><i class="ri-line-chart-line"></i> No transactions in this period yet.</div>
         </div>
         <div class="card">
           <div class="card-header"><span class="card-title">Spending by Category</span></div>
-          <div id="categoryChart" style="height:240px"></div>
+          <div id="categoryChart" style="height:240px" role="img" aria-label="Pie chart of expenses grouped by category"></div>
+          <div id="categoryEmpty" class="chart-empty" style="display:none"><i class="ri-pie-chart-line"></i> No expense data yet.</div>
+        </div>
+      </div>
+
+      <div class="analytics-panels">
+        <div class="card" id="forecastCard">
+          <div class="card-header">
+            <span class="card-title">Spending Forecast</span>
+            <span class="badge badge-amber" id="forecastBadge">Estimate</span>
+          </div>
+          <div id="forecastBody"><div class="panel-loading">Loading forecast...</div></div>
+        </div>
+        <div class="card" id="insightsCard">
+          <div class="card-header">
+            <span class="card-title">Insights</span>
+            <span class="card-sub">Based on your recorded transactions</span>
+          </div>
+          <div id="insightsBody"><div class="panel-loading">Loading insights...</div></div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-header"><span class="card-title">Category Breakdown</span></div>
+        <div class="card-header"><span class="card-title">Category Breakdown</span><span class="card-sub" id="categoryCaption"></span></div>
         <div id="categoryTable"><div style="text-align:center;padding:30px;color:#6b7280">Loading...</div></div>
       </div>
     </div>
@@ -55,56 +104,125 @@
     const token = localStorage.getItem('jf_access_token');
     if (!token) window.location.href = '/login.html';
     const fmt = (v) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(v||0);
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const el = (id) => document.getElementById(id);
     const apiFetch = async (url, opts={}) => {
       const r = await fetch(`${API_BASE}${url}`,{headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},...opts});
       if(r.status===401){localStorage.clear();window.location.href='/login.html';return null;}
       return r.json();
     };
 
+    // A dailyFlow point is a plain `YYYY-MM-DD` calendar date. Read it in UTC so
+    // the label never drifts by a day in negative-offset timezones.
+    const fmtDay = (value) => {
+      const iso = typeof value === 'string' ? value.slice(0, 10) : new Date(value).toISOString().slice(0, 10);
+      const d = new Date(`${iso}T00:00:00Z`);
+      if (Number.isNaN(d.getTime())) return '';
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    };
+
     document.getElementById('sidebarRoot').innerHTML = getSidebar('analytics');
     initSidebarUser();
 
     let trendChart, catChart;
+    const state = { month: null, year: null };
 
-    const loadAnalytics = async (period = 'month') => {
-      ['btnW','btnM','btnY'].forEach(id => {
-        document.getElementById(id).className = 'btn btn-secondary';
-      });
-      document.getElementById(period === 'week' ? 'btnW' : period === 'year' ? 'btnY' : 'btnM').className = 'btn btn-primary';
+    const monthQuery = () => {
+      const params = new URLSearchParams();
+      if (state.month && state.year) {
+        params.set('month', state.month);
+        params.set('year', state.year);
+      }
+      const qs = params.toString();
+      return qs ? `?${qs}` : '';
+    };
 
-      const data = await apiFetch(`/analytics?period=${period}`);
-      if (!data?.success) return;
-      const d = data.data;
-      const s = d.summary;
+    const renderSummary = (d) => {
+      const s = d.summary || {};
+      el('aIncome').textContent = fmt(s.totalIncome);
+      el('aExpense').textContent = fmt(s.totalExpenses);
+      el('aSavings').textContent = fmt(s.netSavings);
+      el('aSavingsRate').textContent = `${s.savingsRate}% savings rate`;
+      el('aIncomeTx').textContent = `${s.incomeTransactions} transactions`;
+      el('aExpenseTx').textContent = `${s.expenseTransactions} transactions`;
+      el('aTxCount').textContent = s.incomeTransactions + s.expenseTransactions;
 
-      document.getElementById('aIncome').textContent = fmt(s.totalIncome);
-      document.getElementById('aExpense').textContent = fmt(s.totalExpenses);
-      document.getElementById('aSavings').textContent = fmt(s.netSavings);
-      document.getElementById('aSavingsRate').textContent = `${s.savingsRate}% savings rate`;
-      document.getElementById('aIncomeTx').textContent = `${s.incomeTransactions} transactions`;
-      document.getElementById('aExpenseTx').textContent = `${s.expenseTransactions} transactions`;
-      document.getElementById('aTxCount').textContent = s.incomeTransactions + s.expenseTransactions;
+      el('periodContext').textContent = d.month && d.year
+        ? `— ${new Date(d.year, d.month - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}`
+        : `— ${d.period}`;
 
-      // Trend chart
-      if (!trendChart) trendChart = echarts.init(document.getElementById('trendChart'), 'dark');
-      const dates = d.monthlyTrend.map(t => new Date(t.date).toLocaleDateString('en-IN', {day:'numeric',month:'short'}));
+      const mom = d.monthOverMonth;
+      const delta = (change) => {
+        if (!change) return { text: 'No prior-month comparison', cls: '' };
+        if (change.percentageChange === null) return { text: 'No prior-month baseline', cls: '' };
+        const arrow = change.direction === 'up' ? '↑' : change.direction === 'down' ? '↓' : '→';
+        const sign = change.absoluteChange > 0 ? '+' : change.absoluteChange < 0 ? '−' : '';
+        return {
+          text: `${arrow} ${sign}${fmt(Math.abs(change.absoluteChange))} (${Math.abs(change.percentageChange)}%) vs last month`,
+          cls: change.direction === 'up' ? 'up' : change.direction === 'down' ? 'down' : '',
+        };
+      };
+
+      const incomeDelta = delta(mom?.incomeChange);
+      const expenseDelta = delta(mom?.expenseChange);
+      el('aIncomeDelta').textContent = incomeDelta.text;
+      el('aIncomeDelta').className = `metric-delta ${incomeDelta.cls}`;
+      el('aExpenseDelta').textContent = expenseDelta.text;
+      el('aExpenseDelta').className = `metric-delta ${expenseDelta.cls}`;
+
+      const savingsText = mom && mom.savingsRateCurrent !== null && mom.savingsRatePrevious !== null
+        ? `Savings rate: ${mom.savingsRateCurrent}% vs ${mom.savingsRatePrevious}% last month`
+        : 'Savings rate comparison unavailable';
+      el('aSavingsDelta').textContent = savingsText;
+      el('aSavingsDelta').className = 'metric-delta';
+    };
+
+    const renderTrend = (d) => {
+      const flow = Array.isArray(d.dailyFlow) ? d.dailyFlow : [];
+      const legacy = Array.isArray(d.monthlyTrend) ? d.monthlyTrend : [];
+      const empty = el('trendEmpty');
+
+      if (!trendChart) trendChart = echarts.init(el('trendChart'), 'dark');
+
+      // Prefer the true income-vs-expense series; fall back to the legacy
+      // aggregated trend so the card still works against older responses.
+      const useFlow = flow.length > 0;
+      const points = useFlow ? flow : legacy;
+      const labels = points.map((p) => fmtDay(p.date));
+      const hasData = labels.length > 0;
+
+      el('trendCaption').textContent = useFlow ? 'Daily income vs expenses' : 'Aggregated daily amount';
+      empty.style.display = hasData ? 'none' : 'block';
+
+      const series = useFlow
+        ? [
+            { name: 'Income', type: 'bar', data: flow.map((p) => p.income), itemStyle: { color: '#10b981', borderRadius: [3,3,0,0] }, barMaxWidth: 18 },
+            { name: 'Expenses', type: 'bar', data: flow.map((p) => p.expenses), itemStyle: { color: '#ef4444', borderRadius: [3,3,0,0] }, barMaxWidth: 18 },
+          ]
+        : [
+            { name: 'Amount', type: 'bar', data: legacy.map((t) => t.amount), itemStyle: { color: '#10b981', borderRadius: [3,3,0,0] }, barMaxWidth: 20 },
+          ];
+
       trendChart.setOption({
         backgroundColor: 'transparent',
+        aria: { enabled: true, decal: { show: false } },
         tooltip: { trigger: 'axis', formatter: (p) => p.map(pp => `${pp.seriesName}: ${fmt(pp.value)}`).join('<br>') },
         legend: { bottom: 0, textStyle: { color: '#6b7280', fontSize: 11 } },
         grid: { top: 10, right: 10, bottom: 40, left: 70 },
-        xAxis: { type: 'category', data: dates, axisLabel: { color: '#6b7280', fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
+        xAxis: { type: 'category', data: labels, axisLabel: { color: '#6b7280', fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
         yAxis: { type: 'value', axisLabel: { color: '#6b7280', fontSize: 10, formatter: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) }, splitLine: { lineStyle: { color: 'rgba(255,255,255,.05)' } } },
-        series: [
-          { name: 'Amount', type: 'bar', data: d.monthlyTrend.map(t => t.amount), itemStyle: { color: '#10b981', borderRadius: [3,3,0,0] }, barMaxWidth: 20 },
-        ],
-      });
+        series,
+      }, true);
+    };
 
-      // Category pie
-      if (!catChart) catChart = echarts.init(document.getElementById('categoryChart'), 'dark');
-      const catData = d.categoryBreakdown.slice(0, 8);
+    const renderCategories = (d) => {
+      const catData = (Array.isArray(d.categoryBreakdown) ? d.categoryBreakdown : []).slice(0, 8);
+      if (!catChart) catChart = echarts.init(el('categoryChart'), 'dark');
+      el('categoryEmpty').style.display = catData.length ? 'none' : 'block';
+
       catChart.setOption({
         backgroundColor: 'transparent',
+        aria: { enabled: true, decal: { show: false } },
         tooltip: { formatter: p => `${p.name}: ${fmt(p.value)} (${p.percent}%)` },
         series: [{
           type: 'pie',
@@ -115,18 +233,19 @@
           itemStyle: { borderRadius: 4, borderWidth: 2, borderColor: '#111827' },
         }],
         legend: { bottom: 0, textStyle: { color: '#6b7280', fontSize: 10 } },
-      });
+      }, true);
 
-      // Category table
       if (!catData.length) {
-        document.getElementById('categoryTable').innerHTML = '<div class="empty-state"><i class="ri-pie-chart-line"></i><h3>No expense data</h3><p>Add some expense transactions to see category breakdown.</p></div>';
+        el('categoryCaption').textContent = '';
+        el('categoryTable').innerHTML = '<div class="empty-state"><i class="ri-pie-chart-line"></i><h3>No expense data</h3><p>Add some expense transactions to see category breakdown.</p></div>';
         return;
       }
-      document.getElementById('categoryTable').innerHTML = `
+      el('categoryCaption').textContent = 'Top spending categories';
+      el('categoryTable').innerHTML = `
         <table><thead><tr><th>Category</th><th>Amount</th><th>%</th><th>Distribution</th></tr></thead>
         <tbody>${catData.map(c => `
           <tr>
-            <td><strong>${c.category}</strong></td>
+            <td><strong>${esc(c.category)}</strong></td>
             <td>${fmt(c.amount)}</td>
             <td><span class="badge badge-blue">${c.percentage}%</span></td>
             <td style="width:200px"><div class="progress-bar" style="margin:0"><div class="progress-fill" style="width:${c.percentage}%"></div></div></td>
@@ -135,11 +254,164 @@
       `;
     };
 
+    const renderForecast = (f) => {
+      const body = el('forecastBody');
+      if (!f || f.valid === false) {
+        body.innerHTML = '<div class="panel-error">Forecast is unavailable right now.</div>';
+        return;
+      }
+
+      if (f.insufficientData) {
+        body.innerHTML = '<div class="empty-state"><i class="ri-line-chart-line"></i><h3>Not enough data yet</h3><p>There are no recorded expenses for this month, so no estimate can be made.</p></div>';
+        return;
+      }
+
+      const projected = f.projectedExpense === null
+        ? '—'
+        : fmt(f.projectedExpense);
+
+      const rows = (f.categories || []).slice(0, 5).map((c) => `
+        <tr>
+          <td><strong>${esc(c.category)}</strong></td>
+          <td>${fmt(c.spentSoFar)}</td>
+          <td>${fmt(c.projectedExpense)}</td>
+        </tr>
+      `).join('');
+
+      body.innerHTML = `
+        <div class="forecast-grid">
+          <div><div class="stat-label">Spent so far</div><div class="stat-value">${fmt(f.spentSoFar)}</div><div class="stat-sub">${f.transactionCount} expense${f.transactionCount === 1 ? '' : 's'}</div></div>
+          <div><div class="stat-label">Projected month end</div><div class="stat-value">${projected}</div><div class="stat-sub">${f.daysInMonth}-day month</div></div>
+          <div><div class="stat-label">Average daily spend</div><div class="stat-value">${fmt(f.averageDailySpend)}</div><div class="stat-sub">${f.elapsedDays} of ${f.daysInMonth} days elapsed</div></div>
+        </div>
+        ${rows ? `<table><thead><tr><th>Category</th><th>Spent</th><th>Projected</th></tr></thead><tbody>${rows}</tbody></table>` : ''}
+        <p class="forecast-note"><i class="ri-information-line"></i> ${esc(f.label)} Method: ${esc(f.methodLabel)} (${f.elapsedDays} of ${f.daysInMonth} days).${f.duplicatesExcluded ? ` ${f.duplicatesExcluded} duplicate row(s) excluded from the estimate.` : ''}</p>
+      `;
+    };
+
+    const insightDetail = (insight) => {
+      const v = insight.values || {};
+      switch (insight.type) {
+        case 'CATEGORY_OVER_BUDGET':
+          return `Spent ${fmt(v.spent)} of ${fmt(v.monthlyLimit)} — over by ${fmt(v.overBy)} (${v.percentageUsed}% used).`;
+        case 'CATEGORY_BUDGET_WARNING':
+          return `Spent ${fmt(v.spent)} of ${fmt(v.monthlyLimit)} — ${fmt(v.remaining)} remaining (${v.percentageUsed}% used, warning at ${v.warningThreshold}%).`;
+        case 'CATEGORY_SPEND_INCREASED':
+          return `${fmt(v.current)} this month vs ${fmt(v.previous)} last month — up ${fmt(v.changeAmount)} (${v.changePercentage}%).`;
+        case 'MONTHLY_EXPENSES_UP':
+          return `${fmt(v.current)} this month vs ${fmt(v.previous)} last month — up ${fmt(v.changeAmount)}.`;
+        case 'NEGATIVE_CASH_FLOW':
+          return `Income ${fmt(v.income)} · Expenses ${fmt(v.expenses)} · Net ${fmt(v.netCashFlow)}.`;
+        case 'SPENDING_PACE_EXCEEDS_BUDGET':
+          return `Projected ${fmt(v.projectedExpense)} vs total budget ${fmt(v.totalBudget)} — over by ${fmt(v.projectedOverBy)} (${v.elapsedDays}/${v.daysInMonth} days elapsed).`;
+        default:
+          return '';
+      }
+    };
+
+    const renderInsights = (data) => {
+      const body = el('insightsBody');
+      const list = Array.isArray(data?.insights) ? data.insights : [];
+      const suspects = data?.duplicates?.suspects || 0;
+      const groups = Array.isArray(data?.duplicateGroups) ? data.duplicateGroups : [];
+      const refunds = data?.current?.refunds || 0;
+      const footnote = [];
+      if (suspects > 0) footnote.push(`${suspects} possible duplicate transaction${suspects === 1 ? '' : 's'} detected — your recorded totals are unchanged and nothing was deleted.`);
+      if (refunds > 0) footnote.push(`${fmt(refunds)} of refunds are counted as income, not subtracted from expenses.`);
+      const footnoteHtml = footnote.length
+        ? `<p class="forecast-note"><i class="ri-information-line"></i> ${esc(footnote.join(' '))}</p>`
+        : '';
+
+      // Additive: show *which* rows look duplicated so the owner can confirm for
+      // themselves. Read-only — FinPro never auto-deletes suspect transactions.
+      const groupsHtml = groups.length
+        ? `<details class="forecast-note"><summary><i class="ri-file-copy-2-line"></i> Review ${groups.length} possible duplicate group${groups.length === 1 ? '' : 's'} (totals unchanged)</summary><ul>` +
+          groups.map((g) => {
+            const r = Array.isArray(g.rows) ? g.rows : [];
+            const when = r.length ? r.map((x) => esc(x.date)).join(', ') : '';
+            const what = esc((r[0] && (r[0].description || r[0].merchant)) || 'No description');
+            return `<li>${when} · ${fmt(g.amount)} · ${what} — ${g.count} identical row${g.count === 1 ? '' : 's'}</li>`;
+          }).join('') +
+          '</ul></details>'
+        : '';
+
+      const trailing = footnoteHtml + groupsHtml;
+
+      if (!list.length) {
+        body.innerHTML = '<div class="empty-state"><i class="ri-lightbulb-line"></i><h3>No notable changes</h3><p>We could not find any budget, category or cash-flow signals for this period.</p></div>' + trailing;
+        return;
+      }
+      body.innerHTML = `<div class="insight-list">${list.map((i) => `
+        <div class="insight-item">
+          <span class="insight-dot ${esc(i.severity)}" aria-hidden="true"></span>
+          <div style="flex:1">
+            <div class="insight-title">${esc(i.title)} <span class="badge ${i.isEstimate ? 'badge-amber' : 'badge-blue'}">${i.isEstimate ? 'Estimate' : 'Fact'}</span></div>
+            <div class="insight-explanation">${esc(i.explanation)}</div>
+            <div class="insight-values">${esc(insightDetail(i))}</div>
+            <div class="insight-period">Comparison: ${esc(i.comparisonPeriod)}</div>
+          </div>
+        </div>
+      `).join('')}</div>` + trailing;
+    };
+
+    const loadForecast = async () => {
+      try {
+        const payload = await apiFetch(`/analytics/forecast${monthQuery()}`);
+        if (!payload) return;
+        if (!payload.success) throw new Error(payload.error?.message || 'Forecast failed');
+        renderForecast(payload.data);
+      } catch (err) {
+        el('forecastBody').innerHTML = '<div class="panel-error">Unable to load your forecast. Please try again.</div>';
+      }
+    };
+
+    const loadInsights = async () => {
+      try {
+        const payload = await apiFetch(`/analytics/insights${monthQuery()}`);
+        if (!payload) return;
+        if (!payload.success) throw new Error(payload.error?.message || 'Insights failed');
+        renderInsights(payload.data);
+      } catch (err) {
+        el('insightsBody').innerHTML = '<div class="panel-error">Unable to load insights. Please try again.</div>';
+      }
+    };
+
+    const loadAnalytics = async (period = 'month') => {
+      ['btnW','btnM','btnY'].forEach(id => {
+        document.getElementById(id).className = 'btn btn-secondary';
+      });
+      document.getElementById(period === 'week' ? 'btnW' : period === 'year' ? 'btnY' : 'btnM').className = 'btn btn-primary';
+
+      el('forecastBody').innerHTML = '<div class="panel-loading">Loading forecast...</div>';
+      el('insightsBody').innerHTML = '<div class="panel-loading">Loading insights...</div>';
+
+      try {
+        const data = await apiFetch(`/analytics?period=${period}`);
+        if (!data) return;
+        if (!data.success) throw new Error(data.error?.message || 'Analytics failed');
+
+        const d = data.data;
+        state.month = d.month || null;
+        state.year = d.year || null;
+
+        renderSummary(d);
+        renderTrend(d);
+        renderCategories(d);
+
+        // Each panel resolves independently, so one failure never blanks the page.
+        await Promise.allSettled([loadForecast(), loadInsights()]);
+      } catch (err) {
+        el('forecastBody').innerHTML = '<div class="panel-error">Unable to load your analytics. Please retry.</div>';
+        el('insightsBody').innerHTML = '<div class="panel-error">Unable to load insights. Please retry.</div>';
+        el('categoryTable').innerHTML = '<div class="empty-state"><i class="ri-error-warning-line"></i><h3>Could not load analytics</h3><p>Please check your connection and try again.</p></div>';
+      }
+    };
+
     document.getElementById('exportBtn').onclick = async (e) => {
       e.preventDefault();
       try {
         const token = localStorage.getItem('jf_access_token');
-        const res = await fetch(`${API_BASE}/export/summary.csv?token=${encodeURIComponent(token || '')}`, {
+        const res = await fetch(`${API_BASE}/export/summary.csv`, {
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         });
         if (!res.ok) throw new Error('Export failed');
@@ -157,7 +429,10 @@
       }
     };
 
-
+    window.addEventListener('resize', () => {
+      trendChart?.resize();
+      catChart?.resize();
+    });
 
     loadAnalytics('month');
 

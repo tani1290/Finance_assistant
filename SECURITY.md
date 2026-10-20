@@ -14,7 +14,7 @@
 The FinPro engineering team takes security, user privacy, and PCI-DSS data hygiene seriously. If you discover a security vulnerability, please follow responsible disclosure practices:
 
 1. **Do NOT open a public GitHub issue** with sensitive vulnerability details.
-2. Email the project maintainer directly at **jinaygolecha.dev@gmail.com** (or open a private security advisory on GitHub).
+2. Email the project maintainer directly at **tani1290.dev@gmail.com** (or open a private security advisory on GitHub).
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce or proof-of-concept
