@@ -113,6 +113,8 @@ export const apiFetch = async (endpoint, options = {}) => {
       message: data.error?.message || `Request failed (${response.status})`,
       code: data.error?.code || 'API_ERROR',
       status: response.status,
+      executionState: data.error?.executionState || null,
+      retryable: data.error?.retryable === true,
     };
   }
 
@@ -282,6 +284,38 @@ export const analyticsAPI = {
   monthlyReport: (month, year) => apiFetch(`/reports/monthly?month=${month || ''}&year=${year || ''}`),
 };
 
+// ===== Synthetic Payment Simulator API =====
+// Demo-only surface: no bank/card/UPI network is contacted and no real money
+// moves. Mutations are disabled server-side unless the deployment opts in.
+export const simulatorAPI = {
+  status: () => apiFetch('/simulator/status'),
+  seed: (accountId) =>
+    apiFetch('/simulator/seed', {
+      method: 'POST',
+      body: JSON.stringify(accountId ? { accountId } : {}),
+    }),
+  reset: () => apiFetch('/simulator/reset', { method: 'POST', body: JSON.stringify({}) }),
+  payments: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.status) query.set('status', params.status);
+    if (params.limit) query.set('limit', params.limit);
+    if (params.offset) query.set('offset', params.offset);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiFetch(`/simulator/payments${suffix}`);
+  },
+  payment: (id) => apiFetch(`/simulator/payments/${id}`),
+  create: (data) =>
+    apiFetch('/simulator/payments', { method: 'POST', body: JSON.stringify(data) }),
+  confirm: (id) =>
+    apiFetch(`/simulator/payments/${id}/confirm`, { method: 'POST', body: JSON.stringify({}) }),
+  fail: (id) =>
+    apiFetch(`/simulator/payments/${id}/fail`, { method: 'POST', body: JSON.stringify({}) }),
+  refund: (id) =>
+    apiFetch(`/simulator/payments/${id}/refund`, { method: 'POST', body: JSON.stringify({}) }),
+  reverse: (id) =>
+    apiFetch(`/simulator/payments/${id}/reverse`, { method: 'POST', body: JSON.stringify({}) }),
+};
+
 // ===== Calendar API =====
 
 export const calendarAPI = {
@@ -305,6 +339,18 @@ export const notificationsAPI = {
 
 export const aiAPI = {
   chat: (message) => apiFetch('/ai/chat', { method: 'POST', body: JSON.stringify({ message }) }),
+  // Confirm or cancel a server-side AI action proposal. The token is single-use
+  // and bound to the signed-in user; sending plain "yes" in chat is not enough.
+  confirmAction: (token, decision = 'CONFIRM') => apiFetch('/ai/actions/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ token, decision }),
+  }),
+  // Read-only probe used when a confirmation response is lost: it reports
+  // whether the action was applied without changing anything.
+  actionStatus: (token) => apiFetch('/ai/actions/status', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  }),
   history: () => apiFetch('/ai/history'),
   clearHistory: () => apiFetch('/ai/history', { method: 'DELETE' }),
   snapshot: () => apiFetch('/ai/snapshot'),
@@ -384,8 +430,14 @@ export const receiptsAPI = {
 };
 
 export const importAPI = {
-  bankStatement: (csvContent) => apiFetch('/import/bank-statement', { method: 'POST', body: JSON.stringify({ csvContent }) }),
+  // NOTE: `accountId` must be forwarded — the backend binds the parsed rows to
+  // it. It used to be dropped, so every import landed on no account.
+  bankStatement: (csvContent, accountId) => apiFetch('/import/bank-statement', { method: 'POST', body: JSON.stringify({ csvContent, accountId }) }),
+  // PDF statements are parsed server-side (OCR). `data` is { pdfData, filename, accountId }.
+  statementPDF: (data) => apiFetch('/import/statement-pdf', { method: 'POST', body: JSON.stringify(data) }),
   confirm: (data) => apiFetch('/import/confirm', { method: 'POST', body: JSON.stringify(data) }),
+  // ML categoriser correction loop (POST /import/feedback).
+  feedback: (data) => apiFetch('/import/feedback', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // ===== Training Data Bot & ML Studio API =====
@@ -459,6 +511,22 @@ export const formatINRFull = (amount) => {
   }).format(parseFloat(amount) || 0);
 };
 
+/**
+ * Escape a value before interpolating it into `innerHTML`.
+ *
+ * Ledger fields (merchant, description, category, account name) are
+ * user-controlled. Interpolating them raw makes stored XSS possible: a
+ * transaction saved as `<img src=x onerror=...>` would execute on every
+ * dashboard load. Always wrap dynamic text with this helper.
+ */
+export const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 export const requireAuth = (redirectTo = '/login.html') => {
   if (!isAuthenticated()) {
     window.location.href = redirectTo;
@@ -494,6 +562,7 @@ export default {
   tasksAPI,
   newsAPI,
   analyticsAPI,
+  simulatorAPI,
   calendarAPI,
   notificationsAPI,
   aiAPI,
@@ -508,6 +577,7 @@ export default {
   API_BASE_URL,
   formatINR,
   formatINRFull,
+  escapeHtml,
   isAuthenticated,
   requireAuth,
   redirectIfAuth,

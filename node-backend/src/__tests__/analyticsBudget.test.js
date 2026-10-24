@@ -49,6 +49,7 @@ const run = async (handler, req) => {
   const res = makeRes();
   const next = jest.fn();
   await handler(req, res, next);
+  if (next.mock.calls.length > 0) throw next.mock.calls[0][0];
   return { res, next };
 };
 
@@ -67,16 +68,25 @@ describe('GET /analytics — validation and scoping', () => {
   it('scopes every aggregate/groupBy to the authenticated user and returns MoM + dailyFlow', async () => {
     prisma.transaction.aggregate
       .mockResolvedValueOnce({ _sum: { amount: 60000 }, _count: 3 })
-      .mockResolvedValueOnce({ _sum: { amount: 40000 }, _count: 10 })
-      .mockResolvedValueOnce({ _sum: { amount: 50000 }, _count: 2 })
-      .mockResolvedValueOnce({ _sum: { amount: 30000 }, _count: 8 });
+      .mockResolvedValueOnce({ _sum: { amount: 50000 }, _count: 2 });
     prisma.transaction.groupBy
-      .mockResolvedValueOnce([{ categoryId: 'c1', _sum: { amount: 40000 } }])
+      .mockResolvedValueOnce([
+        { transactionType: 'EXPENSE', _sum: { amount: 40000 }, _count: { _all: 10 } },
+      ])
+      .mockResolvedValueOnce([{ categoryId: 'c1', transactionType: 'EXPENSE', _sum: { amount: 40000 } }])
       // Postgres DATE columns surface as UTC midnight, so the mocked groupBy
       // rows use UTC dates exactly like production.
+      .mockResolvedValueOnce([
+        { date: new Date(Date.UTC(2026, 3, 1)), _sum: { amount: 60000 } },
+        { date: new Date(Date.UTC(2026, 3, 2)), _sum: { amount: 40000 } },
+      ])
       .mockResolvedValueOnce([{ date: new Date(Date.UTC(2026, 3, 1)), _sum: { amount: 60000 } }])
-      .mockResolvedValueOnce([{ date: new Date(Date.UTC(2026, 3, 1)), _sum: { amount: 60000 } }])
-      .mockResolvedValueOnce([{ date: new Date(Date.UTC(2026, 3, 2)), _sum: { amount: 40000 } }]);
+      .mockResolvedValueOnce([
+        { date: new Date(Date.UTC(2026, 3, 2)), transactionType: 'EXPENSE', _sum: { amount: 40000 } },
+      ])
+      .mockResolvedValueOnce([
+        { transactionType: 'EXPENSE', _sum: { amount: 30000 }, _count: { _all: 8 } },
+      ]);
     prisma.category.findMany.mockResolvedValue([{ id: 'c1', name: 'Food' }]);
 
     const { res } = await run(analytics.getAnalytics, makeReq({ query: { month: '4', year: '2026' } }));
@@ -123,7 +133,7 @@ describe('GET /analytics/forecast', () => {
 
     const where = prisma.transaction.findMany.mock.calls[0][0].where;
     expect(where.userId).toBe('userA');
-    expect(where.transactionType).toBe('EXPENSE');
+    expect(where.transactionType).toEqual({ in: ['EXPENSE', 'REFUND', 'REVERSAL'] });
 
     const { data } = res.json.mock.calls[0][0];
     expect(data.method).toBe('average_daily_run_rate');

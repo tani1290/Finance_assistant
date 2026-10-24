@@ -1,3 +1,5 @@
+import 'model_parse.dart';
+
 class LoanModel {
   final String id;
   final String lender;
@@ -20,23 +22,35 @@ class LoanModel {
   });
 
   factory LoanModel.fromJson(Map<String, dynamic> json) {
+    const model = 'LoanModel';
+
+    // The list/create endpoints name these `lenderName` and `outstandingBalance`;
+    // keep accepting the short forms used by older payloads and fixtures.
+    final lender = json['lenderName'] ?? json['lender'];
+    final loanType = json['loanType'];
+    final outstanding = json['outstandingBalance'] ?? json['outstandingAmount'];
+
     return LoanModel(
-      id: json['id'] ?? '',
-      lender: json['lender'] ?? 'Bank',
-      loanType: json['loanType'] ?? 'PERSONAL',
-      principalAmount: (json['principalAmount'] != null)
-          ? double.tryParse(json['principalAmount'].toString()) ?? 0.0
-          : 0.0,
-      outstandingAmount: (json['outstandingAmount'] != null)
-          ? double.tryParse(json['outstandingAmount'].toString()) ?? 0.0
-          : 0.0,
-      interestRate: (json['interestRate'] != null)
-          ? double.tryParse(json['interestRate'].toString()) ?? 0.0
-          : 0.0,
-      emiAmount: (json['emiAmount'] != null)
-          ? double.tryParse(json['emiAmount'].toString()) ?? 0.0
-          : 0.0,
-      tenureMonths: json['tenureMonths'] ?? 12,
+      id: parseRequiredString(json, 'id', model: model),
+      lender: lender is String && lender.trim().isNotEmpty
+          ? lender.trim()
+          : 'Bank',
+      loanType: loanType is String && loanType.trim().isNotEmpty
+          ? loanType.trim().toUpperCase()
+          : 'PERSONAL',
+      principalAmount: parseRequiredDouble(
+        json,
+        'principalAmount',
+        model: model,
+      ),
+      outstandingAmount: parseRequiredDoubleValue(
+        outstanding,
+        field: 'outstandingBalance',
+        model: model,
+      ),
+      interestRate: parseRequiredDouble(json, 'interestRate', model: model),
+      emiAmount: parseRequiredDouble(json, 'emiAmount', model: model),
+      tenureMonths: parseRequiredInt(json, 'tenureMonths', model: model),
     );
   }
 }

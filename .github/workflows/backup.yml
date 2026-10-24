@@ -1,0 +1,135 @@
+name: FinPro Off-Host Database Backup
+
+# Manual runs are always available. The daily schedule only runs when the
+# repository variable BACKUP_ENABLED=true is set, so cloning/forking the repo
+# does not silently attempt to contact a production database.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '17 2 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: finpro-offhost-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Encrypted backup -> S3-compatible storage
+    # Scheduled runs require an explicit repo variable. A manual run is treated
+    # as an explicit operator action.
+    if: github.event_name == 'workflow_dispatch' || vars.BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      BACKUP_DIR: ${{ runner.temp }}/finpro-backups
+      BACKUP_RETENTION_DAYS: '0'
+      BACKUP_ALLOW_NON_LOCAL: 'true'
+      BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+      BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX || 'finpro/postgres' }}
+      BACKUP_S3_ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+      BACKUP_S3_SSE: ${{ vars.BACKUP_S3_SSE || 'AES256' }}
+      BACKUP_AWS_REGION: ${{ vars.BACKUP_AWS_REGION || 'us-east-1' }}
+      AWS_PAGER: ''
+
+    steps:
+      - name: 1. Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: 3. Install PostgreSQL 17 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates gnupg
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --batch --yes --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
+          pg_restore --version
+
+      - name: 4. Install Dependencies
+        run: |
+          npm --prefix node-backend install
+
+      - name: 5. Validate required repository configuration
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          missing=0
+          test -n "$BACKUP_DATABASE_URL" || { echo "::error::Repository secret BACKUP_DATABASE_URL is not set."; missing=1; }
+          test -n "$BACKUP_ENCRYPTION_KEY" || { echo "::error::Repository secret BACKUP_ENCRYPTION_KEY is not set."; missing=1; }
+          test -n "$BACKUP_S3_BUCKET" || { echo "::error::Repository variable BACKUP_S3_BUCKET is not set."; missing=1; }
+          exit "$missing"
+
+      - name: 6. Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.BACKUP_AWS_REGION || 'us-east-1' }}
+
+      - name: 7. Create encrypted, verified PostgreSQL backup
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          mkdir -p "$BACKUP_DIR"
+          chmod 700 "$BACKUP_DIR"
+          cd node-backend
+          node scripts/backup-db.js \
+            --allow-non-local \
+            --encrypt \
+            --out-dir "$BACKUP_DIR" \
+            --retention-days 0
+
+      - name: 8. Publish archive and manifest, verify download-back SHA-256
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ vars.BACKUP_AWS_REGION || 'us-east-1' }}
+          BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX || 'finpro/postgres' }}
+          BACKUP_S3_ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_SSE: ${{ vars.BACKUP_S3_SSE || 'AES256' }}
+        run: |
+          ARCHIVE="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'finpro-*.dump.enc' -print | sort | tail -n 1)"
+          test -n "$ARCHIVE" || { echo "::error::Backup script produced no encrypted archive."; exit 1; }
+          cd node-backend
+          node scripts/publish-backup.js --file "$ARCHIVE" --execute
+
+      - name: 9. Record failure summary (no secrets or database contents)
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/backup-failure"
+          {
+            echo "FinPro off-host backup failed."
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "Trigger: $GITHUB_EVENT_NAME"
+            echo "Time (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "No credentials, connection strings or database rows are included."
+          } > "$RUNNER_TEMP/backup-failure/summary.txt"
+          cat "$RUNNER_TEMP/backup-failure/summary.txt"
+
+      - name: 10. Upload failure summary artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-failure-${{ github.run_id }}
+          path: ${{ runner.temp }}/backup-failure/summary.txt
+          retention-days: 14
+          if-no-files-found: ignore

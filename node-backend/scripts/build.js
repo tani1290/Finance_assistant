@@ -25,19 +25,49 @@ try {
   process.exit(1);
 }
 
-console.log('[Build] Step 2/3: Generating/Verifying Prisma Client...');
+console.log('[Build] Step 2/3: Generating Prisma Client...');
+// The client MUST be regenerated on every build. A cached node_modules can
+// carry a client generated from an older schema, and a stale client rejects
+// unknown model fields at runtime (e.g. the Phase 4 AiActionProposal
+// execution-state columns) with a 500 only when that code path is first hit.
 try {
-  const { PrismaClient } = require('@prisma/client');
+  execSync(`${prismaCmd} generate`, { cwd: rootDir, stdio: 'inherit' });
+  console.log('  -> Prisma Client generated successfully ✓');
+} catch (genErr) {
+  console.error('❌ Prisma Client generation failed:', genErr.message);
+  process.exit(1);
+}
+
+try {
+  const { PrismaClient, Prisma } = require('@prisma/client');
   new PrismaClient();
   console.log('  -> Prisma Client is compiled and verified active ✓');
-} catch (err) {
-  try {
-    execSync(`${prismaCmd} generate`, { cwd: rootDir, stdio: 'inherit' });
-    console.log('  -> Prisma Client generated successfully ✓');
-  } catch (genErr) {
-    console.error('❌ Prisma Client generation failed:', genErr.message);
-    process.exit(1);
+
+  // Guard against a silently stale client: every model field the application
+  // writes must exist in the generated client.
+  const required = {
+    AiActionProposal: ['status', 'attempts', 'executionStartedAt', 'lastError', 'retryable'],
+  };
+  for (const [model, fields] of Object.entries(required)) {
+    const def = (Prisma.dmmf?.datamodel?.models || []).find((m) => m.name === model);
+    if (!def) {
+      console.error(`❌ Generated Prisma Client is missing model "${model}" — regenerate the client.`);
+      process.exit(1);
+    }
+    const present = new Set(def.fields.map((f) => f.name));
+    const missing = fields.filter((f) => !present.has(f));
+    if (missing.length) {
+      console.error(
+        `❌ Generated Prisma Client is stale: model "${model}" is missing ${missing.join(', ')}. ` +
+          'The deployed client would reject these writes at runtime.'
+      );
+      process.exit(1);
+    }
   }
+  console.log('  -> Generated client exposes every required model field ✓');
+} catch (err) {
+  console.error('❌ Prisma Client verification failed:', err.message);
+  process.exit(1);
 }
 
 console.log('[Build] Step 3/3: Verifying Server Entrypoint and Public Frontend Assets...');

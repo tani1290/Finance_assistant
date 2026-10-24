@@ -16,7 +16,14 @@
     "db:generate": "npm --prefix node-backend run prisma:generate",
     "db:migrate": "npm --prefix node-backend run prisma:migrate",
     "db:deploy": "npm --prefix node-backend run prisma:deploy",
-    "db:studio": "npm --prefix node-backend run prisma:studio"
+    "db:reconcile": "npm --prefix node-backend run db:reconcile",
+    "db:reconcile:strict": "npm --prefix node-backend run db:reconcile:strict",
+    "db:studio": "npm --prefix node-backend run prisma:studio",
+    "test:unit": "npm --prefix node-backend run test:unit",
+    "backup:db": "npm --prefix node-backend run backup:db",
+    "backup:verify": "npm --prefix node-backend run backup:verify",
+    "backup:publish": "npm --prefix node-backend run backup:publish",
+    "restore:db": "npm --prefix node-backend run restore:db"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -35,5 +42,8 @@
     "javascript"
   ],
   "author": "Jinay Golecha <jinay_golecha>",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "firebase": "^9.14.0"
+  }
 }

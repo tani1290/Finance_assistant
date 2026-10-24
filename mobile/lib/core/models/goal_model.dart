@@ -1,3 +1,5 @@
+import 'model_parse.dart';
+
 class GoalModel {
   final String id;
   final String name;
@@ -20,22 +22,26 @@ class GoalModel {
   bool get isAchieved => currentAmount >= targetAmount;
 
   factory GoalModel.fromJson(Map<String, dynamic> json) {
+    const model = 'GoalModel';
+
+    // `targetDate` is optional. Absent means no deadline; a present but
+    // unparseable value is rejected rather than silently dropped.
     DateTime? parsedTarget;
-    if (json['targetDate'] != null) {
-      try {
-        parsedTarget = DateTime.parse(json['targetDate'].toString());
-      } catch (_) {}
+    final rawTarget = json['targetDate'];
+    if (rawTarget != null) {
+      parsedTarget = rawTarget is String
+          ? DateTime.tryParse(rawTarget.trim())
+          : null;
+      if (parsedTarget == null) {
+        throw const ModelParseException('GoalModel', 'targetDate');
+      }
     }
 
     return GoalModel(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '',
-      targetAmount: (json['targetAmount'] != null)
-          ? double.tryParse(json['targetAmount'].toString()) ?? 0.0
-          : 0.0,
-      currentAmount: (json['currentAmount'] != null)
-          ? double.tryParse(json['currentAmount'].toString()) ?? 0.0
-          : 0.0,
+      id: parseRequiredString(json, 'id', model: model),
+      name: parseRequiredString(json, 'name', model: model),
+      targetAmount: parseRequiredDouble(json, 'targetAmount', model: model),
+      currentAmount: parseRequiredDouble(json, 'currentAmount', model: model),
       targetDate: parsedTarget,
       category: json['category'],
     );

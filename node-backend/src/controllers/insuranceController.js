@@ -1,6 +1,15 @@
 const prisma = require('../config/database');
+const { parseDateOnly, formatDateOnly, todayDateOnly } = require('../utils/dateOnly');
 
 const formatINR = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(parseFloat(val) || 0);
+
+/** Date-only fields must leave the API as YYYY-MM-DD, never an ISO instant. */
+const serializePolicy = (policy) => ({
+  ...policy,
+  renewalDate: formatDateOnly(policy.renewalDate),
+  formattedCoverage: formatINR(policy.coverageAmount),
+  formattedPremium: formatINR(policy.premium),
+});
 
 /**
  * GET /api/v1/insurance
@@ -13,34 +22,40 @@ const getInsurancePolicies = async (req, res, next) => {
       orderBy: { renewalDate: 'asc' },
     });
 
-    const totalCoverage = policies.reduce((sum, p) => sum + parseFloat(p.coverageAmount), 0);
-    const annualPremium = policies.reduce((sum, p) => {
-      const prem = parseFloat(p.premium);
+    // Coverage and premiums describe the cover that is actually in force.
+    // Inactive policies stay visible in the list but must not inflate summary
+    // totals while `activePolicies` excludes them.
+    const activePolicies = policies.filter((p) => p.isActive);
+    const totalCoverage = activePolicies.reduce((sum, p) => sum + parseFloat(p.coverageAmount || 0), 0);
+    const annualPremium = activePolicies.reduce((sum, p) => {
+      const prem = parseFloat(p.premium || 0);
       if (p.premiumCycle === 'MONTHLY') return sum + (prem * 12);
       if (p.premiumCycle === 'QUARTERLY') return sum + (prem * 4);
       if (p.premiumCycle === 'HALF_YEARLY') return sum + (prem * 2);
       return sum + prem;
     }, 0);
 
-    const now = new Date();
-    const upcomingRenewals = policies.filter(p => p.isActive && new Date(p.renewalDate) >= now);
+    const today = todayDateOnly();
+    const upcomingRenewals = activePolicies
+      .filter((p) => {
+        const renewal = formatDateOnly(p.renewalDate);
+        return renewal && renewal >= today;
+      })
+      .sort((a, b) => String(formatDateOnly(a.renewalDate)).localeCompare(String(formatDateOnly(b.renewalDate))));
 
     return res.status(200).json({
       success: true,
       data: {
-        policies: policies.map(p => ({
-          ...p,
-          formattedCoverage: formatINR(p.coverageAmount),
-          formattedPremium: formatINR(p.premium),
-        })),
+        policies: policies.map(serializePolicy),
         summary: {
           totalPolicies: policies.length,
-          activePolicies: policies.filter(p => p.isActive).length,
+          activePolicies: activePolicies.length,
+          inactivePolicies: policies.length - activePolicies.length,
           totalCoverage,
           formattedTotalCoverage: formatINR(totalCoverage),
           annualPremium,
           formattedAnnualPremium: formatINR(annualPremium),
-          nextRenewal: upcomingRenewals[0] ? upcomingRenewals[0].renewalDate : null,
+          nextRenewal: upcomingRenewals[0] ? formatDateOnly(upcomingRenewals[0].renewalDate) : null,
         },
       },
     });
@@ -73,7 +88,7 @@ const createInsurancePolicy = async (req, res, next) => {
         coverageAmount: parseFloat(coverageAmount),
         premium: parseFloat(premium),
         premiumCycle: premiumCycle || 'ANNUAL',
-        renewalDate: new Date(renewalDate),
+        renewalDate: parseDateOnly(renewalDate, 'renewalDate'),
         isActive: true,
       },
     });
@@ -81,13 +96,14 @@ const createInsurancePolicy = async (req, res, next) => {
     return res.status(201).json({
       success: true,
       data: {
-        ...policy,
-        formattedCoverage: formatINR(policy.coverageAmount),
-        formattedPremium: formatINR(policy.premium),
+        ...serializePolicy(policy),
         message: 'Insurance policy added successfully.',
       },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };
@@ -107,11 +123,7 @@ const getInsurancePolicy = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      data: {
-        ...policy,
-        formattedCoverage: formatINR(policy.coverageAmount),
-        formattedPremium: formatINR(policy.premium),
-      },
+      data: serializePolicy(policy),
     });
   } catch (error) {
     next(error);
@@ -142,7 +154,7 @@ const updateInsurancePolicy = async (req, res, next) => {
         ...(coverageAmount !== undefined && { coverageAmount: parseFloat(coverageAmount) }),
         ...(premium !== undefined && { premium: parseFloat(premium) }),
         ...(premiumCycle && { premiumCycle }),
-        ...(renewalDate && { renewalDate: new Date(renewalDate) }),
+        ...(renewalDate && { renewalDate: parseDateOnly(renewalDate, 'renewalDate') }),
         ...(isActive !== undefined && { isActive: Boolean(isActive) }),
       },
     });
@@ -150,13 +162,14 @@ const updateInsurancePolicy = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: {
-        ...updated,
-        formattedCoverage: formatINR(updated.coverageAmount),
-        formattedPremium: formatINR(updated.premium),
+        ...serializePolicy(updated),
         message: 'Policy updated successfully.',
       },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };

@@ -661,7 +661,7 @@
 
   <script src="/assets/js/realtime.js"></script>
   <script type="module">
-    import api, { formatINR, requireAuth, getUser } from '/assets/js/api.js';
+    import api, { formatINR, escapeHtml, requireAuth, getUser } from '/assets/js/api.js';
     import { playAudioChime, triggerNotification, requestNotificationPermission } from '/assets/js/notifications.js';
 
     if (!requireAuth()) {
@@ -891,8 +891,8 @@
               <i class="ri-${t.type === 'INCOME' ? 'arrow-down' : 'arrow-up'}-line"></i>
             </div>
             <div>
-              <div class="tx-desc">${t.description || t.category}</div>
-              <div class="tx-cat">${t.category} · ${new Date(t.date).toLocaleDateString('en-IN')}</div>
+              <div class="tx-desc">${escapeHtml(t.description || t.category)}</div>
+              <div class="tx-cat">${escapeHtml(t.category)} · ${new Date(t.date).toLocaleDateString('en-IN')}</div>
             </div>
             <div class="tx-amount ${t.type === 'INCOME' ? 'income' : 'expense'}">
               ${t.type === 'INCOME' ? '+' : '-'}${formatINR(t.amount)}
@@ -908,8 +908,8 @@
       if (d.goals?.length) {
         goalsList.innerHTML = d.goals.map(g => `
           <div class="goal-item">
-            <div class="goal-name"><span>${g.name}</span><span class="goal-pct">${g.progress}%</span></div>
-            <div class="progress-bar"><div class="progress-fill" style="width:${g.progress}%;"></div></div>
+            <div class="goal-name"><span>${escapeHtml(g.name)}</span><span class="goal-pct">${Number(g.progress) || 0}%</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${Number(g.progress) || 0}%;"></div></div>
             <div class="goal-amounts"><span>${formatINR(g.currentAmount)}</span><span>${formatINR(g.targetAmount)}</span></div>
           </div>
         `).join('');
@@ -924,13 +924,19 @@
       if (!data?.success) return;
       const sel = document.getElementById('accountSelect');
       if (data.data.accounts?.length) {
-        sel.innerHTML = data.data.accounts.map(a => `<option value="${a.id}">${a.name} (${formatINR(a.balance)})</option>`).join('');
+        sel.innerHTML = data.data.accounts.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)} (${formatINR(a.balance)})</option>`).join('');
       } else {
         sel.innerHTML = '<option value="">No accounts found</option>';
       }
     };
 
     // Modal Events
+    // The idempotency key of the deposit currently being made. It is created
+    // on the first submit and kept until a confirmed success, so any retry
+    // of the SAME deposit is recognised by the server and cannot credit the
+    // account twice.
+    let depositKey = null;
+
     document.getElementById('addMoneyBtn').addEventListener('click', () => {
       document.getElementById('addMoneyModal').classList.add('show');
       loadAccounts();
@@ -955,24 +961,48 @@
       btn.disabled = true;
       btn.textContent = 'Adding...';
 
-      const res = await api.accountsAPI.deposit(accountId, {
-        amount: parseFloat(amount),
-        source,
-        description,
-      });
+      // A deposit is a money movement. The key identifies THIS deposit and is
+      // reused for every retry of it, so a dropped response or a double click
+      // can never credit the account twice. It is replaced only after a
+      // confirmed success.
+      if (!depositKey) {
+        depositKey = (window.crypto && window.crypto.randomUUID)
+          ? window.crypto.randomUUID()
+          : `dep-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+      }
 
-      btn.disabled = false;
-      btn.innerHTML = '<i class="ri-add-line"></i> Add Money';
+      try {
+        const res = await api.accountsAPI.deposit(accountId, {
+          amount: parseFloat(amount),
+          source,
+          description,
+          idempotencyKey: depositKey,
+        });
 
-      if (res?.success) {
-        alert(`✅ ${res.data.message}`);
-        document.getElementById('addMoneyModal').classList.remove('show');
-        document.getElementById('addAmount').value = '';
-        document.getElementById('addDesc').value = '';
-        loadDashboard();
-        window.loadCashFlow(30);
-      } else {
-        alert(res?.error?.message || 'Failed to add money.');
+        if (res?.success) {
+          // The money is in (or was already in) the account. Start a new key
+          // for the next deposit.
+          depositKey = null;
+          alert(`✅ ${res.data.message}`);
+          document.getElementById('addMoneyModal').classList.remove('show');
+          document.getElementById('addAmount').value = '';
+          document.getElementById('addDesc').value = '';
+          loadDashboard();
+          window.loadCashFlow(30);
+        } else {
+          alert(res?.error?.message || 'Failed to add money.');
+        }
+      } catch (err) {
+        // The request may or may not have been applied. The same key is kept,
+        // so pressing Add Money again cannot create a second credit.
+        alert(
+          err?.message
+            ? `The deposit could not be confirmed: ${err.message}\n\nPress "Add Money" again — the same request is retried safely, so the account cannot be credited twice.`
+            : 'The deposit could not be confirmed. Press "Add Money" again — the request is retried safely.',
+        );
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ri-add-line"></i> Add Money';
       }
     });
 
@@ -1001,10 +1031,10 @@
         list.innerHTML = notifs.map(n => `
           <div style="padding:10px 12px;background:${n.isRead ? 'var(--surface-2, #f1f5f9)' : 'var(--surface, #ffffff)'};border:1px solid var(--border, #e2e8f0);border-radius:8px;border-left:4px solid ${n.type==='ERROR'?'#ef4444':n.type==='WARNING'?'#f59e0b':'#10b981'};display:flex;flex-direction:column;gap:3px;margin-bottom:8px;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-weight:700;font-size:13px;color:${n.isRead?'var(--text-muted,#64748b)':'var(--text,#0f172a)'}">${n.title}</span>
+              <span style="font-weight:700;font-size:13px;color:${n.isRead?'var(--text-muted,#64748b)':'var(--text,#0f172a)'}">${escapeHtml(n.title)}</span>
               <span style="font-size:10px;color:var(--text-muted,#64748b);font-weight:500;">${new Date(n.createdAt).toLocaleDateString('en-IN', {month:'short', day:'numeric'})}</span>
             </div>
-            <div style="font-size:12px;color:var(--text-muted,#334155);line-height:1.4;">${n.message}</div>
+            <div style="font-size:12px;color:var(--text-muted,#334155);line-height:1.4;">${escapeHtml(n.message)}</div>
           </div>
         `).join('');
       } catch (err) {

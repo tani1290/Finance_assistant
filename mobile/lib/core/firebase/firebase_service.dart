@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -7,7 +9,9 @@ import 'package:flutter/foundation.dart';
 
 import '../../firebase_options.dart';
 import '../api/api_client.dart';
-import '../api/api_endpoints.dart';
+import '../utils/app_log.dart';
+import 'device_identity.dart';
+import 'fcm_token_manager.dart';
 
 /// Handles Firebase background notifications.
 @pragma('vm:entry-point')
@@ -18,7 +22,9 @@ Future<void> _fcmBackgroundHandler(RemoteMessage message) async {
     );
   }
 
-  debugPrint('[FCM] Background message: ${message.messageId}');
+  // Log only that a message arrived. Notification payloads can carry
+  // transaction details, and message ids are not needed for support.
+  logDebug('[FCM] Background message received.');
 }
 
 /// Firebase integration for FinPro Mobile.
@@ -43,6 +49,26 @@ class FirebaseService {
 
   bool _initialized = false;
   bool _fcmConfigured = false;
+  StreamSubscription<String>? _tokenRefreshSubscription;
+
+  /// Server + local push-token removal used during sign-out. The token provider
+  /// and local deleter are injectable so the lifecycle can be unit-tested
+  /// without touching Firebase plugins.
+  late final FcmTokenManager _tokenManager = FcmTokenManager(
+    client: apiClient,
+    tokenProvider: () async {
+      try {
+        return await messaging.getToken();
+      } catch (_) {
+        return null;
+      }
+    },
+    localTokenDeleter: () async {
+      await _tokenRefreshSubscription?.cancel();
+      _tokenRefreshSubscription = null;
+      await messaging.deleteToken();
+    },
+  );
 
   /// Initialize Firebase before runApp().
   Future<void> initialize() async {
@@ -67,22 +93,21 @@ class FirebaseService {
             reason: 'FlutterError',
           );
         };
-      } catch (e) {
-        debugPrint('[Firebase] Crashlytics setup failed: $e');
+      } catch (_) {
+        logDebug('[Firebase] Crashlytics setup failed.');
       }
 
       FirebaseMessaging.onBackgroundMessage(_fcmBackgroundHandler);
 
       try {
         await _setupFcm();
-      } catch (e) {
-        debugPrint('[Firebase] FCM setup failed: $e');
+      } catch (_) {
+        logDebug('[Firebase] FCM setup failed.');
       }
 
-      debugPrint('[Firebase] Initialized successfully');
-    } catch (e, stackTrace) {
-      debugPrint('[Firebase] Initialization failed: $e');
-      debugPrintStack(stackTrace: stackTrace);
+      logDebug('[Firebase] Initialized successfully');
+    } catch (_) {
+      logDebug('[Firebase] Initialization failed.');
       rethrow;
     }
   }
@@ -165,14 +190,16 @@ class FirebaseService {
       sound: true,
     );
 
-    debugPrint('[FCM] Permission: ${settings.authorizationStatus}');
+    logDebug('[FCM] Permission: ${settings.authorizationStatus}');
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('[FCM] Foreground message: ${message.notification?.title}');
+      // Notification payloads may contain transaction details; log only that
+      // a message arrived rather than its title/body.
+      logDebug('[FCM] Foreground message received.');
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      debugPrint('[FCM] Opened from notification: ${message.data}');
+      logDebug('[FCM] Opened from notification.');
       _handleNotificationNavigation(message.data);
     });
 
@@ -186,41 +213,67 @@ class FirebaseService {
   }
 
   void _handleNotificationNavigation(Map<String, dynamic> data) {
-    final screen = data['screen'];
-    debugPrint('[FCM] Navigate to: $screen');
+    // Never log the payload: notification data can carry account details.
+    logDebug('[FCM] Notification navigation requested.');
   }
 
   /// Register the current FCM token with the FinPro backend.
+  ///
+  /// A stable per-install `deviceId` is sent with every registration so the
+  /// backend upserts this device instead of replacing the user's other
+  /// devices' tokens.
   Future<void> registerFcmToken() async {
     try {
       final token = await messaging.getToken();
 
       if (token == null) return;
 
-      await apiClient.post(
-        ApiEndpoints.fcmToken,
-        data: {'fcmToken': token, 'platform': defaultTargetPlatform.name},
+      final deviceId = await DeviceIdentity.instance.getOrCreate();
+      final platform = defaultTargetPlatform == TargetPlatform.iOS
+          ? 'ios'
+          : 'android';
+
+      final registered = await _tokenManager.register(
+        token: token,
+        deviceId: deviceId,
+        platform: platform,
       );
 
-      debugPrint('[FCM] Token registered with backend');
+      if (!registered) {
+        logDebug('[FCM] Token registration failed.');
+        return;
+      }
 
-      messaging.onTokenRefresh.listen((newToken) async {
+      logDebug('[FCM] Token registered with backend.');
+
+      // Re-registering (login/register/offline retry) must replace the previous
+      // listener instead of stacking a new one on every call.
+      await _tokenRefreshSubscription?.cancel();
+      _tokenRefreshSubscription = messaging.onTokenRefresh.listen((
+        newToken,
+      ) async {
         try {
-          await apiClient.post(
-            ApiEndpoints.fcmToken,
-            data: {
-              'fcmToken': newToken,
-              'platform': defaultTargetPlatform.name,
-            },
+          final currentDeviceId = await DeviceIdentity.instance.getOrCreate();
+          await _tokenManager.register(
+            token: newToken,
+            deviceId: currentDeviceId,
+            platform: platform,
           );
-        } catch (e) {
-          debugPrint('[FCM] Token refresh registration failed: $e');
+        } catch (_) {
+          logDebug('[FCM] Token refresh registration failed.');
         }
       });
-    } catch (e) {
-      debugPrint('[FCM] Token registration failed: $e');
+    } catch (_) {
+      logDebug('[FCM] Token registration failed.');
     }
   }
+
+  /// Removes this device's push token from the backend, then from the platform.
+  ///
+  /// Must run during sign-out while the access token is still valid. Every step
+  /// is best-effort and time-bounded, so a failed or slow server call never
+  /// blocks sign-out. Returns true when the backend acknowledged the removal.
+  Future<bool> unregisterDeviceToken() => _tokenManager.unregister();
 
   // ---------------------------------------------------------------------------
   // Analytics
@@ -267,10 +320,18 @@ class FirebaseService {
 
   Future<void> signOut() async {
     try {
+      await _tokenRefreshSubscription?.cancel();
+      _tokenRefreshSubscription = null;
+    } catch (_) {
+      logDebug('[Firebase] Could not stop the token refresh listener.');
+    }
+
+    try {
       await auth.signOut();
-    } catch (e) {
-      debugPrint('[Firebase] Firebase sign-out failed: $e');
-      rethrow;
+    } catch (_) {
+      // Local sign-out is the source of truth for the app session. Firebase
+      // failures must not block clearing app tokens.
+      logDebug('[Firebase] Firebase sign-out failed.');
     }
   }
 }

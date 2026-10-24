@@ -72,7 +72,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(18),
-                        boxShadow: AppColors.glow(AppColors.primary, strength: 0.6),
+                        boxShadow: AppColors.glow(
+                          AppColors.primary,
+                          strength: 0.6,
+                        ),
                       ),
                       child: const Icon(
                         Icons.account_balance_wallet_rounded,
@@ -174,16 +177,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: 24),
                         GradientButton(
                           text: 'Sign In',
-                          isLoading:
-                              authState.status == AuthStatus.loading,
+                          isLoading: authState.status == AuthStatus.loading,
                           onPressed: _handleLogin,
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  // Wrap (not Row) so the prompt and the button reflow onto a
+                  // second line instead of overflowing on narrow screens or at
+                  // large accessibility text scales.
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         "Don't have an account? ",

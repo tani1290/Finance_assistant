@@ -43,7 +43,14 @@
 
 ---
 
-## 3. Complete Table Inventory (22 Models)
+## 3. Core Table Inventory (23 of 41 Models)
+
+> The table below covers the original finance/AI core. The schema now contains
+> **41 models**; the additional tables cover FCM tokens, recommendation feedback,
+> cash-flow/simulation history, category corrections, receipts, market/commodity
+> prices, exports, audit logs, ML datasets/training/predictions, payment cards,
+> financial tasks, mobile devices, pending SMS review and AI action proposals.
+> `prisma/schema.prisma` is the source of truth.
 
 | Table Name | Model | Purpose | Key Constraints |
 |---|---|---|---|
@@ -67,6 +74,7 @@
 | `notifications` | `Notification` | Real-time in-app alerts and notifications | `userId -> users.id`, `isRead INDEX` |
 | `chat_messages` | `ChatMessage` | Conversational history with Gemini AI | `userId -> users.id`, `createdAt` |
 | `ai_recommendations`| `AIRecommendation` | Actionable intelligence cards | `userId -> users.id` |
+| `ai_action_proposals` | `AiActionProposal` | One-time, hashed AI mutation confirmations (Phase 3) with an explicit execution state (Phase 4) | `tokenHash UNIQUE`, `(userId, status) INDEX`, `expiresAt INDEX`, `userId -> users.id (CASCADE)`; `status` ∈ `PENDING → EXECUTING → COMPLETED \| FAILED` plus `CANCELLED` / `EXPIRED`; audit columns `executionStartedAt`, `attempts`, `lastError`, `retryable` |
 | `financial_health_history` | `FinancialHealthHistory` | Historical 10-factor score tracking | `userId -> users.id`, `createdAt INDEX` |
 | `expense_anomalies` | `ExpenseAnomaly` | Outlier expense records detected by rules/ML | `userId -> users.id`, `userFeedback` |
 

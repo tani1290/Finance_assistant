@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const storageService = require('../services/storageService');
+const { formatDateOnly, todayDateOnly } = require('../utils/dateOnly');
 
 /**
  * Helper to either stream CSV directly to client or save to cloud/local object storage.
@@ -52,18 +53,23 @@ const exportTransactionsCSV = async (req, res, next) => {
     const userId = req.user.id;
     const transactions = await prisma.transaction.findMany({
       where: { userId },
-      include: { category: { select: { name: true } }, account: { select: { name: true } } },
+      include: {
+        category: { select: { name: true } },
+        account: { select: { name: true } },
+        toAccount: { select: { name: true } },
+      },
       orderBy: { date: 'desc' },
     });
 
     const rows = [
-      ['Date', 'Type', 'Amount (INR)', 'Category', 'Account', 'Description', 'Merchant', 'Payment Method'],
+      ['Date', 'Type', 'Amount (INR)', 'Category', 'Account', 'To Account', 'Description', 'Merchant', 'Payment Method'],
       ...transactions.map(t => [
-        new Date(t.date).toLocaleDateString('en-IN'),
+        formatDateOnly(t.date),
         t.transactionType,
         parseFloat(t.amount).toFixed(2),
         t.category?.name || 'Uncategorized',
         t.account?.name || 'Unknown',
+        t.toAccount?.name || '',
         t.description || '',
         t.merchant || '',
         t.paymentMethod || '',
@@ -71,7 +77,7 @@ const exportTransactionsCSV = async (req, res, next) => {
     ];
 
     const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const filename = `jinay_finance_transactions_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `jinay_finance_transactions_${todayDateOnly()}.csv`;
     return sendOrStoreExport(req, res, { filename, csvContent, exportType: 'transactions' });
   } catch (error) {
     next(error);
@@ -94,7 +100,7 @@ const exportAccountsCSV = async (req, res, next) => {
     ];
 
     const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const filename = `jinay_finance_accounts_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `jinay_finance_accounts_${todayDateOnly()}.csv`;
     return sendOrStoreExport(req, res, { filename, csvContent, exportType: 'accounts' });
   } catch (error) {
     next(error);
@@ -119,7 +125,7 @@ const exportBudgetsCSV = async (req, res, next) => {
     ];
 
     const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const filename = `jinay_finance_budgets_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `jinay_finance_budgets_${todayDateOnly()}.csv`;
     return sendOrStoreExport(req, res, { filename, csvContent, exportType: 'budgets' });
   } catch (error) {
     next(error);
@@ -140,12 +146,12 @@ const exportGoalsCSV = async (req, res, next) => {
         const target = parseFloat(g.targetAmount);
         const current = parseFloat(g.currentAmount);
         const pct = target > 0 ? `${Math.round((current / target) * 100)}%` : '0%';
-        return [g.name, g.goalType, target.toFixed(2), current.toFixed(2), pct, g.targetDate ? new Date(g.targetDate).toLocaleDateString('en-IN') : '', g.status];
+        return [g.name, g.goalType, target.toFixed(2), current.toFixed(2), pct, formatDateOnly(g.targetDate) || '', g.status];
       }),
     ];
 
     const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const filename = `jinay_finance_goals_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `jinay_finance_goals_${todayDateOnly()}.csv`;
     return sendOrStoreExport(req, res, { filename, csvContent, exportType: 'goals' });
   } catch (error) {
     next(error);
@@ -173,7 +179,7 @@ const exportInvestmentsCSV = async (req, res, next) => {
     ];
 
     const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const filename = `jinay_finance_investments_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `jinay_finance_investments_${todayDateOnly()}.csv`;
     return sendOrStoreExport(req, res, { filename, csvContent, exportType: 'investments' });
   } catch (error) {
     next(error);
@@ -214,7 +220,7 @@ const exportSummaryCSV = async (req, res, next) => {
     ];
 
     const csvContent = rows.map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const filename = `jinay_finance_summary_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `jinay_finance_summary_${todayDateOnly()}.csv`;
     return sendOrStoreExport(req, res, { filename, csvContent, exportType: 'summary' });
   } catch (error) {
     next(error);
@@ -244,7 +250,7 @@ const exportLoansCSV = async (req, res, next) => {
     ];
 
     const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const filename = `jinay_finance_loans_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `jinay_finance_loans_${todayDateOnly()}.csv`;
     return sendOrStoreExport(req, res, { filename, csvContent, exportType: 'loans' });
   } catch (error) {
     next(error);
@@ -268,13 +274,13 @@ const exportInsuranceCSV = async (req, res, next) => {
         parseFloat(p.coverageAmount).toFixed(2),
         parseFloat(p.premium).toFixed(2),
         p.premiumCycle,
-        new Date(p.renewalDate).toLocaleDateString('en-IN'),
+        formatDateOnly(p.renewalDate),
         p.isActive ? 'ACTIVE' : 'INACTIVE',
       ]),
     ];
 
     const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const filename = `jinay_finance_insurance_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `jinay_finance_insurance_${todayDateOnly()}.csv`;
     return sendOrStoreExport(req, res, { filename, csvContent, exportType: 'insurance' });
   } catch (error) {
     next(error);
@@ -296,13 +302,13 @@ const exportSubscriptionsCSV = async (req, res, next) => {
         s.category || 'General',
         parseFloat(s.cost).toFixed(2),
         s.billingCycle,
-        new Date(s.nextBillingDate).toLocaleDateString('en-IN'),
+        formatDateOnly(s.nextBillingDate),
         s.isActive ? 'ACTIVE' : 'PAUSED',
       ]),
     ];
 
     const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const filename = `jinay_finance_subscriptions_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `jinay_finance_subscriptions_${todayDateOnly()}.csv`;
     return sendOrStoreExport(req, res, { filename, csvContent, exportType: 'subscriptions' });
   } catch (error) {
     next(error);

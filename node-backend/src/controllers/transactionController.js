@@ -1,12 +1,244 @@
+const crypto = require('crypto');
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
+const { parseDateOnly, formatDateOnly, todayDateOnly } = require('../utils/dateOnly');
 const financialTwin = require('../services/financialTwinService');
 const notificationService = require('../services/notificationService');
+const {
+  transactionEffects,
+  reverseEffects,
+  applyEffects,
+  revertEffects,
+} = require('../services/transactionBalance');
 
 /**
  * Transactions Controller with Anomaly Detection & ML Categorization
  * Owner: Jinay Golecha (jinay_golecha)
  */
+
+const VALID_TRANSACTION_TYPES = [
+  'INCOME',
+  'EXPENSE',
+  'TRANSFER',
+  'INVESTMENT',
+  'LOAN_PAYMENT',
+];
+
+/**
+ * Parse an integer query parameter inside explicit bounds.
+ * Returns `null` when the value is present but invalid, so the caller can
+ * answer with a 400 instead of letting Prisma receive NaN or an unbounded
+ * `take`.
+ */
+const parseBoundedInt = (value, fallback, min, max) => {
+  if (value === undefined || value === null || value === '') {
+    return value === '' ? null : fallback;
+  }
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < min || n > max) return null;
+  return n;
+};
+
+/**
+ * Resolve the destination of a transfer and enforce the invariants:
+ * provided, distinct from the source, and owned by the same user.
+ * Returns `{ account }` or `{ status, message }`.
+ */
+const resolveTransferDestination = async (userId, toAccountId, sourceAccountId) => {
+  if (!toAccountId || typeof toAccountId !== 'string') {
+    return { status: 400, message: 'A transfer requires a destination account.' };
+  }
+  if (sourceAccountId && toAccountId === sourceAccountId) {
+    return { status: 400, message: 'Source and destination accounts must differ.' };
+  }
+  const account = await prisma.financialAccount.findFirst({
+    where: { id: toAccountId, userId },
+  });
+  if (!account) {
+    return { status: 404, message: 'Destination account not found.' };
+  }
+  return { account };
+};
+
+const TRANSFER_IDEMPOTENCY_SCOPE = 'account_transfer';
+const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9._:-]{8,128}$/;
+
+/**
+ * Normalise an optional transfer idempotency key.
+ *
+ * The key is optional so existing clients keep working. When supplied it must
+ * be a stable, client-generated token that is reused only for retries of the
+ * same logical transfer.
+ */
+function normalizeTransferIdempotencyKey(raw) {
+  if (raw === undefined || raw === null || raw === '') return { key: null, invalid: false };
+  if (typeof raw !== 'string') return { key: null, invalid: true };
+  const value = raw.trim();
+  if (!value) return { key: null, invalid: false };
+  if (!IDEMPOTENCY_KEY_RE.test(value)) return { key: null, invalid: true };
+  return { key: value, invalid: false };
+}
+
+const trimmedOrNull = (value) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text || null;
+};
+
+/**
+ * What makes two transfer requests the same?
+ *
+ * Every field that is persisted on the transfer row is part of the canonical
+ * payload. `date` is the *requested* date (null when omitted), not the resolved
+ * "today", so a retry after midnight still matches its original request.
+ * Amounts are canonicalised to the ledger's two-decimal precision.
+ *
+ * The source/destination are the RESOLVED account ids. That means a retry that
+ * omits the source but resolves to the same default account is treated as the
+ * same transfer.
+ */
+function buildTransferFingerprint({
+  accountId,
+  toAccountId,
+  amount,
+  category,
+  description,
+  merchant,
+  notes,
+  paymentMethod,
+  date,
+}) {
+  const canonical = JSON.stringify({
+    v: 1,
+    type: 'TRANSFER',
+    accountId: accountId || null,
+    toAccountId: toAccountId || null,
+    amount: Number(amount).toFixed(2),
+    category: trimmedOrNull(category),
+    description: trimmedOrNull(description),
+    merchant: trimmedOrNull(merchant),
+    notes: trimmedOrNull(notes),
+    paymentMethod: paymentMethod ? String(paymentMethod) : null,
+    date: date ? formatDateOnly(date) : null,
+  });
+  return crypto.createHash('sha256').update(canonical).digest('hex');
+}
+
+/**
+ * Compare a stored key claim with this request. New claims always carry a
+ * fingerprint; the amount fallback only exists for defensive compatibility.
+ */
+function transferRecordMatchesRequest(record, fingerprint, amountNum) {
+  if (!record) return false;
+  if (record.requestFingerprint) return record.requestFingerprint === fingerprint;
+  return record.amount !== null && record.amount !== undefined && Number(record.amount) === amountNum;
+}
+
+function transferConflictError() {
+  const error = new Error(
+    'This idempotencyKey was already used for a different transfer. Use a new key for a new transfer.'
+  );
+  error.statusCode = 409;
+  error.code = 'IDEMPOTENCY_CONFLICT';
+  return error;
+}
+
+function sendTransferConflict(res) {
+  const error = transferConflictError();
+  return res.status(error.statusCode).json({
+    success: false,
+    error: { code: error.code, message: error.message },
+  });
+}
+
+/**
+ * Look up a previously claimed key and load the transfer it created.
+ *
+ * A matching claim is a replay. A claim that no longer points at a live,
+ * owned transfer is NOT recreated: the user deleted the original, and
+ * resurrecting money movement from an old retry would be surprising. The
+ * client must generate a fresh key for a genuinely new transfer.
+ */
+async function findTransferReplay(client, { userId, key, fingerprint, amountNum }) {
+  const record = await client.idempotencyRecord.findUnique({
+    where: {
+      userId_scope_key: {
+        userId,
+        scope: TRANSFER_IDEMPOTENCY_SCOPE,
+        key,
+      },
+    },
+  });
+
+  if (!record) return null;
+  if (!transferRecordMatchesRequest(record, fingerprint, amountNum)) {
+    throw transferConflictError();
+  }
+
+  const original = record.transactionId
+    ? await client.transaction.findFirst({
+        where: { id: record.transactionId, userId },
+        include: {
+          category: { select: { name: true } },
+          account: { select: { name: true } },
+          toAccount: { select: { name: true } },
+        },
+      })
+    : null;
+
+  if (!original) throw transferConflictError();
+
+  return {
+    transaction: original,
+    categoryRecord: original.category || null,
+    replayed: true,
+  };
+}
+
+/**
+ * Serialise keyed transfers for one user inside the current transaction.
+ *
+ * The `(userId, scope, key)` primary key is the real guarantee; the advisory
+ * lock only removes the check-then-insert race window so identical concurrent
+ * retries converge deterministically. It is acquired only for keyed requests,
+ * so legacy keyless transfers are unaffected.
+ */
+async function lockUserForTransfer(tx, userId) {
+  try {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(('x' || substr(md5(${`transfer:${userId}`}), 1, 8))::bit(32)::int)`;
+  } catch (err) {
+    // The unique index still prevents a double transfer if the lock cannot be
+    // taken (for example on a mocked client in unit tests).
+    console.warn('[TRANSFER] Could not take the per-user idempotency lock:', err.message);
+  }
+}
+
+/**
+ * Resolve/create a category as part of the caller's transaction. Keeping this
+ * inside the transaction means a rejected or rolled-back transfer cannot leave
+ * a stray category behind.
+ */
+async function resolveTransactionCategory(tx, userId, categoryName, transactionType) {
+  if (!categoryName) return null;
+  let category = await tx.category.findFirst({
+    where: { userId, name: { equals: categoryName, mode: 'insensitive' } },
+  });
+  if (!category) {
+    category = await tx.category.create({
+      data: {
+        userId,
+        name: categoryName,
+        categoryType:
+          transactionType === 'TRANSFER'
+            ? 'TRANSFER'
+            : transactionType === 'INCOME'
+              ? 'INCOME'
+              : 'EXPENSE',
+      },
+    });
+  }
+  return category;
+}
 
 /**
  * GET /api/v1/transactions
@@ -14,25 +246,41 @@ const notificationService = require('../services/notificationService');
 const getTransactions = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const {
-      page = 1,
-      limit = 20,
-      type,
-      category,
-      startDate,
-      endDate,
-      search,
-    } = req.query;
+    const { type, category, startDate, endDate, search } = req.query;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    // Pagination is part of the public contract: reject bad values instead of
+    // silently coercing them or passing NaN to Prisma.
+    const page = parseBoundedInt(req.query.page, 1, 1, Number.MAX_SAFE_INTEGER);
+    const limit = parseBoundedInt(req.query.limit, 20, 1, 100);
+    if (page === null || limit === null) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'page must be an integer >= 1 and limit must be an integer between 1 and 100.',
+        },
+      });
+    }
 
     const where = { userId };
-    if (type) where.transactionType = type.toUpperCase();
+    if (type) {
+      const normalisedType = String(type).toUpperCase();
+      if (!VALID_TRANSACTION_TYPES.includes(normalisedType)) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: `Type must be one of: ${VALID_TRANSACTION_TYPES.join(', ')}`,
+          },
+        });
+      }
+      where.transactionType = normalisedType;
+    }
     if (category) where.category = { name: { contains: category, mode: 'insensitive' } };
     if (startDate || endDate) {
       where.date = {};
-      if (startDate) where.date.gte = new Date(startDate);
-      if (endDate) where.date.lte = new Date(endDate);
+      if (startDate) where.date.gte = parseDateOnly(startDate, 'startDate');
+      if (endDate) where.date.lte = parseDateOnly(endDate, 'endDate');
     }
     if (search) {
       where.OR = [
@@ -41,13 +289,19 @@ const getTransactions = async (req, res, next) => {
       ];
     }
 
+    const skip = (page - 1) * limit;
+
     const [transactions, total] = await Promise.all([
       prisma.transaction.findMany({
         where,
-        include: { category: { select: { name: true } }, account: { select: { name: true } } },
+        include: {
+          category: { select: { name: true } },
+          account: { select: { name: true } },
+          toAccount: { select: { name: true } },
+        },
         orderBy: { date: 'desc' },
         skip,
-        take: parseInt(limit),
+        take: limit,
       }),
       prisma.transaction.count({ where }),
     ]);
@@ -62,21 +316,25 @@ const getTransactions = async (req, res, next) => {
           type: t.transactionType,
           category: t.category?.name || 'Uncategorized',
           account: t.account?.name || 'Unknown',
+          toAccount: t.toAccount?.name || null,
           description: t.description || '',
           merchant: t.merchant || '',
-          date: t.date,
+          date: formatDateOnly(t.date),
           currency: t.currency,
           createdAt: t.createdAt,
         })),
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page,
+          limit,
           total,
-          totalPages: Math.ceil(total / parseInt(limit)),
+          totalPages: Math.ceil(total / limit),
         },
       },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };
@@ -89,9 +347,9 @@ const createTransaction = async (req, res, next) => {
     const userId = req.user.id;
     const {
       amount,
-      type = 'EXPENSE',
       category: categoryName,
       accountId,
+      toAccountId,
       description,
       merchant,
       date,
@@ -108,33 +366,24 @@ const createTransaction = async (req, res, next) => {
     }
 
     const transactionType = ((req.body.type || req.body.transactionType || 'EXPENSE')).toUpperCase();
-    const validTypes = ['INCOME', 'EXPENSE', 'TRANSFER', 'INVESTMENT', 'LOAN_PAYMENT'];
-    if (!validTypes.includes(transactionType)) {
+    if (!VALID_TRANSACTION_TYPES.includes(transactionType)) {
       return res.status(400).json({
         success: false,
-        error: { code: 'VALIDATION_ERROR', message: `Type must be one of: ${validTypes.join(', ')}` },
+        error: { code: 'VALIDATION_ERROR', message: `Type must be one of: ${VALID_TRANSACTION_TYPES.join(', ')}` },
       });
     }
 
-    // Resolve or create category
-    let categoryRecord = null;
-    if (categoryName) {
-      categoryRecord = await prisma.category.findFirst({
-        where: { userId, name: { equals: categoryName, mode: 'insensitive' } },
+    // A destination is meaningful only for a TRANSFER. Rejecting it on other
+    // types prevents a client from silently creating a one-sided movement.
+    if (transactionType !== 'TRANSFER' && toAccountId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'toAccountId is only valid for transfers.' },
       });
-      if (!categoryRecord) {
-        categoryRecord = await prisma.category.create({
-          data: {
-            userId,
-            name: categoryName,
-            categoryType: transactionType === 'INCOME' ? 'INCOME' : 'EXPENSE',
-          },
-        });
-      }
     }
 
-    // Find or resolve account
-    let targetAccountId = accountId;
+    // Find or resolve the source account
+    let targetAccountId = accountId || null;
     if (targetAccountId) {
       const account = await prisma.financialAccount.findFirst({
         where: { id: targetAccountId, userId },
@@ -155,39 +404,198 @@ const createTransaction = async (req, res, next) => {
       }
     }
 
-    const transaction = await prisma.$transaction(async (tx) => {
-      const t = await tx.transaction.create({
-        data: {
-          userId,
-          accountId: targetAccountId || null,
-          categoryId: categoryRecord?.id || null,
-          amount: amountNum,
-          transactionType,
-          description: description?.trim() || null,
-          merchant: merchant?.trim() || null,
-          notes: notes?.trim() || null,
-          paymentMethod: paymentMethod || null,
-          date: date ? new Date(date) : new Date(),
-          currency: 'INR',
-        },
-        include: { category: { select: { name: true } }, account: { select: { name: true } } },
-      });
-
-      // Update account balance
-      if (targetAccountId) {
-        const balanceDelta = transactionType === 'INCOME' ? amountNum : -amountNum;
-        await tx.financialAccount.update({
-          where: { id: targetAccountId },
-          data: { balance: { increment: balanceDelta } },
+    // Transfers must move money between two distinct, owned accounts.
+    let destinationAccountId = null;
+    if (transactionType === 'TRANSFER') {
+      if (!targetAccountId) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'A transfer requires a source account.' },
         });
       }
+      const destination = await resolveTransferDestination(userId, toAccountId, targetAccountId);
+      if (destination.status) {
+        return res.status(destination.status).json({
+          success: false,
+          error: {
+            code: destination.status === 404 ? 'NOT_FOUND' : 'VALIDATION_ERROR',
+            message: destination.message,
+          },
+        });
+      }
+      destinationAccountId = destination.account.id;
+    }
 
-      return t;
+    // Parse the requested date before starting the transaction: an invalid
+    // date must fail with 400 and leave no partial write behind.
+    const requestedDate = date ? parseDateOnly(date, 'date') : null;
+    const ledgerDate = requestedDate || parseDateOnly(todayDateOnly());
+
+    const keyResult = normalizeTransferIdempotencyKey(req.body.idempotencyKey);
+    if (keyResult.invalid) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'idempotencyKey must be 8-128 characters of letters, numbers, ".", "_", ":" or "-".',
+        },
+      });
+    }
+    if (keyResult.key && transactionType !== 'TRANSFER') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'idempotencyKey is only supported for transfers.',
+        },
+      });
+    }
+
+    const idempotencyKey = keyResult.key;
+    const fingerprint = idempotencyKey
+      ? buildTransferFingerprint({
+          accountId: targetAccountId,
+          toAccountId: destinationAccountId,
+          amount: amountNum,
+          category: categoryName,
+          description,
+          merchant,
+          notes,
+          paymentMethod,
+          date: requestedDate,
+        })
+      : null;
+
+    const buildResponse = (transaction, anomalyResult, replayed) => ({
+      success: true,
+      data: {
+        id: transaction.id,
+        amount: parseFloat(transaction.amount),
+        formattedAmount: formatINR(transaction.amount),
+        type: transaction.transactionType,
+        category: transaction.category?.name || 'Uncategorized',
+        account: transaction.account?.name || 'Primary Account',
+        toAccount: transaction.toAccount?.name || null,
+        date: formatDateOnly(transaction.date),
+        anomalyStatus: anomalyResult.severity,
+        anomalyReason: anomalyResult.reason,
+        replayed,
+        message: replayed
+          ? transaction.transactionType === 'TRANSFER'
+            ? 'This transfer was already recorded. No new money was moved.'
+            : 'This transaction was already recorded. No new entry was created.'
+          : transaction.transactionType === 'TRANSFER'
+            ? `Transfer to ${transaction.toAccount?.name || 'account'} recorded.`
+            : 'Transaction created successfully!',
+      },
     });
 
-    // Statistical Anomaly Detection
+    let outcome;
+    try {
+      outcome = await prisma.$transaction(async (tx) => {
+        // Keyed requests are serialised per user inside the transaction. The
+        // unique claim is still the hard guarantee; the lock just makes
+        // concurrent retries converge without a P2002 detour.
+        if (idempotencyKey) {
+          await lockUserForTransfer(tx, userId);
+          const replay = await findTransferReplay(tx, {
+            userId,
+            key: idempotencyKey,
+            fingerprint,
+            amountNum,
+          });
+          if (replay) return replay;
+        }
+
+        // Category resolution is inside the transaction so a rejected or
+        // rolled-back transfer cannot leave a stray category behind.
+        const categoryRecord = await resolveTransactionCategory(tx, userId, categoryName, transactionType);
+
+        const transaction = await tx.transaction.create({
+          data: {
+            userId,
+            accountId: targetAccountId || null,
+            toAccountId: destinationAccountId,
+            categoryId: categoryRecord?.id || null,
+            amount: amountNum,
+            transactionType,
+            description: trimmedOrNull(description),
+            merchant: trimmedOrNull(merchant),
+            notes: trimmedOrNull(notes),
+            paymentMethod: paymentMethod || null,
+            date: ledgerDate,
+            currency: 'INR',
+            idempotencyKey: idempotencyKey || null,
+          },
+          include: {
+            category: { select: { name: true } },
+            account: { select: { name: true } },
+            toAccount: { select: { name: true } },
+          },
+        });
+
+        // Exactly one debit + one credit for a transfer, one delta otherwise.
+        await applyEffects(
+          tx,
+          transactionEffects({
+            transactionType,
+            amount: amountNum,
+            accountId: targetAccountId,
+            toAccountId: destinationAccountId,
+          })
+        );
+
+        if (idempotencyKey) {
+          await tx.idempotencyRecord.create({
+            data: {
+              userId,
+              scope: TRANSFER_IDEMPOTENCY_SCOPE,
+              key: idempotencyKey,
+              transactionId: transaction.id,
+              amount: amountNum,
+              requestFingerprint: fingerprint,
+            },
+          });
+        }
+
+        return { transaction, categoryRecord, replayed: false };
+      });
+    } catch (error) {
+      if (error instanceof RangeError) {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+      }
+      if (error.statusCode === 409 && error.code === 'IDEMPOTENCY_CONFLICT') {
+        return sendTransferConflict(res);
+      }
+
+      // A concurrent request may have claimed the key first. Re-read the
+      // winning claim and either replay its transfer or report a conflict.
+      if (error.code === 'P2002' && idempotencyKey) {
+        let replay = null;
+        try {
+          replay = await findTransferReplay(prisma, {
+            userId,
+            key: idempotencyKey,
+            fingerprint,
+            amountNum,
+          });
+        } catch (lookupError) {
+          if (lookupError.statusCode === 409) return sendTransferConflict(res);
+          throw lookupError;
+        }
+        if (replay) outcome = replay;
+        else return sendTransferConflict(res);
+      } else {
+        throw error;
+      }
+    }
+
+    const { transaction, categoryRecord } = outcome;
+
+    // Statistical Anomaly Detection (new entries only; a replay must not
+    // generate notifications or budget alerts a second time).
     let anomalyResult = { isAnomaly: false, severity: 'NORMAL' };
-    if (transactionType === 'EXPENSE') {
+    if (!outcome.replayed && transaction.transactionType === 'EXPENSE') {
       anomalyResult = await financialTwin.detectExpenseAnomaly(userId, {
         id: transaction.id,
         amount: amountNum,
@@ -210,34 +618,28 @@ const createTransaction = async (req, res, next) => {
       notificationService.checkBudgetThresholds(userId, transaction).catch(() => {});
     }
 
-    // Audit log
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        action: 'TRANSACTION_CREATE',
-        entity: 'Transaction',
-        entityId: transaction.id,
-        ipAddress: req.ip || null,
-        userAgent: req.headers['user-agent'] || null,
-      },
-    }).catch(() => {});
+    // Audit only the request that actually created the row.
+    if (!outcome.replayed) {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'TRANSACTION_CREATE',
+          entity: 'Transaction',
+          entityId: transaction.id,
+          ipAddress: req.ip || null,
+          userAgent: req.headers['user-agent'] || null,
+        },
+      }).catch(() => {});
+    }
 
-    return res.status(201).json({
-      success: true,
-      data: {
-        id: transaction.id,
-        amount: parseFloat(transaction.amount),
-        formattedAmount: formatINR(transaction.amount),
-        type: transaction.transactionType,
-        category: transaction.category?.name || 'Uncategorized',
-        account: transaction.account?.name || 'Primary Account',
-        date: transaction.date,
-        anomalyStatus: anomalyResult.severity,
-        anomalyReason: anomalyResult.reason,
-        message: 'Transaction created successfully!',
-      },
-    });
+    return res.status(outcome.replayed ? 200 : 201).json(buildResponse(transaction, anomalyResult, outcome.replayed));
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
+    if (error.statusCode === 409 && error.code === 'IDEMPOTENCY_CONFLICT') {
+      return sendTransferConflict(res);
+    }
     next(error);
   }
 };
@@ -249,7 +651,7 @@ const getTransaction = async (req, res, next) => {
   try {
     const t = await prisma.transaction.findFirst({
       where: { id: req.params.id, userId: req.user.id },
-      include: { category: true, account: true },
+      include: { category: true, account: true, toAccount: true },
     });
 
     if (!t) {
@@ -261,7 +663,7 @@ const getTransaction = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      data: { ...t, formattedAmount: formatINR(t.amount) },
+      data: { ...t, date: formatDateOnly(t.date), formattedAmount: formatINR(t.amount) },
     });
   } catch (error) {
     next(error);
@@ -285,10 +687,151 @@ const updateTransaction = async (req, res, next) => {
       });
     }
 
-    const { amount, description, merchant, notes, category: newCategoryName } = req.body;
+    const {
+      amount,
+      description,
+      merchant,
+      notes,
+      category: newCategoryName,
+      accountId,
+      toAccountId,
+      date,
+      paymentMethod,
+    } = req.body;
 
-    // ML Feedback Learning: If user changed the category, store correction
-    if (newCategoryName && existing.category?.name && newCategoryName.toLowerCase() !== existing.category.name.toLowerCase()) {
+    const nextType = String(
+      req.body.type || req.body.transactionType || existing.transactionType
+    ).toUpperCase();
+    if (!VALID_TRANSACTION_TYPES.includes(nextType)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `Type must be one of: ${VALID_TRANSACTION_TYPES.join(', ')}`,
+        },
+      });
+    }
+
+    // A transfer is a balanced two-leg movement. Converting an existing row
+    // into or out of one would need a ledger rewrite that a PATCH cannot
+    // express safely, so require delete + create instead.
+    if ((nextType === 'TRANSFER') !== (existing.transactionType === 'TRANSFER')) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'A transaction cannot be converted to or from a transfer.',
+        },
+      });
+    }
+
+    const oldAmountNum = parseFloat(existing.amount);
+    let newAmountNum = oldAmountNum;
+    if (amount !== undefined) {
+      newAmountNum = parseFloat(amount);
+      if (!Number.isFinite(newAmountNum) || newAmountNum <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'Amount must be a positive number.' },
+        });
+      }
+    }
+
+    // Resolve the source account, if it is being changed.
+    let nextAccountId = existing.accountId;
+    if (accountId !== undefined) {
+      if (accountId === null || accountId === '') {
+        nextAccountId = null;
+      } else {
+        const owned = await prisma.financialAccount.findFirst({
+          where: { id: accountId, userId: req.user.id },
+        });
+        if (!owned) {
+          return res.status(404).json({
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'Account not found.' },
+          });
+        }
+        nextAccountId = owned.id;
+      }
+    }
+
+    // Resolve the destination only when supplied; otherwise keep the stored
+    // value so legacy destination-less transfers keep their behaviour.
+    let nextToAccountId = existing.toAccountId;
+    if (toAccountId !== undefined) {
+      if (toAccountId === null || toAccountId === '') {
+        nextToAccountId = null;
+      } else {
+        if (nextType !== 'TRANSFER') {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'VALIDATION_ERROR', message: 'toAccountId is only valid for transfers.' },
+          });
+        }
+        const destination = await resolveTransferDestination(
+          req.user.id,
+          toAccountId,
+          nextAccountId
+        );
+        if (destination.status) {
+          return res.status(destination.status).json({
+            success: false,
+            error: {
+              code: destination.status === 404 ? 'NOT_FOUND' : 'VALIDATION_ERROR',
+              message: destination.message,
+            },
+          });
+        }
+        nextToAccountId = destination.account.id;
+      }
+    }
+
+    if (nextType === 'TRANSFER') {
+      if (!nextAccountId) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'A transfer requires a source account.' },
+        });
+      }
+      if (nextToAccountId && nextAccountId === nextToAccountId) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'Source and destination accounts must differ.' },
+        });
+      }
+    }
+
+    // Resolve or create the category only after every other check passes, so
+    // a rejected request never leaves a stray category behind.
+    let categoryId = existing.categoryId;
+    if (newCategoryName) {
+      let cat = await prisma.category.findFirst({
+        where: { userId: req.user.id, name: { equals: newCategoryName, mode: 'insensitive' } },
+      });
+      if (!cat) {
+        cat = await prisma.category.create({
+          data: {
+            userId: req.user.id,
+            name: newCategoryName,
+            categoryType:
+              nextType === 'TRANSFER'
+                ? 'TRANSFER'
+                : nextType === 'INCOME'
+                  ? 'INCOME'
+                  : 'EXPENSE',
+          },
+        });
+      }
+      categoryId = cat.id;
+    }
+
+    // ML Feedback Learning: if the user changed the category, store correction.
+    if (
+      newCategoryName &&
+      existing.category?.name &&
+      newCategoryName.toLowerCase() !== existing.category.name.toLowerCase()
+    ) {
       await prisma.transactionCategoryCorrection.create({
         data: {
           userId: req.user.id,
@@ -300,62 +843,74 @@ const updateTransaction = async (req, res, next) => {
       }).catch(() => {});
     }
 
-    let categoryId = existing.categoryId;
-    if (newCategoryName) {
-      let cat = await prisma.category.findFirst({
-        where: { userId: req.user.id, name: { equals: newCategoryName, mode: 'insensitive' } },
-      });
-      if (!cat) {
-        cat = await prisma.category.create({
-          data: { userId: req.user.id, name: newCategoryName, categoryType: existing.transactionType === 'INCOME' ? 'INCOME' : 'EXPENSE' },
-        });
-      }
-      categoryId = cat.id;
-    }
-
-    const newAmountNum = amount !== undefined ? parseFloat(amount) : parseFloat(existing.amount);
-    const oldAmountNum = parseFloat(existing.amount);
-    if (amount !== undefined && (!Number.isFinite(newAmountNum) || newAmountNum <= 0)) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'Amount must be a positive number.' },
-      });
-    }
-    const amountChanged = amount !== undefined && !isNaN(newAmountNum) && newAmountNum !== oldAmountNum;
-
     const updated = await prisma.$transaction(async (tx) => {
+      // Re-read inside the transaction so a concurrent delete/update cannot
+      // make us reverse effects that no longer match the stored row.
+      const current = await tx.transaction.findFirst({
+        where: { id: req.params.id, userId: req.user.id },
+      });
+      if (!current) {
+        const notFound = new Error('Transaction not found.');
+        notFound.statusCode = 404;
+        throw notFound;
+      }
+
       const t = await tx.transaction.update({
-        where: { id: req.params.id },
+        where: { id: current.id },
         data: {
           ...(amount !== undefined && { amount: newAmountNum }),
           ...(description !== undefined && { description: description?.trim() || null }),
           ...(merchant !== undefined && { merchant: merchant?.trim() || null }),
           ...(notes !== undefined && { notes: notes?.trim() || null }),
-          ...(categoryId && { categoryId }),
+          ...(paymentMethod !== undefined && { paymentMethod: paymentMethod || null }),
+          ...(date !== undefined && { date: parseDateOnly(date, 'date') }),
+          ...(accountId !== undefined && { accountId: nextAccountId }),
+          ...(toAccountId !== undefined && { toAccountId: nextToAccountId }),
+          ...(categoryId !== undefined && { categoryId }),
         },
-        include: { category: true, account: true },
+        include: { category: true, account: true, toAccount: true },
       });
 
-      // Atomically adjust account balance if amount changed
-      if (amountChanged && existing.accountId) {
-        const delta = existing.transactionType === 'INCOME'
-          ? (newAmountNum - oldAmountNum)
-          : (oldAmountNum - newAmountNum);
-
-        await tx.financialAccount.update({
-          where: { id: existing.accountId },
-          data: { balance: { increment: delta } },
-        });
-      }
+      // Replace the old ledger effect with the new one atomically. This is
+      // correct for amount edits, account moves and destination changes, and
+      // nets to zero when only descriptive fields changed.
+      await applyEffects(tx, [
+        ...reverseEffects(current),
+        ...transactionEffects({
+          transactionType: t.transactionType,
+          amount: t.amount,
+          accountId: t.accountId,
+          toAccountId: t.toAccountId,
+        }),
+      ]);
 
       return t;
     });
 
     return res.status(200).json({
       success: true,
-      data: { ...updated, formattedAmount: formatINR(updated.amount), message: 'Transaction updated successfully.' },
+      data: {
+        ...updated,
+        date: formatDateOnly(updated.date),
+        formattedAmount: formatINR(updated.amount),
+        account: updated.account?.name || null,
+        toAccount: updated.toAccount?.name || null,
+        message: 'Transaction updated successfully.',
+      },
     });
   } catch (error) {
+    if (error.statusCode === 404) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: error.message },
+      });
+    }
+    if (error instanceof RangeError) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.message },
+      });
+    }
     next(error);
   }
 };
@@ -377,15 +932,10 @@ const deleteTransaction = async (req, res, next) => {
     }
 
     await prisma.$transaction(async (tx) => {
-      // Revert account balance
-      if (existing.accountId) {
-        const amt = parseFloat(existing.amount);
-        const reverseDelta = existing.transactionType === 'INCOME' ? -amt : amt;
-        await tx.financialAccount.update({
-          where: { id: existing.accountId },
-          data: { balance: { increment: reverseDelta } },
-        });
-      }
+      // Reverse every balance leg of the stored row. A legacy transfer with no
+      // destination only had a source debit, so `revertEffects` restores
+      // exactly what was originally applied.
+      await revertEffects(tx, existing);
 
       await tx.transaction.delete({ where: { id: req.params.id } });
     });
@@ -513,7 +1063,7 @@ const parseFinancialText = (rawText) => {
 
   // 3. Date Detection
   // Handles: "10-Sep-2026", "01-Sep-26", "09/09/2026", "15 Oct 2026", "on 12-09-2026"
-  let date = new Date().toISOString().split('T')[0];
+  let date = todayDateOnly();
   const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
 
   const dateMatch = text.match(/\b(\d{1,2})[-/ ]([A-Za-z]{3,9}|\d{1,2})[-/ ](\d{2,4})\b/);

@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Simulator — FinPro</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <div id="sidebarRoot"></div>
+
+  <main class="main-content">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">Synthetic Payment Simulator</div>
+        <div class="topbar-sub">Demo-only payment flows — no real money, cards, UPI or bank connectivity</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-secondary" id="seedBtn"><i class="ri-wallet-3-line"></i>Add demo funds</button>
+        <button class="btn btn-danger" id="resetBtn"><i class="ri-restart-line"></i>Reset simulator</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="card" style="border-color:#f59e0b;background:rgba(245,158,11,0.08);margin-bottom:20px;">
+        <div style="display:flex;gap:14px;align-items:flex-start;">
+          <i class="ri-flask-line" style="font-size:22px;color:#f59e0b;margin-top:2px;"></i>
+          <div>
+            <div style="font-weight:700;font-size:14px;margin-bottom:4px;">This is a simulator, not a payment processor</div>
+            <div id="disclaimer" style="font-size:13px;line-height:1.6;color:var(--muted);">
+              No bank, card network or UPI provider is contacted. Never enter real card numbers, CVV,
+              UPI PINs or banking credentials — this form does not accept them.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="disabledNotice" class="card" style="display:none;border-color:#ef4444;margin-bottom:20px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <i class="ri-lock-line" style="font-size:22px;color:#ef4444;margin-top:2px;"></i>
+          <div>
+            <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Simulator is disabled in this environment</div>
+            <div id="disabledReason" style="font-size:13px;color:var(--muted);line-height:1.6;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="metrics-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+        <div class="metric-card">
+          <div class="metric-icon mi-blue"><i class="ri-shield-check-line"></i></div>
+          <div class="metric-label">Environment</div>
+          <div class="metric-value" id="envMetric" style="font-size:18px;">Loading…</div>
+          <div class="metric-sub" id="envSub">Checking simulator policy</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon mi-green"><i class="ri-gift-line"></i></div>
+          <div class="metric-label">Demo Funds</div>
+          <div class="metric-value" id="seedMetric" style="font-size:18px;">—</div>
+          <div class="metric-sub" id="seedSub">One-time synthetic credit</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon mi-amber"><i class="ri-time-line"></i></div>
+          <div class="metric-label">Pending</div>
+          <div class="metric-value" id="pendingMetric">0</div>
+          <div class="metric-sub">Not counted as spending</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon mi-red"><i class="ri-secure-payment-line"></i></div>
+          <div class="metric-label">Settled</div>
+          <div class="metric-value" id="settledMetric">0</div>
+          <div class="metric-sub" id="settledSub">Successful synthetic payments</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:minmax(320px,380px) 1fr;gap:20px;align-items:start;">
+        <div class="card" id="createCard">
+          <div class="card-header">
+            <div class="card-title">New simulated payment</div>
+            <span class="badge badge-amber">Synthetic</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="merchant">Merchant</label>
+            <input class="form-input" id="merchant" type="text" maxlength="120" placeholder="e.g. Demo Coffee House" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="amount">Amount (₹)</label>
+            <input class="form-input" id="amount" type="number" min="0.01" step="0.01" placeholder="250.00">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;" id="amountHint">Maximum allowed amount is loaded from the server.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label class="form-label" for="paymentMethod">Method</label>
+              <select class="form-select" id="paymentMethod">
+                <option value="CARD">Card</option>
+                <option value="UPI">UPI</option>
+                <option value="NET_BANKING">Net banking</option>
+                <option value="WALLET">Wallet</option>
+                <option value="BANK_TRANSFER">Bank transfer</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="scenario">Scenario</label>
+              <select class="form-select" id="scenario">
+                <option value="SUCCESS">Success</option>
+                <option value="PENDING">Pending</option>
+                <option value="FAILURE">Failure</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="category">Category (optional)</label>
+            <input class="form-input" id="category" type="text" maxlength="80" placeholder="e.g. Food & Dining" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="description">Description (optional)</label>
+            <input class="form-input" id="description" type="text" maxlength="500" placeholder="What is this simulated payment for?" autocomplete="off">
+          </div>
+
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5;">
+            Retries reuse one idempotency key, so a network retry cannot create a duplicate charge.
+            The key rotates after every accepted payment.
+          </div>
+          <button class="btn btn-primary" id="createBtn" style="width:100%;">
+            <i class="ri-send-plane-line"></i>Create simulated payment
+          </button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Simulated payments</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select class="form-select" id="statusFilter" style="width:auto;padding:6px 10px;font-size:12px;">
+                <option value="">All statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="SUCCESS">Success</option>
+                <option value="FAILED">Failed</option>
+                <option value="REFUNDED">Refunded</option>
+                <option value="REVERSED">Reversed</option>
+              </select>
+              <button class="btn btn-secondary" id="refreshBtn" title="Refresh"><i class="ri-refresh-line"></i></button>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Merchant</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th style="text-align:right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="paymentsBody">
+                <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted);">Loading simulated payments…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="paginationNote" style="font-size:11px;color:var(--muted);margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/assets/js/sidebar.js"></script>
+  <script type="module">
+    import { simulatorAPI, formatINR, escapeHtml, requireAuth } from '/assets/js/api.js';
+
+    if (!requireAuth()) throw new Error('redirecting to login');
+
+    document.getElementById('sidebarRoot').innerHTML = getSidebar('simulator');
+    initSidebarUser();
+
+    const state = {
+      enabled: false,
+      status: null,
+      createKey: newCreateKey(),
+      payments: [],
+    };
+
+    function newCreateKey() {
+      // Monotonic attempt prefix + UUID: 8–128 chars, matches the server regex.
+      return `web-${Date.now()}-${crypto.randomUUID()}`;
+    }
+
+    function toast(message, type = 'success') {
+      const el = document.createElement('div');
+      el.style.cssText = 'position:fixed;bottom:24px;right:24px;max-width:360px;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:500;font-family:Inter,sans-serif;z-index:9999;line-height:1.5;box-shadow:0 8px 32px rgba(0,0,0,.4);';
+      el.style.cssText += type === 'success'
+        ? 'background:#065f46;border:1px solid #10b981;color:#6ee7b7;'
+        : 'background:#7f1d1d;border:1px solid #ef4444;color:#fecaca;';
+      el.textContent = message;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 4500);
+    }
+
+    function failureMessage(err) {
+      if (!err) return 'The request failed.';
+      return err.message || 'The request failed.';
+    }
+
+    function statusBadge(status) {
+      const map = {
+        PENDING: ['badge-amber', 'clock'],
+        SUCCESS: ['badge-green', 'check'],
+        FAILED: ['badge-red', 'close'],
+        REFUNDED: ['badge-blue', 'arrow-go-back'],
+        REVERSED: ['badge-blue', 'arrow-go-back'],
+      };
+      const [cls, icon] = map[status] || ['badge-blue', 'information'];
+      return `<span class="badge ${cls}"><i class="ri-${icon}-line"></i>${escapeHtml(status)}</span>`;
+    }
+
+    function formatDate(value) {
+      if (!value) return '—';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '—';
+      return date.toLocaleString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    }
+
+    function setControlsEnabled(enabled) {
+      ['seedBtn', 'resetBtn', 'createBtn', 'refreshBtn', 'statusFilter'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !enabled;
+      });
+      document.getElementById('createCard').style.opacity = enabled ? '1' : '0.55';
+      document.getElementById('disabledNotice').style.display = enabled ? 'none' : 'block';
+    }
+
+    async function loadStatus() {
+      try {
+        const res = await simulatorAPI.status();
+        const data = res.data;
+        state.status = data;
+        state.enabled = data.enabled === true;
+
+        document.getElementById('disclaimer').textContent = data.disclaimer;
+        document.getElementById('disabledReason').textContent = data.disabledReason || 'Mutating simulator routes are disabled.';
+        document.getElementById('envMetric').textContent = data.production ? 'Production' : 'Non-production';
+        document.getElementById('envSub').textContent = data.enabled ? 'Simulator mutations allowed' : 'Simulator mutations blocked';
+        document.getElementById('seedMetric').textContent = data.seedClaimed ? 'Claimed' : data.formattedSeedAmount;
+        document.getElementById('seedSub').textContent = data.seedClaimed ? 'Already added once' : 'One-time synthetic credit';
+        document.getElementById('pendingMetric').textContent = data.counts.PENDING || 0;
+        document.getElementById('settledMetric').textContent = data.counts.SUCCESS || 0;
+        document.getElementById('settledSub').textContent =
+          `${data.counts.REFUNDED || 0} refunded · ${data.counts.REVERSED || 0} reversed · ${data.counts.FAILED || 0} failed`;
+        document.getElementById('amountHint').textContent = `Maximum allowed amount: ${data.formattedMaxAmount}. Simulated payments only.`;
+
+        const methodSelect = document.getElementById('paymentMethod');
+        methodSelect.innerHTML = data.paymentMethods
+          .map((method) => `<option value="${escapeHtml(method)}">${escapeHtml(method.replaceAll('_', ' '))}</option>`)
+          .join('');
+        const scenarioSelect = document.getElementById('scenario');
+        scenarioSelect.innerHTML = data.scenarios
+          .map((scenario) => `<option value="${escapeHtml(scenario)}">${escapeHtml(scenario)}</option>`)
+          .join('');
+
+        setControlsEnabled(state.enabled);
+        if (state.enabled) await loadPayments();
+      } catch (err) {
+        toast(failureMessage(err), 'error');
+        document.getElementById('envMetric').textContent = 'Unavailable';
+        document.getElementById('envSub').textContent = 'Could not read simulator status';
+        setControlsEnabled(false);
+      }
+    }
+
+    async function loadPayments() {
+      const body = document.getElementById('paymentsBody');
+      const status = document.getElementById('statusFilter').value;
+      try {
+        const res = await simulatorAPI.payments({ status, limit: 50 });
+        const { payments, pagination } = res.data;
+        state.payments = payments;
+
+        if (!payments.length) {
+          body.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="ri-inbox-line"></i><h3>No simulated payments yet</h3><p>Create one on the left to see the synthetic ledger flow.</p></div></td></tr>';
+          document.getElementById('paginationNote').textContent = '';
+          return;
+        }
+
+        body.innerHTML = payments.map((payment) => {
+          const actions = [];
+          if (payment.status === 'PENDING') {
+            actions.push(`<button class="btn btn-secondary" data-action="confirm" data-id="${escapeHtml(payment.id)}" style="padding:5px 10px;font-size:11px;">Confirm</button>`);
+            actions.push(`<button class="btn btn-danger" data-action="fail" data-id="${escapeHtml(payment.id)}" style="padding:5px 10px;font-size:11px;">Fail</button>`);
+          } else if (payment.status === 'SUCCESS') {
+            actions.push(`<button class="btn btn-secondary" data-action="refund" data-id="${escapeHtml(payment.id)}" style="padding:5px 10px;font-size:11px;">Refund</button>`);
+            actions.push(`<button class="btn btn-danger" data-action="reverse" data-id="${escapeHtml(payment.id)}" style="padding:5px 10px;font-size:11px;">Reverse</button>`);
+          }
+          const title = payment.description
+            ? `${escapeHtml(payment.merchant)}<div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(payment.description)}</div>`
+            : escapeHtml(payment.merchant);
+          return `
+            <tr>
+              <td>${title}</td>
+              <td style="font-weight:600;white-space:nowrap;">${escapeHtml(payment.formattedAmount)}</td>
+              <td style="white-space:nowrap;">${escapeHtml(payment.paymentMethod.replaceAll('_', ' '))}</td>
+              <td>${statusBadge(payment.status)}</td>
+              <td style="white-space:nowrap;color:var(--muted);font-size:12px;">${escapeHtml(formatDate(payment.createdAt))}</td>
+              <td style="text-align:right;white-space:nowrap;">${actions.join(' ') || '<span style="color:var(--muted);font-size:11px;">—</span>'}</td>
+            </tr>
+          `;
+        }).join('');
+
+        document.getElementById('paginationNote').textContent =
+          `Showing ${payments.length} of ${pagination.total} simulated payment${pagination.total === 1 ? '' : 's'}.`;
+      } catch (err) {
+        body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444;">${escapeHtml(failureMessage(err))}</td></tr>`;
+      }
+    }
+
+    async function seedFunds() {
+      const btn = document.getElementById('seedBtn');
+      btn.disabled = true;
+      try {
+        const res = await simulatorAPI.seed();
+        toast(res.data.message);
+        await loadStatus();
+      } catch (err) {
+        toast(failureMessage(err), 'error');
+      } finally {
+        btn.disabled = !state.enabled;
+      }
+    }
+
+    async function resetSimulator() {
+      if (!window.confirm('Remove all simulated payments and undo their synthetic ledger effects? Demo seed funding is kept.')) {
+        return;
+      }
+      const btn = document.getElementById('resetBtn');
+      btn.disabled = true;
+      try {
+        const res = await simulatorAPI.reset();
+        toast(res.data.message);
+        state.createKey = newCreateKey();
+        await loadStatus();
+      } catch (err) {
+        toast(failureMessage(err), 'error');
+      } finally {
+        btn.disabled = !state.enabled;
+      }
+    }
+
+    async function createPayment() {
+      if (!state.enabled) {
+        toast('The simulator is disabled in this environment.', 'error');
+        return;
+      }
+      const merchant = document.getElementById('merchant').value.trim();
+      const rawAmount = document.getElementById('amount').value.trim();
+      const amount = Number(rawAmount);
+      const paymentMethod = document.getElementById('paymentMethod').value;
+      const scenario = document.getElementById('scenario').value;
+      const category = document.getElementById('category').value.trim();
+      const description = document.getElementById('description').value.trim();
+
+      if (!merchant) return toast('Enter a merchant name.', 'error');
+      if (!Number.isFinite(amount) || amount <= 0) return toast('Enter a positive amount.', 'error');
+
+      const btn = document.getElementById('createBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ri-loader-4-line"></i>Creating…';
+      try {
+        const res = await simulatorAPI.create({
+          idempotencyKey: state.createKey,
+          merchant,
+          amount,
+          paymentMethod,
+          scenario,
+          category: category || undefined,
+          description: description || undefined,
+        });
+        toast(res.data.message || `Simulated payment ${res.data.payment.status.toLowerCase()}.`);
+        // The key is consumed only after an accepted create; a thrown request
+        // keeps it so the user can retry the same logical payment safely.
+        state.createKey = newCreateKey();
+        document.getElementById('merchant').value = '';
+        document.getElementById('amount').value = '';
+        document.getElementById('description').value = '';
+        await loadStatus();
+      } catch (err) {
+        toast(failureMessage(err), 'error');
+      } finally {
+        btn.disabled = !state.enabled;
+        btn.innerHTML = '<i class="ri-send-plane-line"></i>Create simulated payment';
+      }
+    }
+
+    async function actOnPayment(id, action) {
+      const payment = state.payments.find((item) => item.id === id);
+      const label = action.charAt(0).toUpperCase() + action.slice(1);
+      if ((action === 'refund' || action === 'reverse') && payment) {
+        const ok = window.confirm(`${label} ${payment.formattedAmount} for ${payment.merchant}? This credits the synthetic balance and reduces net spending.`);
+        if (!ok) return;
+      }
+      try {
+        const res = await simulatorAPI[action](id);
+        toast(res.data.message);
+        await loadStatus();
+      } catch (err) {
+        toast(failureMessage(err), 'error');
+      }
+    }
+
+    document.getElementById('paymentsBody').addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      actOnPayment(button.dataset.id, button.dataset.action);
+    });
+
+    document.getElementById('seedBtn').addEventListener('click', seedFunds);
+    document.getElementById('resetBtn').addEventListener('click', resetSimulator);
+    document.getElementById('createBtn').addEventListener('click', createPayment);
+    document.getElementById('refreshBtn').addEventListener('click', () => loadStatus());
+    document.getElementById('statusFilter').addEventListener('change', () => loadPayments());
+
+    loadStatus();
+  </script>
+</body>
+</html>

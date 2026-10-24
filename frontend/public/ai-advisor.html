@@ -527,9 +527,20 @@ How can I assist you today? You can ask about your spending, run a what-if finan
     const user = getUser() || {};
     const name = user.firstName || user.username || 'there';
 
+    // SECURITY: every string below is injected through innerHTML. Model output
+    // can echo user-controlled data (merchant names, transaction descriptions,
+    // chat text), so HTML entities are escaped BEFORE markdown transforms turn
+    // the text into tags. Without this, a merchant name of
+    // `<img src=x onerror=alert(1)>` would execute as stored XSS.
+    const escapeHtml = (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
     function formatMarkdown(md) {
       if (!md) return '';
-      let html = md;
+      let html = escapeHtml(md);
 
       // Process markdown tables
       const lines = html.split('\n');
@@ -600,7 +611,7 @@ How can I assist you today? You can ask about your spending, run a what-if finan
                 <i class="ri-database-2-line"></i> Grounded RAG Sources & Telemetry:
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:4px;">
-                ${sources.map(s => `<span style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.25);padding:2px 7px;border-radius:4px;color:#a7f3d0;font-size:10px;">${s}</span>`).join('')}
+                ${sources.map(s => `<span style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.25);padding:2px 7px;border-radius:4px;color:#a7f3d0;font-size:10px;">${escapeHtml(s)}</span>`).join('')}
               </div>
             </div>
           `;
@@ -632,6 +643,116 @@ How can I assist you today? You can ask about your spending, run a what-if finan
       }
       area.appendChild(div);
       area.scrollTop = area.scrollHeight;
+    };
+
+    // A data-changing assistant reply is only a proposal. Render the explicit
+    // Confirm / Cancel controls backed by the server-issued single-use token.
+    const addConfirmationPrompt = (confirmation) => {
+      if (!confirmation || !confirmation.token) return;
+      const div = document.createElement('div');
+      div.className = 'msg ai';
+      const label = escapeHtml(confirmation.description || 'Apply this change');
+      const seconds = Number(confirmation.ttlSeconds) > 0 ? Number(confirmation.ttlSeconds) : 300;
+      div.innerHTML = `
+        <div class="msg-avatar"><i class="ri-shield-check-line"></i></div>
+        <div>
+          <div class="msg-bubble" style="border:1px solid rgba(245,158,11,.45);background:rgba(245,158,11,.06);">
+            <div style="font-size:12px;font-weight:700;color:#f59e0b;margin-bottom:4px;">
+              <i class="ri-error-warning-line"></i> Action not applied yet
+            </div>
+            <div style="font-size:12px;margin-bottom:8px;">${label}</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">
+              Confirm to apply it once. The request expires in about ${Math.round(seconds / 60)} minute(s).
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" data-action="confirm" style="padding:7px 14px;border-radius:8px;border:none;background:var(--primary);color:#062018;font-weight:700;font-size:12px;cursor:pointer;">Confirm</button>
+              <button type="button" data-action="cancel" style="padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-weight:600;font-size:12px;cursor:pointer;">Cancel</button>
+            </div>
+          </div>
+          <div class="msg-time">${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
+      `;
+      area.appendChild(div);
+      area.scrollTop = area.scrollHeight;
+
+      const confirmBtn = div.querySelector('[data-action="confirm"]');
+      const cancelBtn = div.querySelector('[data-action="cancel"]');
+      let resolved = false;
+
+      const resolve = async (decision) => {
+        if (resolved) return;
+        resolved = true;
+        confirmBtn.disabled = true;
+        cancelBtn.disabled = true;
+        confirmBtn.style.opacity = '0.5';
+        cancelBtn.style.opacity = '0.5';
+        try {
+          const result = await api.aiAPI.confirmAction(confirmation.token, decision);
+          const message = result?.data?.response
+            || (decision === 'CANCEL' ? 'Cancelled. Nothing was changed.' : 'Action applied successfully.');
+          addMsg('ai', message, null, []);
+        } catch (err) {
+          const serverMessage = err?.message || '';
+          const state = err?.executionState || null;
+          let guidance = '';
+          if (err?.retryable === true && state === 'PENDING') {
+            // The server confirmed the action never started. Only this case may
+            // re-enable the button — a consumed token must never be reusable.
+            guidance = 'No change was applied. It is safe to press Confirm again.';
+            resolved = false;
+            confirmBtn.disabled = false;
+            cancelBtn.disabled = false;
+            confirmBtn.style.opacity = '1';
+            cancelBtn.style.opacity = '1';
+          } else if (state === 'EXECUTING') {
+            guidance = 'Do not retry — check your records in a moment.';
+          } else if (state === 'FAILED') {
+            guidance = 'Check your records, then prepare a new request.';
+          } else if (!err?.status) {
+            // The request may still be running on the server. Never assume the
+            // change was not applied, and never re-arm the button on a guess:
+            // ask the server what actually happened.
+            guidance = 'The connection dropped before the answer arrived. Checking the action status…';
+            const parts0 = [serverMessage, guidance].filter(Boolean).map(escapeHtml);
+            addMsg('ai', parts0.join(' '), null, []);
+            try {
+              const probe = await api.aiAPI.actionStatus(confirmation.token);
+              const st = probe?.data || {};
+              const state = st.executionState || st.status || null;
+              if (st.applied === true) {
+                addMsg('ai', 'This action was already applied. It will not run again.', null, []);
+              } else if (st.executed === false && st.retryable === true) {
+                addMsg('ai', 'The action was not applied. It is safe to press Confirm again.', null, []);
+                resolved = false;
+                confirmBtn.disabled = false;
+                cancelBtn.disabled = false;
+                confirmBtn.style.opacity = '1';
+                cancelBtn.style.opacity = '1';
+              } else if (state === 'EXECUTING') {
+                addMsg('ai', 'This action is still being applied. Do not retry — check your records in a moment.', null, []);
+              } else if (state === 'FAILED') {
+                addMsg('ai', 'This action failed and cannot be retried. Check your records, then prepare a new request.', null, []);
+              } else if (state === 'CANCELLED') {
+                addMsg('ai', 'This action was cancelled and will not be run.', null, []);
+              } else if (state === 'EXPIRED') {
+                addMsg('ai', 'This confirmation expired. Ask the advisor again to prepare a new one.', null, []);
+              } else {
+                addMsg('ai', 'The status of this action could not be determined. Check your records before trying again.', null, []);
+              }
+            } catch (probeErr) {
+              addMsg('ai', 'The action status could not be checked. Do not retry — check your records before trying again.', null, []);
+            }
+            return;
+          } else if (!serverMessage) {
+            guidance = 'This confirmation is closed. Check your records before preparing a new request.';
+          }
+          const parts = [serverMessage, guidance].filter(Boolean).map(escapeHtml);
+          addMsg('ai', parts.join(' '), null, []);
+        }
+      };
+
+      confirmBtn.addEventListener('click', () => resolve('CONFIRM'));
+      cancelBtn.addEventListener('click', () => resolve('CANCEL'));
     };
 
     window.sendFeedback = async (id, type) => {
@@ -673,6 +794,9 @@ How can I assist you today? You can ask about your spending, run a what-if finan
         if (res?.success) {
           const sources = res.data.sources || res.data.rag?.sources || [];
           addMsg('ai', res.data.response, null, sources);
+          if (res.data.pendingConfirmation && res.data.confirmation) {
+            addConfirmationPrompt(res.data.confirmation);
+          }
           if (res.data.context) {
             document.getElementById('snapScore').textContent = `${res.data.context.healthScore || '--'}/100`;
             if (res.data.context.formattedNetWorth) {
@@ -1415,6 +1539,26 @@ How can I assist you today? You can ask about your spending, run a what-if finan
       area.innerHTML = '<div class="msg ai"><div class="msg-avatar"><i class="ri-robot-line"></i></div><div><div class="msg-bubble">Chat history cleared. How can I help you?</div></div></div>';
     });
 
+    // Restore the server-side conversation so the advisor keeps context across
+    // page loads and devices (the backend persists ChatMessage rows per user).
+    const loadHistory = async () => {
+      try {
+        const res = await api.aiAPI.history();
+        const items = Array.isArray(res?.data) ? res.data : [];
+        if (items.length === 0) return;
+        area.innerHTML = '';
+        items.forEach((m) => {
+          const role = m.role === 'user' ? 'user' : 'ai';
+          const content = typeof m.content === 'string' ? m.content : '';
+          if (content.trim()) addMsg(role, content);
+        });
+      } catch (e) {
+        // History is a convenience; a failure must not block a new conversation.
+        console.warn('AI history unavailable:', e?.message || e);
+      }
+    };
+
+    loadHistory();
     loadSnapshot();
 
     // Cross-device sync: the AI context snapshot follows the live ledger, so any

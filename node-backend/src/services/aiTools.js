@@ -16,8 +16,16 @@ const { SchemaType } = require('@google/generative-ai');
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
 const aiService = require('./aiService');
+const analyticsEngine = require('./analyticsEngine');
 const realtime = require('./realtimeService');
 const { parseNaturalDate, inferCategory } = require('./aiActionService');
+const { ACCOUNT_TYPES } = require('../config/accountTypes');
+const {
+  transactionEffects,
+  reverseEffects,
+  applyEffects,
+  revertEffects,
+} = require('./transactionBalance');
 
 // ---------------------------------------------------------------- primitives
 
@@ -318,7 +326,6 @@ const TRANSACTION_TYPES = 'EXPENSE, INCOME, TRANSFER, INVESTMENT or LOAN_PAYMENT
 
 // Prisma enum whitelists — must mirror prisma/schema.prisma exactly.
 const TRANSACTION_TYPES_ENUM = ['EXPENSE', 'INCOME', 'TRANSFER', 'INVESTMENT', 'LOAN_PAYMENT'];
-const ACCOUNT_TYPES = ['BANK', 'CASH', 'WALLET', 'CREDIT_CARD', 'SAVINGS', 'CURRENT', 'OTHER'];
 const GOAL_TYPES = [
   'EMERGENCY_FUND', 'VACATION', 'HOME', 'CAR', 'EDUCATION',
   'RETIREMENT', 'WEDDING', 'INVESTMENT', 'OTHER',
@@ -520,16 +527,17 @@ const TOOL_LIST = [
 
       const items = [];
       for (const b of budgets) {
-        const spent = await prisma.transaction.aggregate({
+        const spent = await prisma.transaction.groupBy({
+          by: ['transactionType'],
           where: {
             userId,
-            transactionType: 'EXPENSE',
+            transactionType: { in: analyticsEngine.SPENDING_TYPES },
             date: { gte: start, lte: end },
             category: { name: { equals: b.categoryName, mode: 'insensitive' } },
           },
           _sum: { amount: true },
         });
-        const used = num(spent._sum.amount);
+        const used = Math.max(0, analyticsEngine.signedTotal(spent));
         items.push({
           id: b.id,
           categoryName: b.categoryName,
@@ -681,21 +689,29 @@ const TOOL_LIST = [
       const from = a.from ? toDate(a.from) : new Date(now.getFullYear(), now.getMonth(), 1);
       const to = a.to ? toDate(a.to) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
       const grouped = await prisma.transaction.groupBy({
-        by: ['categoryId'],
-        where: { userId, transactionType: 'EXPENSE', date: { gte: from, lte: to } },
+        by: ['categoryId', 'transactionType'],
+        where: { userId, transactionType: { in: analyticsEngine.SPENDING_TYPES }, date: { gte: from, lte: to } },
         _sum: { amount: true },
-        orderBy: { _sum: { amount: 'desc' } },
       });
+      const categoryTotals = new Map();
+      for (const row of grouped) {
+        const key = row.categoryId || null;
+        categoryTotals.set(key, (categoryTotals.get(key) || 0) + analyticsEngine.signedTotal([row]));
+      }
+      const netGrouped = Array.from(categoryTotals.entries())
+        .map(([categoryId, amount]) => ({ categoryId, amount: analyticsEngine.round2(amount) }))
+        .filter((row) => row.amount > 0)
+        .sort((a, b) => b.amount - a.amount);
       const cats = await prisma.category.findMany({
-        where: { id: { in: grouped.map((g) => g.categoryId).filter(Boolean) } },
+        where: { id: { in: netGrouped.map((g) => g.categoryId).filter(Boolean) } },
         select: { id: true, name: true },
       });
       const nameById = Object.fromEntries(cats.map((c) => [c.id, c.name]));
-      const total = grouped.reduce((s, g) => s + num(g._sum.amount), 0);
-      const rows = grouped.map((g) => ({
+      const total = netGrouped.reduce((s, g) => s + g.amount, 0);
+      const rows = netGrouped.map((g) => ({
         category: nameById[g.categoryId] || 'Uncategorised',
-        amount: num(g._sum.amount),
-        sharePct: total > 0 ? Math.round((num(g._sum.amount) / total) * 100) : 0,
+        amount: g.amount,
+        sharePct: total > 0 ? Math.round((g.amount / total) * 100) : 0,
       }));
       return ok(
         `Spending ${ymd(from)} → ${ymd(to)}: total ${inr(
@@ -877,6 +893,11 @@ const TOOL_LIST = [
     execute: async (userId, a) => {
       const amount = num(a.amount);
       if (!(amount > 0)) return fail('Amount must be a positive number.');
+      // A generic transaction has one balance leg. Transfers are two-legged
+      // and must go through transfer_between_accounts so both accounts move.
+      if (String(a.transactionType || '').trim().toUpperCase() === 'TRANSFER') {
+        return fail('Use transfer_between_accounts to move money between two accounts.');
+      }
       const transactionType = oneOf(a.transactionType, TRANSACTION_TYPES_ENUM, 'EXPENSE');
       const merchant = a.merchant || a.description || null;
       const description = a.description || a.merchant || null;
@@ -950,14 +971,18 @@ const TOOL_LIST = [
       const newType = a.transactionType
         ? oneOf(a.transactionType, TRANSACTION_TYPES_ENUM, existing.transactionType)
         : existing.transactionType;
+      // Converting between a two-legged transfer and a one-legged transaction
+      // would drop or invent a balance leg. Require an explicit delete+create.
+      if ((newType === 'TRANSFER') !== (existing.transactionType === 'TRANSFER')) {
+        return fail('A transaction cannot be converted to or from a transfer.');
+      }
       const newAmount = a.amount != null ? num(a.amount) : num(existing.amount);
+      if (!(newAmount > 0)) return fail('Amount must be a positive number.');
 
       const result = await prisma.$transaction(async (tx) => {
         const cur = await tx.transaction.findFirst({ where: { id: existing.id, userId } });
         if (!cur) return null;
         const category = a.category ? await pickCategory(tx, userId, a.category, newType) : null;
-        const oldDelta = cur.accountId ? balanceDelta(cur.transactionType, num(cur.amount)) : 0;
-        const newDelta = cur.accountId ? balanceDelta(newType, newAmount) : 0;
 
         const updated = await tx.transaction.update({
           where: { id: cur.id },
@@ -970,13 +995,27 @@ const TOOL_LIST = [
             date: a.date ? toDate(a.date) : cur.date,
           },
         });
+
+        // Replace the old ledger effect with the new one. Works for
+        // single-account rows and for transfers (both legs), and nets to zero
+        // when only descriptive fields changed.
+        await applyEffects(tx, [
+          ...reverseEffects(cur),
+          ...transactionEffects({
+            transactionType: updated.transactionType,
+            amount: updated.amount,
+            accountId: updated.accountId,
+            toAccountId: updated.toAccountId,
+          }),
+        ]);
+
         let balance = null;
-        if (cur.accountId && oldDelta !== newDelta) {
-          const acct = await tx.financialAccount.update({
-            where: { id: cur.accountId },
-            data: { balance: { increment: newDelta - oldDelta } },
+        if (updated.accountId) {
+          const acct = await tx.financialAccount.findUnique({
+            where: { id: updated.accountId },
+            select: { balance: true },
           });
-          balance = num(acct.balance);
+          balance = acct ? num(acct.balance) : null;
         }
         return { updated, balance };
       });
@@ -1009,12 +1048,8 @@ const TOOL_LIST = [
       await prisma.$transaction(async (tx) => {
         const cur = await tx.transaction.findFirst({ where: { id: existing.id, userId } });
         if (!cur) return;
-        if (cur.accountId) {
-          await tx.financialAccount.update({
-            where: { id: cur.accountId },
-            data: { balance: { increment: -balanceDelta(cur.transactionType, num(cur.amount)) } },
-          });
-        }
+        // Reverses both legs of a transfer and the single leg of anything else.
+        await revertEffects(tx, cur);
         await tx.transaction.delete({ where: { id: cur.id } });
       });
 
@@ -1046,13 +1081,12 @@ const TOOL_LIST = [
       if (from.id === to.id) return fail('Source and destination must differ.');
 
       await prisma.$transaction(async (tx) => {
-        await tx.financialAccount.update({ where: { id: from.id }, data: { balance: { decrement: amount } } });
-        await tx.financialAccount.update({ where: { id: to.id }, data: { balance: { increment: amount } } });
         const category = await pickCategory(tx, userId, 'Transfer', 'TRANSFER');
         await tx.transaction.create({
           data: {
             userId,
             accountId: from.id,
+            toAccountId: to.id,
             categoryId: category.id,
             amount,
             transactionType: 'TRANSFER',
@@ -1061,6 +1095,15 @@ const TOOL_LIST = [
             date: new Date(),
           },
         });
+        await applyEffects(
+          tx,
+          transactionEffects({
+            transactionType: 'TRANSFER',
+            amount,
+            accountId: from.id,
+            toAccountId: to.id,
+          })
+        );
       });
 
       emit(userId, 'transfer_between_accounts', 'account', {});
@@ -1657,7 +1700,7 @@ const TOOL_LIST = [
       type: SchemaType.OBJECT,
       properties: {
         name: { type: SchemaType.STRING },
-        accountType: { type: SchemaType.STRING, description: 'BANK, CASH, WALLET, CREDIT_CARD, SAVINGS, CURRENT or OTHER' },
+        accountType: { type: SchemaType.STRING, description: ACCOUNT_TYPES.join(', ') },
         institution: { type: SchemaType.STRING },
         balance: { type: SchemaType.NUMBER, description: 'Opening balance, default 0' },
       },
@@ -1826,7 +1869,7 @@ const TOOL_LIST = [
       properties: {
         account: { type: SchemaType.STRING, description: 'Account name or id (defaults to primary)' },
         name: { type: SchemaType.STRING },
-        accountType: { type: SchemaType.STRING, description: 'BANK, CASH, WALLET, CREDIT_CARD, SAVINGS, CURRENT or OTHER' },
+        accountType: { type: SchemaType.STRING, description: ACCOUNT_TYPES.join(', ') },
         institution: { type: SchemaType.STRING },
         balance: { type: SchemaType.NUMBER, description: 'Set an exact balance (overrides the ledger value)' },
         isActive: { type: SchemaType.BOOLEAN },

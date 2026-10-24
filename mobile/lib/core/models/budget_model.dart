@@ -1,3 +1,5 @@
+import 'model_parse.dart';
+
 class BudgetModel {
   final String id;
   final String? categoryId;
@@ -23,18 +25,19 @@ class BudgetModel {
   bool get isOverBudget => spent > monthlyLimit;
 
   factory BudgetModel.fromJson(Map<String, dynamic> json) {
+    const model = 'BudgetModel';
     return BudgetModel(
-      id: json['id'] ?? '',
+      id: parseRequiredString(json, 'id', model: model),
       categoryId: json['categoryId'],
       categoryName: json['categoryName'] ?? 'General',
-      monthlyLimit: (json['monthlyLimit'] != null)
-          ? double.tryParse(json['monthlyLimit'].toString()) ?? 0.0
+      monthlyLimit: parseRequiredDouble(json, 'monthlyLimit', model: model),
+      // A budget with no spend is legitimately zero, so an absent `spent` is
+      // safe to default. A present-but-invalid value is rejected.
+      spent: json['spent'] != null
+          ? parseRequiredDouble(json, 'spent', model: model)
           : 0.0,
-      spent: (json['spent'] != null)
-          ? double.tryParse(json['spent'].toString()) ?? 0.0
-          : 0.0,
-      month: json['month'] ?? DateTime.now().month,
-      year: json['year'] ?? DateTime.now().year,
+      month: parseRequiredInt(json, 'month', model: model),
+      year: parseRequiredInt(json, 'year', model: model),
     );
   }
 }

@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
+const { parseDateOnly, formatDateOnly, todayDateOnly } = require('../utils/dateOnly');
 const { createWorker } = require('tesseract.js');
 const storageService = require('../services/storageService');
 const documentIngestionService = require('../services/documentIngestionService');
@@ -286,7 +287,7 @@ const scanReceipt = async (req, res, next) => {
         userId,
         merchant: parsed.merchant,
         amount: parsed.amount,
-        date: new Date(parsed.date),
+        date: parseDateOnly(parsed.date, 'date'),
         category: parsed.category,
         items: {
           lineItems: parsed.items,
@@ -392,7 +393,7 @@ const confirmReceipt = async (req, res, next) => {
       });
     }
 
-    const txDate = date ? new Date(date) : new Date();
+    const txDate = date ? parseDateOnly(date, 'date') : parseDateOnly(todayDateOnly());
 
     const transaction = await prisma.$transaction(async (tx) => {
       // Atomically claim the scan *before* writing any money movement. The
@@ -464,6 +465,9 @@ const confirmReceipt = async (req, res, next) => {
           message: 'This receipt was already confirmed.',
         },
       });
+    }
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
     }
     next(error);
   }
@@ -622,10 +626,13 @@ const confirmBankStatementImport = async (req, res, next) => {
         const amt = parseFloat(row.amount);
         const txType = row.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
 
-        const rowDate = row.date ? new Date(row.date) : new Date();
-        const candidateDate = isNaN(rowDate.getTime())
-          ? new Date().toISOString().split('T')[0]
-          : rowDate.toISOString().split('T')[0];
+        let rowDate;
+        try {
+          rowDate = parseDateOnly(row.date, 'date') || parseDateOnly(todayDateOnly());
+        } catch {
+          rowDate = parseDateOnly(todayDateOnly());
+        }
+        const candidateDate = formatDateOnly(rowDate);
         const candidateDescription = String(row.description || 'Imported statement transaction').trim();
 
         const dupCheck = documentIngestionService.isDuplicateTransaction(existing, {
@@ -729,6 +736,9 @@ const confirmBankStatementImport = async (req, res, next) => {
       },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };
@@ -801,7 +811,7 @@ const formatReceiptForClient = (r) => {
     merchant: r.merchant || 'Unidentified Merchant',
     amount: r.amount !== null && r.amount !== undefined ? parseFloat(r.amount) : null,
     formattedAmount: r.amount !== null && r.amount !== undefined ? formatINR(parseFloat(r.amount)) : 'Pending',
-    date: r.date ? new Date(r.date).toISOString().split('T')[0] : null,
+    date: formatDateOnly(r.date),
     category: r.category || 'General',
     status: r.status,
     items: lineItems,

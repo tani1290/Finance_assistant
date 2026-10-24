@@ -26,7 +26,9 @@
 
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
+const { currentMonthParts, monthRange, monthLabel, formatDateOnly } = require('../utils/dateOnly');
 const { calculateHealthScore } = require('../utils/financialMath');
+const analyticsEngine = require('./analyticsEngine');
 
 let genAI = null;
 const getGeminiClient = () => {
@@ -104,9 +106,9 @@ const retrieveFinancialKnowledge = async (userId, intents) => {
     throw new Error('Tenant Isolation Security: User ID is required for RAG retrieval.');
   }
 
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const { year: currentYear, month: currentMonth } = currentMonthParts();
+  const { start: startOfMonth, end: endOfMonth } = monthRange(currentYear, currentMonth);
+  const monthName = monthLabel(currentYear, currentMonth);
 
   const knowledgeDocs = [];
   const sources = new Set();
@@ -147,50 +149,78 @@ const retrieveFinancialKnowledge = async (userId, intents) => {
 
   // Intent: TRANSACTIONS
   if (intents.includes('TRANSACTIONS') || intents.includes('HEALTH_CASHFLOW') || intents.includes('BUDGETS')) {
-    const recentTx = await prisma.transaction.findMany({
-      where: { userId },
-      orderBy: { date: 'desc' },
-      take: 25,
-      include: { category: true, account: true },
-    });
+    // Recent rows are for narrative context only. Monthly totals are computed
+    // with aggregates so they are never truncated by the 25-row preview limit.
+    const [recentTx, monthExpenseAgg, monthIncomeAgg, expenseByCategory] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { userId },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        take: 25,
+        include: { category: true, account: true },
+      }),
+      prisma.transaction.groupBy({
+        by: ['transactionType'],
+        where: { userId, transactionType: { in: analyticsEngine.SPENDING_TYPES }, date: { gte: startOfMonth, lte: endOfMonth } },
+        _sum: { amount: true },
+      }),
+      prisma.transaction.aggregate({
+        where: { userId, transactionType: 'INCOME', date: { gte: startOfMonth, lte: endOfMonth } },
+        _sum: { amount: true },
+      }),
+      prisma.transaction.groupBy({
+        by: ['categoryId', 'transactionType'],
+        where: { userId, transactionType: { in: analyticsEngine.SPENDING_TYPES }, date: { gte: startOfMonth, lte: endOfMonth } },
+        _sum: { amount: true },
+      }),
+    ]);
 
-    const monthName = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-    let monthExpenseSum = 0;
-    let monthIncomeSum = 0;
-    const categorySpending = {};
+    const monthExpenseSum = analyticsEngine.signedTotal(monthExpenseAgg);
+    const monthIncomeSum = parseFloat(monthIncomeAgg._sum.amount || 0);
+
+    const categoryTotals = new Map();
+    for (const row of expenseByCategory) {
+      const key = row.categoryId || null;
+      categoryTotals.set(key, (categoryTotals.get(key) || 0) + analyticsEngine.signedTotal([row]));
+    }
+    const netExpenseByCategory = Array.from(categoryTotals.entries())
+      .map(([categoryId, amount]) => ({ categoryId, amount: analyticsEngine.round2(amount) }))
+      .filter((row) => row.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+
+    const categoryIds = netExpenseByCategory.map((row) => row.categoryId).filter(Boolean);
+    const categories = categoryIds.length
+      ? await prisma.category.findMany({
+        where: { userId, id: { in: categoryIds } },
+        select: { id: true, name: true },
+      })
+      : [];
+    const categoryNames = new Map(categories.map((cat) => [cat.id, cat.name]));
+
+    let topCategory = 'None';
+    let topCategoryAmount = 0;
+    netExpenseByCategory.forEach((row) => {
+      const amount = row.amount;
+      if (amount > topCategoryAmount) {
+        topCategoryAmount = amount;
+        topCategory = row.categoryId ? (categoryNames.get(row.categoryId) || 'Uncategorized') : 'Uncategorized';
+      }
+    });
 
     recentTx.forEach(tx => {
       const amt = parseFloat(tx.amount);
-      const dStr = new Date(tx.date).toISOString().slice(0, 10);
+      const dStr = formatDateOnly(tx.date) || 'Unknown date';
       const catName = tx.category?.name || 'Uncategorized';
-
-      if (tx.date >= startOfMonth && tx.date <= endOfMonth) {
-        if (tx.transactionType === 'EXPENSE') {
-          monthExpenseSum += amt;
-          categorySpending[catName] = (categorySpending[catName] || 0) + amt;
-        } else if (tx.transactionType === 'INCOME') {
-          monthIncomeSum += amt;
-        }
-      }
+      const inCurrentMonth = dStr >= formatDateOnly(startOfMonth) && dStr <= formatDateOnly(endOfMonth);
+      const periodLabel = inCurrentMonth ? monthName : 'recent history';
 
       knowledgeDocs.push({
         id: `tx-${tx.id}`,
         sourceType: 'TRANSACTION',
-        sourceTitle: `Transactions — ${monthName}`,
+        sourceTitle: `Transactions — ${periodLabel}`,
         metadata: { userId, sourceType: 'Transaction', sourceId: tx.id, createdAt: tx.createdAt },
         text: `Transaction on ${dStr}: ${tx.transactionType} ${formatINR(amt)} at "${tx.merchant || tx.description || 'Merchant'}" [Category: ${catName}].`,
       });
-      sources.add(`Transactions — ${monthName}`);
-    });
-
-    // Top Category Calculation
-    let topCategory = 'None';
-    let topCategoryAmount = 0;
-    Object.entries(categorySpending).forEach(([cat, amt]) => {
-      if (amt > topCategoryAmount) {
-        topCategoryAmount = amt;
-        topCategory = cat;
-      }
+      sources.add(`Transactions — ${periodLabel}`);
     });
 
     knowledgeDocs.push({
@@ -200,6 +230,7 @@ const retrieveFinancialKnowledge = async (userId, intents) => {
       metadata: { userId, sourceType: 'TransactionSummary', sourceId: 'monthly_summary' },
       text: `For ${monthName}: Total Income = ${formatINR(monthIncomeSum)}, Total Expenses = ${formatINR(monthExpenseSum)}, Highest Spending Category = "${topCategory}" with ${formatINR(topCategoryAmount)}.`,
     });
+    sources.add(`Transactions — Monthly Summary (${monthName})`);
   }
 
   // Intent: BUDGETS
@@ -332,7 +363,7 @@ const retrieveFinancialKnowledge = async (userId, intents) => {
         sourceType: 'OCR_RECEIPT',
         sourceTitle: `Receipt — ${r.merchant || 'Merchant Scan'}`,
         metadata: { userId, sourceType: 'ReceiptScan', sourceId: r.id, createdAt: r.createdAt },
-        text: `Scanned Receipt from "${r.merchant || 'Merchant'}" on ${r.date ? new Date(r.date).toISOString().slice(0, 10) : 'Recent'}: Amount ${amt > 0 ? formatINR(amt) : 'Unrecognized'} [Category: ${r.category || 'General'}, Status: ${r.status}].`,
+        text: `Scanned Receipt from "${r.merchant || 'Merchant'}" on ${formatDateOnly(r.date) || 'Recent'}: Amount ${amt > 0 ? formatINR(amt) : 'Unrecognized'} [Category: ${r.category || 'General'}, Status: ${r.status}].`,
       });
       sources.add(`Receipt — ${r.merchant || 'OCR Scan'}`);
     });
@@ -342,14 +373,14 @@ const retrieveFinancialKnowledge = async (userId, intents) => {
   if (intents.includes('HEALTH_CASHFLOW')) {
     const [accountsSum, monthlyExp, monthlyInc, loansSum, portfolio] = await Promise.all([
       prisma.financialAccount.aggregate({ where: { userId, isActive: true }, _sum: { balance: true } }),
-      prisma.transaction.aggregate({ where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
+      prisma.transaction.groupBy({ by: ['transactionType'], where: { userId, transactionType: { in: analyticsEngine.SPENDING_TYPES }, date: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
       prisma.transaction.aggregate({ where: { userId, transactionType: 'INCOME', date: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
       prisma.loan.aggregate({ where: { userId, status: 'ACTIVE' }, _sum: { outstandingBalance: true, emiAmount: true } }),
       prisma.portfolio.findUnique({ where: { userId }, select: { currentValue: true } }),
     ]);
 
     const bal = parseFloat(accountsSum._sum.balance || 0);
-    const exp = parseFloat(monthlyExp._sum.amount || 0);
+    const exp = analyticsEngine.signedTotal(monthlyExp);
     const inc = parseFloat(monthlyInc._sum.amount || 0);
     const debt = parseFloat(loansSum._sum.outstandingBalance || 0);
     const emi = parseFloat(loansSum._sum.emiAmount || 0);
@@ -377,13 +408,35 @@ const retrieveFinancialKnowledge = async (userId, intents) => {
 /**
  * 3. Context Assembly & Grounding Boundaries
  */
+
+// Only list sources that were actually retrieved. An empty retrieval must not
+// render an empty "Sources:" heading.
+const formatSourcesSection = (sources) => {
+  const list = Array.from(new Set(sources || [])).filter(Boolean);
+  if (list.length === 0) return '';
+  return `\n\n**Sources:**\n${list.map(s => `• ${s}`).join('\n')}`;
+};
+
+// Remove a model-generated Sources section so the server can append the exact
+// retrieved list instead of whatever the model recalled.
+const stripSourcesSection = (text) => {
+  if (!text) return '';
+  const match = text.match(/(^|\n)\s*\*{0,2}Sources:?\*{0,2}\s*\n/i);
+  return match ? text.slice(0, match.index).trimEnd() : text.trimEnd();
+};
+
 const buildGroundedRAGContext = (retrievalResult, userMessage) => {
   const { user, knowledgeDocs, sources } = retrievalResult;
   const userName = user?.firstName || 'User';
+  const sourceList = Array.from(new Set(sources || [])).filter(Boolean);
 
   const factsBlock = knowledgeDocs.length > 0
     ? knowledgeDocs.map(d => `• [${d.sourceTitle}] ${d.text}`).join('\n')
     : 'No financial records found in database for this user yet.';
+
+  const sourceInstruction = sourceList.length > 0
+    ? `6. At the bottom of your answer, list only these exact retrieved sources (do not add or rename any):\n   Sources:\n${sourceList.map(s => `   • ${s}`).join('\n')}`
+    : '6. No user records were retrieved for this question. Do NOT add a Sources section.';
 
   const systemInstruction = `You are FinPro AI, a grounded, highly accurate financial intelligence copilot and advisor for ${userName}.
 You operate as an intelligent financial assistant with both Retrieval-Augmented Generation (RAG) and transactional action execution capabilities (adding expenses/income, viewing user data, editing transactions, and removing expenses).
@@ -397,9 +450,7 @@ STRICT GROUNDING & ACTION RULES:
    - CALCULATED INSIGHT: Clear calculations based on the facts (e.g. savings rate, affordability, totals).
    - MODEL RECOMMENDATION: Personalized, actionable financial advice based on the user's situation.
 5. Currency is always Indian Rupee (₹, INR).
-6. At the bottom of your answer, list the exact sources used:
-   Sources:
-   ${sources.map(s => `• ${s}`).join('\n')}
+${sourceInstruction}
 
 RETRIEVED USER FINANCIAL KNOWLEDGE (Verified Tenant ID: ${user?.id}):
 ============================================================
@@ -409,7 +460,7 @@ ${factsBlock}
   return {
     systemInstruction,
     factsBlock,
-    sources,
+    sources: sourceList,
   };
 };
 
@@ -427,9 +478,9 @@ const generateDeterministicGroundedResponse = (userMessage, retrievalResult) => 
     const summaryDoc = knowledgeDocs.find(d => d.sourceType === 'TRANSACTION_SUMMARY');
     const txDocs = knowledgeDocs.filter(d => d.sourceType === 'TRANSACTION');
     if (summaryDoc) {
-      return `**DATABASE FACT:**\n${summaryDoc.text}\n\n**CALCULATED INSIGHT:**\nYour highest expenditure is concentrated in your top category. Reviewing transactions shows active spending in this area.\n\n**MODEL RECOMMENDATION:**\nSet a category spending limit or budget alert in FinPro to prevent overshooting your monthly discretionary target.\n\n**Sources:**\n${sources.map(s => `• ${s}`).join('\n')}`;
+      return `**DATABASE FACT:**\n${summaryDoc.text}\n\n**CALCULATED INSIGHT:**\nYour highest expenditure is concentrated in your top category. Reviewing transactions shows active spending in this area.\n\n**MODEL RECOMMENDATION:**\nSet a category spending limit or budget alert in FinPro to prevent overshooting your monthly discretionary target.${formatSourcesSection(sources)}`;
     }
-    return `**DATABASE FACT:**\nNo recorded expense transactions found for this month.\n\n**MODEL RECOMMENDATION:**\nLog or scan your recent receipts to start tracking spending categories.\n\n**Sources:**\n• Transactions`;
+    return `**DATABASE FACT:**\nNo recorded expense transactions found for this month.\n\n**MODEL RECOMMENDATION:**\nLog or scan your recent receipts to start tracking spending categories.`;
   }
 
   // 2. Can I afford purchase
@@ -441,44 +492,47 @@ const generateDeterministicGroundedResponse = (userMessage, retrievalResult) => 
     const totalBal = parseFloat((accDoc?.text || '').match(/₹([\d,]+)/)?.[1]?.replace(/,/g, '') || '0');
 
     const canAfford = totalBal >= targetAmt * 1.5;
-    return `**DATABASE FACT:**\n${accDoc?.text || `Total liquid balance: ${formatINR(totalBal)}`}.\nTarget purchase: ${formatINR(targetAmt)}.\n\n**CALCULATED INSIGHT:**\n${canAfford ? `You have sufficient liquid funds (${formatINR(totalBal)}) to cover this ${formatINR(targetAmt)} purchase while maintaining a safety buffer.` : `This purchase represents a significant portion (${Math.round((targetAmt / (totalBal || 1)) * 100)}%) of your available liquid balance (${formatINR(totalBal)}).`}\n\n**MODEL RECOMMENDATION:**\n${canAfford ? 'Purchase is affordable within current cash flow. Ensure it does not dip into your emergency fund.' : 'Consider delaying non-essential purchases until next month’s income or funding it through planned savings.'}\n\n**Sources:**\n${sources.map(s => `• ${s}`).join('\n')}`;
+    return `**DATABASE FACT:**\n${accDoc?.text || `Total liquid balance: ${formatINR(totalBal)}`}.\nTarget purchase: ${formatINR(targetAmt)}.\n\n**CALCULATED INSIGHT:**\n${canAfford ? `You have sufficient liquid funds (${formatINR(totalBal)}) to cover this ${formatINR(targetAmt)} purchase while maintaining a safety buffer.` : `This purchase represents a significant portion (${Math.round((targetAmt / (totalBal || 1)) * 100)}%) of your available liquid balance (${formatINR(totalBal)}).`}\n\n**MODEL RECOMMENDATION:**\n${canAfford ? 'Purchase is affordable within current cash flow. Ensure it does not dip into your emergency fund.' : 'Consider delaying non-essential purchases until next month’s income or funding it through planned savings.'}${formatSourcesSection(sources.filter(s => /^Account|^Portfolio|^Financial Health/.test(s)))}`;
   }
 
   // 3. Health score / Why did score fall
   if (/health score|score/i.test(q)) {
     const healthDoc = knowledgeDocs.find(d => d.sourceType === 'HEALTH');
-    return `**DATABASE FACT:**\n${healthDoc?.text || 'Health score evaluated against active financial telemetry.'}\n\n**CALCULATED INSIGHT:**\nFinPro calculates your score across 10 factors: savings rate, debt-to-income ratio, emergency fund coverage, and investment allocation.\n\n**MODEL RECOMMENDATION:**\nTo improve your score: 1) Maintain at least 3 months expenses in liquid savings, 2) Keep debt EMI under 30% of income, and 3) Automate monthly investments.\n\n**Sources:**\n• Financial Health & Snapshot`;
+    return `**DATABASE FACT:**\n${healthDoc?.text || 'Health score evaluated against active financial telemetry.'}\n\n**CALCULATED INSIGHT:**\nFinPro calculates your score across 10 factors: savings rate, debt-to-income ratio, emergency fund coverage, and investment allocation.\n\n**MODEL RECOMMENDATION:**\nTo improve your score: 1) Maintain at least 3 months expenses in liquid savings, 2) Keep debt EMI under 30% of income, and 3) Automate monthly investments.${formatSourcesSection(['Financial Health & Snapshot'])}`;
   }
 
   // 4. EMI / Loans
   if (/emi|loan|debt/i.test(q)) {
     const loanDocs = knowledgeDocs.filter(d => d.sourceType === 'LOAN');
     if (loanDocs.length === 0) {
-      return `**DATABASE FACT:**\nYou currently have zero outstanding loans or EMIs recorded in your profile.\n\n**MODEL RECOMMENDATION:**\nMaintaining zero debt gives you strong financial resilience. Redirect potential EMI amounts into SIP investments.\n\n**Sources:**\n• Loan Records`;
+      return `**DATABASE FACT:**\nYou currently have zero outstanding loans or EMIs recorded in your profile.\n\n**MODEL RECOMMENDATION:**\nMaintaining zero debt gives you strong financial resilience. Redirect potential EMI amounts into SIP investments.`;
     }
-    return `**DATABASE FACT:**\n${loanDocs.map(d => `• ${d.text}`).join('\n')}\n\n**CALCULATED INSIGHT:**\nYour active loan liabilities require recurring monthly commitments.\n\n**MODEL RECOMMENDATION:**\nUse FinPro's Loan Prepayment Simulator to calculate interest savings from extra principal payments.\n\n**Sources:**\n${sources.map(s => `• ${s}`).join('\n')}`;
+    return `**DATABASE FACT:**\n${loanDocs.map(d => `• ${d.text}`).join('\n')}\n\n**CALCULATED INSIGHT:**\nYour active loan liabilities require recurring monthly commitments.\n\n**MODEL RECOMMENDATION:**\nUse FinPro's Loan Prepayment Simulator to calculate interest savings from extra principal payments.${formatSourcesSection(loanDocs.map(d => d.sourceTitle))}`;
   }
 
   // 5. Investments / Portfolio
   if (/invest|portfolio|stock|wealth/i.test(q)) {
     const invDoc = knowledgeDocs.find(d => d.sourceType === 'INVESTMENT');
     if (!invDoc) {
-      return `**DATABASE FACT:**\nNo active investment portfolio records found.\n\n**MODEL RECOMMENDATION:**\nStart building your investment journey with an index fund SIP or gold accumulation.\n\n**Sources:**\n• Portfolio — Investments`;
+      return `**DATABASE FACT:**\nNo active investment portfolio records found.\n\n**MODEL RECOMMENDATION:**\nStart building your investment journey with an index fund SIP or gold accumulation.`;
     }
-    return `**DATABASE FACT:**\n${invDoc.text}\n\n**CALCULATED INSIGHT:**\nYour assets are actively tracked against live market valuations.\n\n**MODEL RECOMMENDATION:**\nRebalance periodically to match your risk profile across equities, fixed income, and commodities.\n\n**Sources:**\n${sources.map(s => `• ${s}`).join('\n')}`;
+    return `**DATABASE FACT:**\n${invDoc.text}\n\n**CALCULATED INSIGHT:**\nYour assets are actively tracked against live market valuations.\n\n**MODEL RECOMMENDATION:**\nRebalance periodically to match your risk profile across equities, fixed income, and commodities.${formatSourcesSection([invDoc.sourceTitle])}`;
   }
 
   // 6. Budgets overspending
   if (/budget|overspend/i.test(q)) {
     const budgetDocs = knowledgeDocs.filter(d => d.sourceType === 'BUDGET');
     if (budgetDocs.length === 0) {
-      return `**DATABASE FACT:**\nNo budget limits configured yet.\n\n**MODEL RECOMMENDATION:**\nCreate budgets for your top expense categories (Groceries, Dining, Shopping) to track monthly caps.\n\n**Sources:**\n• Budget Records`;
+      return `**DATABASE FACT:**\nNo budget limits configured yet.\n\n**MODEL RECOMMENDATION:**\nCreate budgets for your top expense categories (Groceries, Dining, Shopping) to track monthly caps.`;
     }
-    return `**DATABASE FACT:**\n${budgetDocs.map(d => `• ${d.text}`).join('\n')}\n\n**CALCULATED INSIGHT:**\nBudgets help monitor burn rate and trigger warnings when thresholds are approached.\n\n**MODEL RECOMMENDATION:**\nPrioritize essential categories and curb discretionary spending if near or exceeding 80% limit.\n\n**Sources:**\n${sources.map(s => `• ${s}`).join('\n')}`;
+    return `**DATABASE FACT:**\n${budgetDocs.map(d => `• ${d.text}`).join('\n')}\n\n**CALCULATED INSIGHT:**\nBudgets help monitor burn rate and trigger warnings when thresholds are approached.\n\n**MODEL RECOMMENDATION:**\nPrioritize essential categories and curb discretionary spending if near or exceeding 80% limit.${formatSourcesSection(budgetDocs.map(d => d.sourceTitle))}`;
   }
 
   // General grounded synthesis
-  return `**DATABASE FACT:**\n${knowledgeDocs.slice(0, 4).map(d => `• ${d.text}`).join('\n')}\n\n**CALCULATED INSIGHT:**\nFinancial telemetry retrieved across ${sources.length} authenticated sources for ${name}.\n\n**MODEL RECOMMENDATION:**\nTrack transactions regularly and consult the AI Advisor for scenario simulations and budget health.\n\n**Sources:**\n${sources.map(s => `• ${s}`).join('\n')}`;
+  if (knowledgeDocs.length === 0) {
+    return `**DATABASE FACT:**\nNo financial records were found for your account yet.\n\n**MODEL RECOMMENDATION:**\nAdd an account or log your first transaction so FinPro can ground advice in your real data.`;
+  }
+  return `**DATABASE FACT:**\n${knowledgeDocs.slice(0, 4).map(d => `• ${d.text}`).join('\n')}\n\n**CALCULATED INSIGHT:**\nFinancial telemetry retrieved across ${sources.length} authenticated sources for ${name}.\n\n**MODEL RECOMMENDATION:**\nTrack transactions regularly and consult the AI Advisor for scenario simulations and budget health.${formatSourcesSection(sources)}`;
 };
 
 /**
@@ -576,6 +630,11 @@ const runRAGPipeline = async (userId, userMessage, chatHistory = []) => {
   // Fallback to deterministic grounded financial engine if LLM fails or API key unavailable
   if (!responseText) {
     responseText = generateDeterministicGroundedResponse(userMessage, retrievalResult);
+  } else {
+    // Never trust model-generated citations: replace them with the exact
+    // sources retrieved for this user, or omit the section when none exist.
+    responseText = stripSourcesSection(responseText);
+    responseText += formatSourcesSection(retrievalResult.sources);
   }
 
   return {

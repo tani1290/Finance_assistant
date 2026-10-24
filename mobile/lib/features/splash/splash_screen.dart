@@ -52,7 +52,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 1400));
     if (!mounted) return;
 
-    final authState = ref.read(authProvider);
+    // Session restoration can still be in flight when the brand animation
+    // ends. Wait for it to settle rather than flashing the login screen for a
+    // user who is actually signed in.
+    var authState = ref.read(authProvider);
+    final deadline = DateTime.now().add(const Duration(seconds: 8));
+    while ((authState.status == AuthStatus.initial ||
+            authState.status == AuthStatus.loading) &&
+        DateTime.now().isBefore(deadline)) {
+      await Future.delayed(const Duration(milliseconds: 150));
+      if (!mounted) return;
+      authState = ref.read(authProvider);
+    }
+    if (!mounted) return;
+
     if (authState.isAuthenticated) {
       context.go('/dashboard');
     } else {

@@ -1,6 +1,15 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
 const { calculateEMI, simulatePrepayment } = require('../utils/financialMath');
+const { parseDateOnly, formatDateOnly, todayDateOnly } = require('../utils/dateOnly');
+
+const serializeLoan = (loan) => ({
+  ...loan,
+  startDate: formatDateOnly(loan.startDate),
+  formattedPrincipal: formatINR(loan.principalAmount),
+  formattedEMI: formatINR(loan.emiAmount),
+  formattedOutstanding: formatINR(loan.outstandingBalance),
+});
 
 /**
  * GET /api/v1/loans
@@ -31,7 +40,7 @@ const getLoans = async (req, res, next) => {
           formattedPrincipal: formatINR(l.principalAmount),
           interestRate: parseFloat(l.interestRate),
           tenureMonths: l.tenureMonths,
-          startDate: l.startDate,
+          startDate: formatDateOnly(l.startDate),
           emiAmount: parseFloat(l.emiAmount || 0),
           formattedEMI: formatINR(l.emiAmount || 0),
           outstandingBalance: parseFloat(l.outstandingBalance),
@@ -74,7 +83,7 @@ const createLoan = async (req, res, next) => {
         principalAmount: principal,
         interestRate: rate,
         tenureMonths: tenure,
-        startDate: startDate ? new Date(startDate) : new Date(),
+        startDate: startDate ? parseDateOnly(startDate, 'startDate') : parseDateOnly(todayDateOnly()),
         emiAmount: emi,
         outstandingBalance: principal,
         status: 'ACTIVE',
@@ -84,13 +93,14 @@ const createLoan = async (req, res, next) => {
     return res.status(201).json({
       success: true,
       data: {
-        ...loan,
-        formattedEMI: formatINR(emi),
-        formattedPrincipal: formatINR(principal),
+        ...serializeLoan(loan),
         message: `Loan added! Monthly EMI: ${formatINR(emi)}`,
       },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };
@@ -218,12 +228,7 @@ const getLoan = async (req, res, next) => {
     }
     return res.status(200).json({
       success: true,
-      data: {
-        ...loan,
-        formattedPrincipal: formatINR(loan.principalAmount),
-        formattedEMI: formatINR(loan.emiAmount),
-        formattedOutstanding: formatINR(loan.outstandingBalance),
-      },
+      data: serializeLoan(loan),
     });
   } catch (error) {
     next(error);
@@ -263,9 +268,7 @@ const updateLoan = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: {
-        ...updated,
-        formattedEMI: formatINR(updated.emiAmount),
-        formattedOutstanding: formatINR(updated.outstandingBalance),
+        ...serializeLoan(updated),
         message: 'Loan updated successfully.',
       },
     });

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
@@ -16,12 +17,12 @@ class SyncStatusScreen extends StatefulWidget {
 
 class _SyncStatusScreenState extends State<SyncStatusScreen> {
   bool _isSyncing = false;
-  String _serverStatus = 'Online (Connected)';
-  DateTime? _lastSyncTime = DateTime.now();
+  String _serverStatus = 'Checking…';
+  DateTime? _lastSyncTime;
   int _pendingSmsCount = 0;
   final _baseUrlController = TextEditingController(text: ApiEndpoints.baseUrl);
 
-  bool get _isOnline => _serverStatus.contains('Online');
+  bool get _isOnline => _serverStatus == 'Online (Connected)';
 
   @override
   void initState() {
@@ -38,19 +39,32 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
   Future<void> _checkSyncState() async {
     try {
       final res = await apiClient.get(ApiEndpoints.mobileSync);
+      if (!mounted) return;
       if (res.statusCode == 200 && res.data['success'] == true) {
         setState(() {
           _serverStatus = 'Online (Connected)';
-          _lastSyncTime = DateTime.now();
-          _pendingSmsCount =
-              res.data['data']['summary']['pendingSmsCount'] ?? 0;
+          _pendingSmsCount = _parsePendingCount(res.data);
         });
+      } else {
+        setState(() => _serverStatus = 'Offline / Unreachable');
       }
     } catch (_) {
+      if (!mounted) return;
       setState(() {
-        _serverStatus = 'Offline / Connecting';
+        _serverStatus = 'Offline / Unreachable';
       });
     }
+  }
+
+  int _parsePendingCount(dynamic responseData) {
+    if (responseData is! Map) return 0;
+    final data = responseData['data'];
+    if (data is! Map) return 0;
+    final summary = data['summary'];
+    if (summary is! Map) return 0;
+    final pending = summary['pendingSmsCount'];
+    if (pending is int) return pending;
+    return int.tryParse(pending?.toString() ?? '') ?? 0;
   }
 
   Future<void> _performManualSync() async {
@@ -61,20 +75,27 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
 
       // 2. Fetch fresh state
       final res = await apiClient.get(ApiEndpoints.mobileSync);
-      if (res.statusCode == 200) {
+      if (!mounted) return;
+      final syncOk = res.statusCode == 200 && res.data['success'] == true;
+      if (syncOk) {
         setState(() {
           _lastSyncTime = DateTime.now();
           _serverStatus = 'Online (Connected)';
-          _pendingSmsCount =
-              res.data['data']['summary']['pendingSmsCount'] ?? 0;
+          _pendingSmsCount = _parsePendingCount(res.data);
         });
+      } else {
+        setState(() => _serverStatus = 'Offline / Unreachable');
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sync completed ($smsCount new messages ingested)'),
-            backgroundColor: AppColors.primary,
+            content: Text(
+              syncOk
+                  ? 'Sync completed ($smsCount new messages ingested)'
+                  : 'Sync ran, but the server state could not be confirmed.',
+            ),
+            backgroundColor: syncOk ? AppColors.primary : AppColors.warning,
           ),
         );
       }
@@ -120,14 +141,18 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
                       ),
                       _StatusPill(
                         label: _serverStatus,
-                        color: _isOnline ? AppColors.primaryLight : AppColors.warning,
+                        color: _isOnline
+                            ? AppColors.primaryLight
+                            : AppColors.warning,
                       ),
                     ],
                   ),
                   _divider(isDark),
                   _InfoRow(
-                    label: 'Last Synchronized',
-                    value: DateFormatter.relative(_lastSyncTime),
+                    label: 'Last Successful Sync',
+                    value: _lastSyncTime == null
+                        ? 'Not synced yet'
+                        : DateFormatter.relative(_lastSyncTime),
                     isDark: isDark,
                   ),
                   _divider(isDark),
@@ -135,62 +160,82 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
                     label: 'Pending SMS for Review',
                     value: '$_pendingSmsCount items',
                     isDark: isDark,
-                    valueColor: _pendingSmsCount > 0
-                        ? AppColors.warning
-                        : null,
+                    valueColor: _pendingSmsCount > 0 ? AppColors.warning : null,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-            FinancialCard(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'API Host Configuration',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary(isDark),
+            // Runtime host overrides are a development-only tool. Release
+            // builds must not let a user (or injected UI) redirect authenticated
+            // traffic to an arbitrary host.
+            if (kDebugMode)
+              FinancialCard(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'API Host Configuration',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary(isDark),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Default for Android Emulator is 10.0.2.2:5001. If testing on a physical phone, enter your computer LAN IP (e.g. http://192.168.1.5:5001/api/v1):',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: AppColors.textSecondary(isDark),
-                      height: 1.4,
+                    const SizedBox(height: 6),
+                    Text(
+                      'Default for Android Emulator is 10.0.2.2:5001. If testing on a physical phone, enter your computer LAN IP (e.g. http://192.168.1.5:5001/api/v1):',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textSecondary(isDark),
+                        height: 1.4,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _baseUrlController,
-                    decoration: const InputDecoration(
-                      hintText: 'http://10.0.2.2:5001/api/v1',
-                      prefixIcon: Icon(Icons.link_rounded, size: 20),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _baseUrlController,
+                      decoration: const InputDecoration(
+                        hintText: 'http://10.0.2.2:5001/api/v1',
+                        prefixIcon: Icon(Icons.link_rounded, size: 20),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      ApiEndpoints.baseUrl = _baseUrlController.text.trim();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('API base URL updated!')),
-                      );
-                      _checkSyncState();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.surfaceSubtle(isDark),
-                      foregroundColor: AppColors.textPrimary(isDark),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        final value = _baseUrlController.text.trim();
+                        final uri = Uri.tryParse(value);
+                        final isValid =
+                            uri != null &&
+                            (uri.scheme == 'http' || uri.scheme == 'https') &&
+                            uri.host.isNotEmpty;
+                        if (!isValid) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Enter a valid http:// or https:// API URL.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        ApiEndpoints.baseUrl = value;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('API base URL updated!'),
+                          ),
+                        );
+                        _checkSyncState();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.surfaceSubtle(isDark),
+                        foregroundColor: AppColors.textPrimary(isDark),
+                      ),
+                      child: const Text('Update Host URL'),
                     ),
-                    child: const Text('Update Host URL'),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             const SizedBox(height: 28),
             GradientButton(
               text: 'Sync All Records Now',
@@ -204,8 +249,10 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
     );
   }
 
-  Widget _divider(bool isDark) =>
-      Divider(height: 24, color: AppColors.border(isDark).withValues(alpha: 0.6));
+  Widget _divider(bool isDark) => Divider(
+    height: 24,
+    color: AppColors.border(isDark).withValues(alpha: 0.6),
+  );
 }
 
 /// A compact pill showing a coloured status dot alongside a label.

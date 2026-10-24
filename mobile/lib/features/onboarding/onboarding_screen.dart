@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/api_error.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/gradient_button.dart';
 import '../../shared/widgets/pressable.dart';
@@ -15,9 +16,9 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final _salaryController = TextEditingController(text: '75000');
-  final _cityController = TextEditingController(text: 'Bengaluru');
-  final _ageController = TextEditingController(text: '26');
+  final _salaryController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _ageController = TextEditingController();
   String _riskTolerance = 'MODERATE';
   bool _isLoading = false;
 
@@ -30,30 +31,49 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _handleSubmit() async {
+    final salary = double.tryParse(_salaryController.text.trim());
+    final age = int.tryParse(_ageController.text.trim());
+    final city = _cityController.text.trim();
+
+    String? validationError;
+    if (salary == null || salary <= 0) {
+      validationError = 'Enter your monthly salary.';
+    } else if (age == null || age < 18 || age > 100) {
+      validationError = 'Enter a valid age between 18 and 100.';
+    } else if (city.isEmpty) {
+      validationError = 'Enter your city.';
+    }
+    if (validationError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(validationError)),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
-      final salary = double.tryParse(_salaryController.text) ?? 50000;
-      final age = int.tryParse(_ageController.text) ?? 25;
-      final city = _cityController.text.trim();
-
       await apiClient.post(
         ApiEndpoints.onboarding,
         data: {
           'monthlySalary': salary,
           'age': age,
-          'city': city.isEmpty ? 'Mumbai' : city,
+          'city': city,
           'riskTolerance': _riskTolerance,
         },
       );
 
-      if (mounted) {
-        context.go('/dashboard');
-      }
-    } catch (_) {
-      // Continue to dashboard even if profile already initialized
-      if (mounted) {
-        context.go('/dashboard');
-      }
+      if (!mounted) return;
+      context.go('/dashboard');
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            apiErrorMessage(error) ??
+                'Your profile could not be saved. Check your connection and try again.',
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

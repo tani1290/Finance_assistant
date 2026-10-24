@@ -1,7 +1,7 @@
 {
   "name": "finpro-backend",
   "version": "1.1.0",
-  "description": "FinPro — Personal Finance & Investment Decision Support Platform | Created by Students of VU (Node.js Backend)",
+  "description": "FinPro \u2014 Personal Finance & Investment Decision Support Platform | Created by Students of VU (Node.js Backend)",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
@@ -17,7 +17,12 @@
     "db:reconcile": "node scripts/deploy-migrate.js",
     "db:reconcile:strict": "node scripts/deploy-migrate.js --strict",
     "build": "node scripts/build.js",
-    "lint": "node scripts/lint.js && node scripts/scan-secrets.js"
+    "lint": "node scripts/lint.js && node scripts/scan-secrets.js",
+    "test:unit": "jest --runInBand",
+    "backup:db": "node scripts/backup-db.js",
+    "restore:db": "node scripts/restore-db.js",
+    "backup:verify": "node scripts/verify-backup-restore.js",
+    "backup:publish": "node scripts/publish-backup.js"
   },
   "keywords": [
     "finance",
@@ -48,6 +53,7 @@
     "morgan": "^1.10.0",
     "node-cron": "^3.0.3",
     "pdf-parse": "^2.4.5",
+    "redis": "^4.7.1",
     "socket.io": "^4.8.1",
     "tesseract.js": "^7.0.0",
     "uuid": "^11.0.5",
@@ -61,6 +67,9 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "setupFiles": [
+      "<rootDir>/jest.setup.js"
+    ],
     "testMatch": [
       "**/__tests__/**/*.js",
       "**/*.test.js"

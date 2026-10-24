@@ -1,4 +1,5 @@
 const prisma = require('../config/database');
+const { parseDateOnly, formatDateOnly, todayDateOnly } = require('../utils/dateOnly');
 
 /**
  * Financial Tasks & To-Do Controller (Phase 29)
@@ -34,13 +35,14 @@ const getTasks = async (req, res, next) => {
       total: tasks.length,
       pending: tasks.filter(t => !t.isCompleted).length,
       completed: tasks.filter(t => t.isCompleted).length,
-      overdue: tasks.filter(t => !t.isCompleted && new Date(t.dueDate) < new Date()).length,
+      overdue: tasks.filter(t => !t.isCompleted
+        && formatDateOnly(t.dueDate) < todayDateOnly()).length,
     };
 
     return res.status(200).json({
       success: true,
       data: {
-        tasks,
+        tasks: tasks.map(t => ({ ...t, dueDate: formatDateOnly(t.dueDate) })),
         summary,
       },
     });
@@ -63,7 +65,10 @@ const getTask = async (req, res, next) => {
       });
     }
 
-    return res.status(200).json({ success: true, data: task });
+    return res.status(200).json({
+      success: true,
+      data: { ...task, dueDate: formatDateOnly(task.dueDate) },
+    });
   } catch (error) {
     next(error);
   }
@@ -94,7 +99,7 @@ const createTask = async (req, res, next) => {
         userId,
         title: title.trim(),
         category: category.toUpperCase(),
-        dueDate: new Date(dueDate),
+        dueDate: parseDateOnly(dueDate, 'dueDate'),
         priority: ['HIGH', 'MEDIUM', 'LOW'].includes(priority.toUpperCase()) ? priority.toUpperCase() : 'MEDIUM',
         reminderTime: reminderTime ? new Date(reminderTime) : null,
         notes: notes ? notes.trim() : null,
@@ -103,9 +108,12 @@ const createTask = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      data: task,
+      data: { ...task, dueDate: formatDateOnly(task.dueDate) },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };
@@ -137,7 +145,7 @@ const updateTask = async (req, res, next) => {
     const data = {};
     if (title !== undefined) data.title = title.trim();
     if (category !== undefined) data.category = category.toUpperCase();
-    if (dueDate !== undefined) data.dueDate = new Date(dueDate);
+    if (dueDate !== undefined) data.dueDate = parseDateOnly(dueDate, 'dueDate');
     if (priority !== undefined) data.priority = priority.toUpperCase();
     if (reminderTime !== undefined) data.reminderTime = reminderTime ? new Date(reminderTime) : null;
     if (notes !== undefined) data.notes = notes ? notes.trim() : null;
@@ -154,9 +162,12 @@ const updateTask = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      data: updated,
+      data: { ...updated, dueDate: formatDateOnly(updated.dueDate) },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };

@@ -66,7 +66,18 @@ jobs:
         run: |
           npm test
 
-      - name: 8. Run Cloud Data Persistence Verification Suite
+      - name: 8. Run Unit, Security & Failure-Scenario Tests
+        env:
+          NODE_ENV: test
+          PORT: 5000
+          DATABASE_URL: postgresql://postgres:postgrespassword_ci_test@localhost:5432/finance_jinay_test?schema=public
+          JWT_SECRET: ci_test_jwt_secret_key_minimum_32_characters
+          JWT_REFRESH_SECRET: ci_test_refresh_secret_key_minimum_32_characters
+          STORAGE_PROVIDER: local
+        run: |
+          npm --prefix node-backend run test:unit
+
+      - name: 9. Run Cloud Data Persistence Verification Suite
         env:
           NODE_ENV: test
           PORT: 5000
@@ -77,12 +88,103 @@ jobs:
         run: |
           npm run test:cloud
 
-      - name: 9. Production Build Verification
+      - name: 10. Production Build Verification
         env:
           DATABASE_URL: postgresql://postgres:postgrespassword_ci_test@localhost:5432/finance_jinay_test?schema=public
         run: |
           npm run build
 
-      - name: 10. Verify Production Docker Container Build
+      - name: 11. Verify Production Docker Container Build
         run: |
           docker build -t finpro:latest .
+
+  mobile-tests:
+    name: Flutter Client (analyze + widget tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 1. Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Flutter (pinned)
+        # Pinned to the version the repository is developed and verified with
+        # (Dart SDK ^3.10.7). An unpinned "stable" would silently change the
+        # toolchain and can turn a green build red without a code change.
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.7'
+          channel: stable
+          cache: true
+
+      - name: 3. Resolve dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: 4. Static analysis
+        working-directory: mobile
+        run: flutter analyze --no-pub
+
+      - name: 5. Widget & contract tests
+        working-directory: mobile
+        run: flutter test --no-pub
+
+  backup-recovery-drill:
+    name: Backup & Recovery Drill (encrypted round trip)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword_ci_test
+          POSTGRES_DB: finance_jinay_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: 1. Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: 3. Install PostgreSQL 17 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates gnupg
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --batch --yes --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
+          pg_restore --version
+
+      - name: 4. Install Dependencies
+        run: |
+          npm --prefix node-backend install
+
+      - name: 5. Local backup/restore drill (plaintext + encrypted + wrong key)
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgrespassword_ci_test
+          BACKUP_ALLOW_NON_LOCAL: 'false'
+        run: |
+          npm --prefix node-backend run backup:verify

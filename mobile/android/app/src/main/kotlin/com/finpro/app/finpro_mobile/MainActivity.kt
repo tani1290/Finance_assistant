@@ -48,7 +48,7 @@ class MainActivity : FlutterActivity() {
                 }
                 "isSmsDetectionEnabled" -> {
                     val prefs = getSharedPreferences(FinProSmsReceiver.PREFS_NAME, Context.MODE_PRIVATE)
-                    result.success(prefs.getBoolean(FinProSmsReceiver.ENABLED_KEY, true))
+                    result.success(prefs.getBoolean(FinProSmsReceiver.ENABLED_KEY, false))
                 }
                 "setSmsDetectionEnabled" -> {
                     val enabled = call.argument<Boolean>("enabled") ?: true

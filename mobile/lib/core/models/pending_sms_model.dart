@@ -1,3 +1,5 @@
+import 'model_parse.dart';
+
 class PendingSmsModel {
   final String id;
   final double amount;
@@ -43,40 +45,36 @@ class PendingSmsModel {
   bool get isPending => status == 'PENDING';
 
   factory PendingSmsModel.fromJson(Map<String, dynamic> json) {
-    DateTime txDate;
-    try {
-      txDate = json['transactionDate'] != null
-          ? DateTime.parse(json['transactionDate'].toString())
-          : DateTime.now();
-    } catch (_) {
-      txDate = DateTime.now();
-    }
+    const model = 'PendingSmsModel';
 
     String? accName;
     if (json['matchedAccount'] != null && json['matchedAccount'] is Map) {
-      accName = json['matchedAccount']['name'];
+      final name = json['matchedAccount']['name'];
+      if (name is String && name.isNotEmpty) accName = name;
     }
 
     return PendingSmsModel(
-      id: json['id'] ?? '',
-      amount: (json['amount'] != null)
-          ? double.tryParse(json['amount'].toString()) ?? 0.0
-          : 0.0,
+      id: parseRequiredString(json, 'id', model: model),
+      amount: parseRequiredDouble(json, 'amount', model: model),
       currency: json['currency'] ?? 'INR',
-      transactionType: json['transactionType'] ?? 'EXPENSE',
+      transactionType: parseRequiredString(
+        json,
+        'transactionType',
+        model: model,
+      ),
       merchant: json['merchant'],
       accountHint: json['accountHint'],
       matchedAccountId: json['matchedAccountId'],
       matchedAccountName: accName,
       suggestedCategory: json['suggestedCategory'] ?? 'General',
-      confidence: (json['confidence'] != null)
-          ? double.tryParse(json['confidence'].toString())
+      confidence: json['confidence'] != null
+          ? parseRequiredDouble(json, 'confidence', model: model)
           : null,
       categoryReason: json['categoryReason'],
       status: json['status'] ?? 'PENDING',
       rawSender: json['rawSender'],
       bankReference: json['bankReference'],
-      transactionDate: txDate,
+      transactionDate: parseRequiredDate(json, 'transactionDate', model: model),
       isDuplicate: json['isDuplicate'] ?? false,
       duplicateReason: json['duplicateReason'],
       confirmedTransactionId: json['confirmedTransactionId'],

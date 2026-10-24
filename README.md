@@ -172,7 +172,13 @@ FinPro contains a comprehensive suite of automated backend acceptance tests, SMS
 ```bash
 npm test
 ```
-*Runs 171 backend assertion checks across the two `npm test` suites: `run-all-tests.js` (135 checks covering authentication, core finance, AI, loans, cards, tasks, news, and multi-tenant isolation) and `test-sms-mobile-suite.js` (36 checks covering Android SMS candidate parsing, deduplication, and atomic ledger confirmation). Across all four configured suites the repository verifies **217 assertion checks** (`npm test` 135 + 36, `npm run test:cloud` 29, `npm run test:failure` 17) with 0 failures.*
+*Runs 207 backend assertion checks across the two `npm test` suites: `run-all-tests.js` (166 checks covering authentication, core finance, AI, loans, cards, tasks, news, and multi-tenant isolation) and `test-sms-mobile-suite.js` (41 checks covering Android SMS candidate parsing, deduplication, and atomic ledger confirmation). Across all four custom suites the repository verifies **253 assertion checks** (`npm test` 166 + 41, `npm run test:cloud` 29, `npm run test:failure` 17) with 0 failures.*
+
+### Run Unit, Security & Failure-Scenario Tests
+```bash
+npm run test:unit
+```
+*Runs **493 Jest tests in 32 suites** covering cache fallback, upstream timeouts/retries, metrics, health semantics, upload validation, rate-limit fallback, backup safety/encryption/publishing validation, push-queue retries/shutdown, calendar-date correctness, transfer-ledger integrity and idempotency, pagination bounds, AI confirmation bypass/replay, RAG sourcing, and the existing API/market/analytics/AI contracts. These run in CI alongside the custom suites and a PostgreSQL-backed backup recovery drill.*
 
 ### Run Mobile Flutter Tests & Static Analysis
 ```bash
@@ -180,7 +186,7 @@ cd mobile
 flutter test
 flutter analyze
 ```
-*Executes unit and widget tests covering on-device SMS parsing, INR formatting, date relative stamps, model serialization, and static lint analysis with 0 warnings.*
+*Executes 197 unit and widget tests covering on-device SMS parsing, INR formatting, date relative stamps, model serialization, API error mapping, every P1 screen (dashboard, accounts, transactions, budgets, goals, loans, investments, analytics, profile, notifications, AI advisor, calendar, insurance & subscriptions), transfer destination selection and retry-key reuse, plus static lint analysis with 0 issues.*
 
 ### Run Cloud Verification & Resiliency Suites
 ```bash
@@ -189,19 +195,33 @@ npm run test:failure
 ```
 *`test:cloud` verifies end-to-end data persistence across sessions (29 checks). `test:failure` verifies graceful degradation against database outages, storage failures, and path-traversal attempts (17 checks).*
 
+### Verify Backup & Restore
+```bash
+npm run backup:verify
+```
+*Creates throwaway **local** databases and runs real `pg_dump`/`pg_restore` round trips for plaintext and AES-256-GCM encrypted archives. It verifies the seeded row, asserts that a restore over a non-empty database is refused, and rejects a wrong encryption key without writing. It is not a production backup; scheduling, off-host publishing and the proposed 24-hour RPO / 4-hour RTO targets are documented in [docs/BACKUP_DR.md](docs/BACKUP_DR.md).*
+
 ---
 
 ## 8. Service Diagnostic Endpoints
 
-The backend exposes authenticated and unauthenticated diagnostic endpoints:
+Health endpoints are public and contain no credentials or user data:
 
 | Endpoint | Purpose | Expected Status |
 | :--- | :--- | :--- |
-| `GET /api/v1/health` | System & DB connectivity | `status: 'ok', database: 'connected'` |
-| `GET /api/v1/health/database` | Database query latency | `status: 'connected', latencyMs: <10` |
-| `GET /api/v1/health/market` | Market feed provider status | `provider: 'Finnhub', status: 'live'` |
-| `GET /api/v1/health/ai` | Gemini AI engine status | `provider: 'Google Gemini', status: 'configured'` |
-| `GET /api/v1/health/news` | Marketaux news service status | `provider: 'Marketaux', status: 'healthy'` |
+| `GET /api/v1/health/live` | Process liveness; touches no dependency. **Use this for Render.** | `200` while the process answers |
+| `GET /api/v1/health/dependencies` | Database required; cache/storage reported as optional | `200` if the database is healthy, else `503` |
+| `GET /api/v1/health/ready` | Strict database **and** storage readiness | `200` only when both are healthy |
+| `GET /api/v1/health` | Legacy full status, including storage durability | `200` only when database and storage are healthy |
+| `GET /api/v1/health/database` | Database query latency | `200` / `503` |
+| `GET /api/v1/health/storage` | Storage provider availability | `200` / `503` |
+| `GET /metrics` | Prometheus/OpenMetrics scrape | `200` with a valid `METRICS_TOKEN`; `404` in production without one |
+| `GET /api/v1/health/market` | Market feed provider status | Provider-dependent |
+| `GET /api/v1/health/ai` | Gemini AI engine status | Provider-dependent |
+| `GET /api/v1/health/news` | News provider status | Provider-dependent |
+
+Operational details — cache degradation, push-queue limits, metrics, and scaling
+rules — are in [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ---
 
@@ -223,4 +243,4 @@ The backend exposes authenticated and unauthenticated diagnostic endpoints:
 - **Academic Year:** 2025–2026
 
 For contributing guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).  
-For the full documentation set, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/API.md](docs/API.md), [docs/DATABASE.md](docs/DATABASE.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/MOBILE.md](docs/MOBILE.md), [docs/TESTING.md](docs/TESTING.md), and [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
+For the full documentation set, start at [docs/README.md](docs/README.md). The core references are [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/API.md](docs/API.md), [docs/DATABASE.md](docs/DATABASE.md), [docs/AI.md](docs/AI.md), [docs/PARITY.md](docs/PARITY.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/BACKUP_DR.md](docs/BACKUP_DR.md), [docs/CLOUD_AUDIT.md](docs/CLOUD_AUDIT.md), [docs/MOBILE.md](docs/MOBILE.md), [docs/TESTING.md](docs/TESTING.md), and [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).

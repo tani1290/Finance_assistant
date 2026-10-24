@@ -422,6 +422,47 @@ const getMetals = async (req, res, next) => {
 };
 
 /**
+ * GET /api/v1/market/metals/status
+ *
+ * Integration health for the precious-metals feed. Returns configuration
+ * booleans and cache freshness only — never a credential value.
+ */
+const getMetalsStatus = async (req, res, next) => {
+  try {
+    return res.status(200).json({ success: true, data: marketService.getMetalsStatus() });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/v1/market/metals/pune
+ *
+ * Pune retail bullion estimates derived from the live spot feed using
+ * transparent statutory loadings. `is_live_provider_quote: false` is part of
+ * the contract: this is an indicative parity calculation, not a shop quote.
+ * Returns 503 when no spot rate is available rather than inventing one.
+ */
+const getPuneRetailMetals = async (req, res, next) => {
+  try {
+    const metals = await marketService.getPreciousMetals();
+    const puneMarket = metals.puneMarket || metals.pune_market || null;
+    if (!puneMarket) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'UNAVAILABLE',
+          message: 'Pune retail estimate unavailable because no live or cached spot rate exists.',
+        },
+      });
+    }
+    return res.status(200).json({ success: true, data: puneMarket });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * GET /api/v1/market/gold
  */
 const getGold = async (req, res, next) => {
@@ -441,6 +482,7 @@ const getGold = async (req, res, next) => {
         provider_timestamp: metals.provider_timestamp,
         fetched_at: metals.fetched_at,
         usdToInr: metals.usdToInr,
+        puneMarket: metals.puneMarket || null,
       },
     });
   } catch (error) {
@@ -468,6 +510,7 @@ const getSilver = async (req, res, next) => {
         provider_timestamp: metals.provider_timestamp,
         fetched_at: metals.fetched_at,
         usdToInr: metals.usdToInr,
+        puneMarket: metals.puneMarket || null,
       },
     });
   } catch (error) {
@@ -706,6 +749,8 @@ module.exports = {
   addToWatchlist,
   removeFromWatchlist,
   getMetals,
+  getMetalsStatus,
+  getPuneRetailMetals,
   getGold,
   getSilver,
   getMarketNews,

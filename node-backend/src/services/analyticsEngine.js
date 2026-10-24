@@ -14,13 +14,18 @@
  *    way the dashboard/analytics/budget controllers already classify rows;
  *  - INCOME  -> income totals only;
  *  - EXPENSE -> expense totals only;
+ *  - REFUND / REVERSAL are explicit simulator rows: they credit the account
+ *    and are SUBTRACTED from expenses (they are adjustments, not income).
+ *    Legacy INCOME rows whose narration looks like a refund stay inside
+ *    income, exactly as before, so historical figures do not move;
  *  - TRANSFER / INVESTMENT / LOAN_PAYMENT are internal or capital movements and
  *    are therefore excluded from both income and expenses (they are reported
  *    separately so nothing is silently dropped);
- *  - a "refund" is an INCOME row whose narration looks like a refund/cashback/
- *    reversal. Refunds are counted inside income (consistent with the existing
- *    dashboards) and reported separately; they are NEVER subtracted from
- *    expenses, so nothing is double-counted.
+ *  - a "refund" is an explicit REFUND/REVERSAL row, or an INCOME row whose
+ *    narration looks like a refund/cashback/reversal. The latter is counted
+ *    inside income (consistent with the existing dashboards) and reported
+ *    separately; it is NEVER subtracted from expenses, so nothing is
+ *    double-counted.
  *
  * All monetary values returned are plain numbers rounded to 2 decimals.
  */
@@ -28,6 +33,17 @@
 'use strict';
 
 const EXCLUDED_TYPES = Object.freeze(['TRANSFER', 'INVESTMENT', 'LOAN_PAYMENT']);
+const SPENDING_TYPES = Object.freeze(['EXPENSE', 'REFUND', 'REVERSAL']);
+
+/**
+ * A REFUND/REVERSAL row is a negative spending adjustment. Everything else
+ * that reaches the spending projection is a positive EXPENSE.
+ */
+const signedSpendingAmount = (tx) => {
+  const type = String((tx && tx.transactionType) || '').toUpperCase();
+  const amount = Math.abs(toNumber(tx && tx.amount));
+  return type === 'REFUND' || type === 'REVERSAL' ? -amount : amount;
+};
 
 // Refund / cashback narration heuristics (case-insensitive, word-bounded).
 const REFUND_PATTERN = /\b(refund|refunded|cashback|reversal|reversed|reverted|chargeback|money\s*back)\b/i;
@@ -244,6 +260,15 @@ const summarize = (transactions = []) => {
       return;
     }
 
+    if (type === 'REFUND' || type === 'REVERSAL') {
+      // Explicit simulator adjustment: reduce net spending, never income.
+      expenses = round2(expenses - amount);
+      refunds = round2(refunds + amount);
+      expenseCount += 1;
+      addTo(expensesByCategory, category, -amount);
+      return;
+    }
+
     // TRANSFER / INVESTMENT / LOAN_PAYMENT — excluded from income & expenses.
     const bucket = type === 'TRANSFER' ? 'transfers' : type === 'INVESTMENT' ? 'investments' : 'loanPayments';
     excluded[bucket].count += 1;
@@ -363,23 +388,24 @@ const forecast = ({ transactions = [], year, month, now = new Date() } = {}) => 
   // DATE-at-UTC-midnight rows Prisma returns.
   const asOfEnd = isCurrentMonth ? new Date(Date.UTC(y, m - 1, now.getDate(), 23, 59, 59, 999)) : end;
 
-  // Only EXPENSE rows; scoped to the month and (for the current month) to days
-  // that have already elapsed.
+  // Spending rows only (expenses plus explicit refund/reversal adjustments);
+  // scoped to the month and (for the current month) to days that have already
+  // elapsed.
   const monthExpenses = (Array.isArray(transactions) ? transactions : []).filter((tx) => {
-    if (!tx || tx.transactionType !== 'EXPENSE') return false;
+    if (!tx || !SPENDING_TYPES.includes(String(tx.transactionType || '').toUpperCase())) return false;
     const d = tx.date instanceof Date ? tx.date : new Date(tx.date);
     if (Number.isNaN(d.getTime())) return false;
     return d >= start && d <= asOfEnd;
   });
 
   const { kept, removed } = dedupeExact(monthExpenses);
-  const spentSoFar = round2(kept.reduce((sum, tx) => sum + Math.abs(toNumber(tx.amount)), 0));
+  const spentSoFar = round2(kept.reduce((sum, tx) => sum + signedSpendingAmount(tx), 0));
   const insufficientData = kept.length === 0;
   const averageDailySpend = elapsedDays > 0 ? round2(spentSoFar / elapsedDays) : 0;
   const projectedExpense = insufficientData ? 0 : round2(averageDailySpend * totalDays);
 
   const categoryMap = new Map();
-  kept.forEach((tx) => addTo(categoryMap, categoryLabelOf(tx), Math.abs(toNumber(tx.amount))));
+  kept.forEach((tx) => addTo(categoryMap, categoryLabelOf(tx), signedSpendingAmount(tx)));
   const categories = Array.from(categoryMap.entries())
     .map(([category, amount]) => ({
       category,
@@ -443,10 +469,10 @@ const evaluateBudgets = ({
   const list = Array.isArray(budgets) ? budgets : [];
 
   const txExpenses = (Array.isArray(transactions) ? transactions : []).filter(
-    (tx) => tx && tx.transactionType === 'EXPENSE'
+    (tx) => tx && SPENDING_TYPES.includes(String(tx.transactionType || '').toUpperCase())
   );
   const prevExpenses = (Array.isArray(previousTransactions) ? previousTransactions : []).filter(
-    (tx) => tx && tx.transactionType === 'EXPENSE'
+    (tx) => tx && SPENDING_TYPES.includes(String(tx.transactionType || '').toUpperCase())
   );
 
   const isCurrentMonth = now.getFullYear() === year && now.getMonth() + 1 === month;
@@ -455,11 +481,26 @@ const evaluateBudgets = ({
 
   const enriched = list.map((budget) => {
     const limit = round2(toNumber(budget.monthlyLimit));
+    // Signed sum: an EXPENSE adds, a REFUND/REVERSAL subtracts. Budget spend
+    // is never shown as negative — a period whose refunds exceed its expenses
+    // is simply 0% used, not a negative percentage.
     const spent = round2(
-      txExpenses.reduce((sum, tx) => (budgetMatchesTransaction(budget, tx) ? sum + Math.abs(toNumber(tx.amount)) : sum), 0)
+      Math.max(
+        0,
+        txExpenses.reduce(
+          (sum, tx) => (budgetMatchesTransaction(budget, tx) ? sum + signedSpendingAmount(tx) : sum),
+          0
+        )
+      )
     );
     const previousSpent = round2(
-      prevExpenses.reduce((sum, tx) => (budgetMatchesTransaction(budget, tx) ? sum + Math.abs(toNumber(tx.amount)) : sum), 0)
+      Math.max(
+        0,
+        prevExpenses.reduce(
+          (sum, tx) => (budgetMatchesTransaction(budget, tx) ? sum + signedSpendingAmount(tx) : sum),
+          0
+        )
+      )
     );
 
     const percentageUsed = limit > 0 ? Math.round((spent / limit) * 100) : 0;
@@ -639,8 +680,28 @@ const generateInsights = ({ current, previous, budgets, forecast: forecastResult
   return insights.sort((a, b) => (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) || a.type.localeCompare(b.type));
 };
 
+/**
+ * Signed total for rows that carry `transactionType` and either a plain
+ * `amount` or a Prisma `_sum.amount`. REFUND/REVERSAL rows subtract, which is
+ * what makes net spending fall after a simulated refund. Used by the controllers
+ * that aggregate in the database rather than through `forecast`/`summarize`.
+ */
+const signedTotal = (rows) =>
+  round2(
+    (Array.isArray(rows) ? rows : []).reduce((sum, row) => {
+      if (!row) return sum;
+      const type = String(row.transactionType || '').toUpperCase();
+      const raw = row.amount !== undefined ? row.amount : row._sum && row._sum.amount;
+      const amount = Math.abs(toNumber(raw));
+      return sum + (type === 'REFUND' || type === 'REVERSAL' ? -amount : amount);
+    }, 0)
+  );
+
 module.exports = {
   EXCLUDED_TYPES,
+  SPENDING_TYPES,
+  signedSpendingAmount,
+  signedTotal,
   FORECAST_METHOD,
   UNCATEGORIZED,
   toNumber,

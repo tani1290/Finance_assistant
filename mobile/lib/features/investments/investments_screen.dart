@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/api_error.dart';
 import '../../core/models/investment_model.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
+import '../../shared/widgets/error_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../../shared/widgets/summary_hero_card.dart';
+import 'buy_investment_sheet.dart';
 
 class InvestmentsScreen extends StatefulWidget {
   const InvestmentsScreen({super.key});
@@ -23,6 +26,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   double _totalInvested = 0.0;
   double _returnsPercent = 0.0;
   List<InvestmentModel> _holdings = [];
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -31,73 +35,129 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   }
 
   Future<void> _fetchPortfolio() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final res = await apiClient.get(ApiEndpoints.portfolio);
       if (res.statusCode == 200 && res.data['success'] == true) {
         final data = res.data['data'];
-        _totalPortfolioValue =
-            double.tryParse(data['totalValue']?.toString() ?? '0') ?? 0.0;
-        _totalInvested =
-            double.tryParse(data['totalInvested']?.toString() ?? '0') ?? 0.0;
-        _returnsPercent =
-            double.tryParse(data['returnsPercent']?.toString() ?? '0') ?? 0.0;
-
-        if (data['investments'] is List) {
-          _holdings = (data['investments'] as List)
-              .map((json) => InvestmentModel.fromJson(json))
-              .toList();
+        if (data is! Map) {
+          throw const FormatException('Portfolio response missing data');
         }
+        // The endpoint returns `holdings`; accept the older `investments` key too.
+        final rawHoldings = data['holdings'] ?? data['investments'];
+        if (rawHoldings is! List) {
+          throw const FormatException('Portfolio response missing holdings');
+        }
+
+        final holdings = rawHoldings
+            .whereType<Map>()
+            .map(
+              (json) =>
+                  InvestmentModel.fromJson(Map<String, dynamic>.from(json)),
+            )
+            .toList();
+
+        // Prefer the server's authoritative totals; derive them from the
+        // holdings only when the payload omits them.
+        final totalValue =
+            _parseAmount(data['currentValue']) ??
+            holdings.fold<double>(0, (sum, h) => sum + h.currentValue);
+        final totalInvested =
+            _parseAmount(data['totalInvested']) ??
+            holdings.fold<double>(0, (sum, h) => sum + h.investedValue);
+        final returnsPercent =
+            _parseAmount(data['totalPnlPercent']) ??
+            (totalInvested > 0
+                ? ((totalValue - totalInvested) / totalInvested) * 100
+                : 0.0);
+
+        if (!mounted) return;
+        setState(() {
+          _totalPortfolioValue = totalValue;
+          _totalInvested = totalInvested;
+          _returnsPercent = returnsPercent;
+          _holdings = holdings;
+          _isLoading = false;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'The server returned an unexpected response.';
+          _isLoading = false;
+        });
       }
-    } catch (_) {}
-
-    // Fallback sample holdings if new user
-    if (_holdings.isEmpty && _totalPortfolioValue == 0) {
-      _totalInvested = 250000;
-      _totalPortfolioValue = 282400;
-      _returnsPercent = 12.96;
-      _holdings = [
-        InvestmentModel(
-          id: '1',
-          symbol: 'NIFTYBEES',
-          name: 'Nippon India ETF Nifty BeES',
-          assetType: 'MUTUAL_FUND',
-          quantity: 500,
-          buyPrice: 240,
-          currentPrice: 272,
-          investedValue: 120000,
-          currentValue: 136000,
-          returnsPercent: 13.33,
-        ),
-        InvestmentModel(
-          id: '2',
-          symbol: 'GOLD24K',
-          name: 'Sovereign / Digital Gold 24K',
-          assetType: 'GOLD',
-          quantity: 12,
-          buyPrice: 6500,
-          currentPrice: 7200,
-          investedValue: 78000,
-          currentValue: 86400,
-          returnsPercent: 10.77,
-        ),
-        InvestmentModel(
-          id: '3',
-          symbol: 'TCS',
-          name: 'Tata Consultancy Services Ltd',
-          assetType: 'STOCK',
-          quantity: 15,
-          buyPrice: 3466,
-          currentPrice: 4000,
-          investedValue: 52000,
-          currentValue: 60000,
-          returnsPercent: 15.38,
-        ),
-      ];
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage =
+            'Your portfolio could not be loaded. Check your connection and try again.';
+        _isLoading = false;
+      });
     }
+  }
 
-    if (mounted) {
-      setState(() => _isLoading = false);
+  Future<void> _openBuyInvestment() async {
+    await BuyInvestmentSheet.show(
+      context,
+      onCreated: (message) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+        _fetchPortfolio();
+      },
+    );
+  }
+
+  /// Removing a holding is irreversible, so it always asks for explicit
+  /// confirmation before calling `DELETE /investments/:id`.
+  Future<void> _deleteHolding(InvestmentModel holding) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove holding?'),
+        content: Text(
+          'Remove ${holding.symbol} from your portfolio? '
+          'This deletes the entire holding, not just part of it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final res = await apiClient.delete(ApiEndpoints.investment(holding.id));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            serverMessage(res.data) ?? '${holding.symbol} was removed.',
+          ),
+        ),
+      );
+      _fetchPortfolio();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            apiErrorMessage(error) ??
+                'Holding could not be removed. Check your connection.',
+          ),
+        ),
+      );
     }
   }
 
@@ -116,8 +176,15 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openBuyInvestment,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Buy'),
+      ),
       body: _isLoading
           ? _buildSkeleton()
+          : _errorMessage != null
+          ? ErrorStateView(message: _errorMessage!, onRetry: _fetchPortfolio)
           : RefreshIndicator(
               onRefresh: _fetchPortfolio,
               child: SingleChildScrollView(
@@ -164,7 +231,11 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                       ..._holdings.map(
                         (h) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: _HoldingTile(holding: h, isDark: isDark),
+                          child: _HoldingTile(
+                            holding: h,
+                            isDark: isDark,
+                            onDelete: () => _deleteHolding(h),
+                          ),
                         ),
                       ),
                   ],
@@ -178,7 +249,11 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
-        const SkeletonLoader(width: double.infinity, height: 186, borderRadius: 18),
+        const SkeletonLoader(
+          width: double.infinity,
+          height: 186,
+          borderRadius: 18,
+        ),
         const SizedBox(height: 24),
         const SkeletonLoader(width: 190, height: 18),
         const SizedBox(height: 14),
@@ -210,11 +285,28 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   }
 }
 
+double? _parseAmount(Object? value) {
+  if (value is num) {
+    final parsed = value.toDouble();
+    return parsed.isFinite ? parsed : null;
+  }
+  if (value is String) {
+    final parsed = double.tryParse(value.trim());
+    return parsed != null && parsed.isFinite ? parsed : null;
+  }
+  return null;
+}
+
 class _HoldingTile extends StatelessWidget {
   final InvestmentModel holding;
   final bool isDark;
+  final VoidCallback onDelete;
 
-  const _HoldingTile({required this.holding, required this.isDark});
+  const _HoldingTile({
+    required this.holding,
+    required this.isDark,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -284,6 +376,19 @@ class _HoldingTile extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: isGain ? AppColors.income : AppColors.expense,
                 ),
+              ),
+            ],
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Holding options',
+            padding: EdgeInsets.zero,
+            onSelected: (value) {
+              if (value == 'delete') onDelete();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem<String>(
+                value: 'delete',
+                child: Text('Remove holding'),
               ),
             ],
           ),

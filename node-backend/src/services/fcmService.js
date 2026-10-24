@@ -126,10 +126,23 @@ const sendToMultiple = async (fcmTokens, notification, data = {}) => {
     };
 
     const response = await admin.messaging().sendEachForMulticast(message);
+    // Expose per-token failures (never log tokens) so the retry queue can retry
+    // only the failed devices and drop permanently invalid registrations.
+    const failures = [];
+    response.responses.forEach((result, index) => {
+      if (!result.success) {
+        failures.push({
+          token: fcmTokens[index],
+          code: result.error?.code || 'FCM_ERROR',
+          message: result.error?.message || '',
+        });
+      }
+    });
     return {
       success: true,
       successCount: response.successCount,
       failureCount: response.failureCount,
+      failures,
     };
   } catch (err) {
     console.error('[FCM] sendToMultiple error:', err.message);

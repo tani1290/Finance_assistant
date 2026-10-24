@@ -76,13 +76,14 @@
                 <th>Description</th>
                 <th>Category</th>
                 <th>Account</th>
+                <th>To Account</th>
                 <th>Type</th>
                 <th>Amount</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody id="txTableBody">
-              <tr><td colspan="7" style="text-align:center;padding:40px;color:#6b7280">Loading transactions...</td></tr>
+              <tr><td colspan="8" style="text-align:center;padding:40px;color:#6b7280">Loading transactions...</td></tr>
             </tbody>
           </table>
         </div>
@@ -121,8 +122,12 @@
         <input type="text" id="txCategory" class="form-input" placeholder="e.g. Food, Transport, Salary">
       </div>
       <div class="form-group">
-        <label class="form-label">Account</label>
+        <label class="form-label" id="txAccountLabel">Account</label>
         <select id="txAccount" class="form-select"><option value="">No specific account</option></select>
+      </div>
+      <div class="form-group" id="toAccountGroup" style="display:none;">
+        <label class="form-label">To Account *</label>
+        <select id="txToAccount" class="form-select"><option value="">Select destination account</option></select>
       </div>
       <div class="form-group">
         <label class="form-label">Description</label>
@@ -193,6 +198,15 @@
     if (!token) window.location.href = '/login.html';
 
     const fmt = (v) => new Intl.NumberFormat('en-IN', { style:'currency', currency:'INR', maximumFractionDigits:0 }).format(v || 0);
+    // This page is a classic script (no modules), so it cannot import the
+    // shared helper from api.js. Escape every user-controlled value before it
+    // reaches innerHTML; ledger text is attacker-controlled input.
+    const escapeHtml = (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
     const apiFetch = async (url, opts={}) => {
       const r = await fetch(`${API_BASE}${url}`, { headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(opts.headers||{})}, ...opts });
       if (r.status === 401) { localStorage.clear(); window.location.href='/login.html?session_expired=1'; return null; }
@@ -205,6 +219,15 @@
 
     let page = 1, totalPages = 1;
     let accounts = [];
+
+    // Identifies the transfer currently being submitted. It is created on the
+    // first transfer submit and retained until a confirmed success, so a
+    // dropped response or a repeated click retries the SAME transfer instead
+    // of moving money twice. A new transfer gets a new key.
+    let transferKey = null;
+    const newTransferKey = () => (window.crypto && window.crypto.randomUUID)
+      ? window.crypto.randomUUID()
+      : `tx-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 
     // Load summary
     const loadSummary = async () => {
@@ -238,7 +261,7 @@
 
       const data = await apiFetch(`/transactions?${params}`);
       if (!data?.success) {
-        document.getElementById('txTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#ef4444">Failed to load transactions. Is the server running?</td></tr>';
+        document.getElementById('txTableBody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#ef4444">Failed to load transactions. Is the server running?</td></tr>';
         return;
       }
 
@@ -252,34 +275,63 @@
       document.getElementById('nextPage').disabled = page >= totalPages;
 
       if (!txs.length) {
-        document.getElementById('txTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#6b7280"><i class="ri-exchange-line" style="font-size:32px;display:block;margin-bottom:8px"></i>No transactions yet. Click "Add Transaction" to get started.</td></tr>';
+        document.getElementById('txTableBody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#6b7280"><i class="ri-exchange-line" style="font-size:32px;display:block;margin-bottom:8px"></i>No transactions yet. Click "Add Transaction" to get started.</td></tr>';
         return;
       }
 
-      document.getElementById('txTableBody').innerHTML = txs.map(t => `
+      document.getElementById('txTableBody').innerHTML = txs.map(t => {
+        const isTransfer = t.type === 'TRANSFER';
+        const amountColor = isTransfer ? '#94a3b8' : (t.type === 'INCOME' ? '#10b981' : '#ef4444');
+        const amountSign = isTransfer ? '' : (t.type === 'INCOME' ? '+' : '-');
+        return `
         <tr>
           <td>${new Date(t.date).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'})}</td>
-          <td><div style="font-weight:500">${t.description || t.merchant || '—'}</div>${t.merchant && t.description ? `<div style="font-size:11px;color:#6b7280">${t.merchant}</div>` : ''}</td>
-          <td><span class="badge badge-blue">${t.category}</span></td>
-          <td style="color:#6b7280;font-size:12px">${t.account || '—'}</td>
-          <td><span class="badge ${t.type==='INCOME'?'badge-green':t.type==='TRANSFER'?'badge-blue':'badge-red'}">${t.type}</span></td>
-          <td style="font-weight:600;color:${t.type==='INCOME'?'#10b981':'#ef4444'}">${t.type==='INCOME'?'+':'-'}${fmt(t.amount)}</td>
+          <td><div style="font-weight:500">${escapeHtml(t.description || t.merchant || '—')}</div>${t.merchant && t.description ? `<div style="font-size:11px;color:#6b7280">${escapeHtml(t.merchant)}</div>` : ''}</td>
+          <td><span class="badge badge-blue">${escapeHtml(t.category)}</span></td>
+          <td style="color:#6b7280;font-size:12px">${escapeHtml(t.account || '—')}</td>
+          <td style="color:#6b7280;font-size:12px">${isTransfer ? escapeHtml(t.toAccount || '—') : '—'}</td>
+          <td><span class="badge ${t.type==='INCOME'?'badge-green':t.type==='TRANSFER'?'badge-blue':'badge-red'}">${escapeHtml(t.type)}</span></td>
+          <td style="font-weight:600;color:${amountColor}">${amountSign}${fmt(t.amount)}</td>
           <td>
-            <button class="btn-icon-only" onclick="deleteTx('${t.id}')" title="Delete" style="color:#ef4444"><i class="ri-delete-bin-line"></i></button>
+            <button class="btn-icon-only" data-id="${escapeHtml(t.id)}" onclick="deleteTx(this.dataset.id)" title="Delete" style="color:#ef4444"><i class="ri-delete-bin-line"></i></button>
           </td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
     };
 
-    // Load accounts for modal dropdown
+    // Load accounts for modal dropdowns
     const loadAccounts = async () => {
       const data = await apiFetch('/accounts');
       if (data?.success) {
-        accounts = data.data.accounts;
+        accounts = data.data.accounts || [];
         const sel = document.getElementById('txAccount');
-        sel.innerHTML = '<option value="">No specific account</option>' + accounts.map(a => `<option value="${a.id}">${a.name} (${fmt(a.balance)})</option>`).join('');
+        const previousSource = sel.value;
+        sel.innerHTML = '<option value="">No specific account</option>' + accounts.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)} (${fmt(a.balance)})</option>`).join('');
+        if (previousSource) sel.value = previousSource;
+        syncTransferFields();
       }
     };
+
+    // Transfers need a second, distinct account. Keep the destination list in
+    // sync with the selected source and only reveal it for TRANSFER entries.
+    const syncTransferFields = () => {
+      const isTransfer = document.getElementById('txType').value === 'TRANSFER';
+      document.getElementById('toAccountGroup').style.display = isTransfer ? '' : 'none';
+      document.getElementById('txAccountLabel').textContent = isTransfer ? 'From Account *' : 'Account';
+
+      const source = document.getElementById('txAccount').value;
+      const dest = document.getElementById('txToAccount');
+      const previousDestination = dest.value;
+      dest.innerHTML = '<option value="">Select destination account</option>' + accounts
+        .filter(a => a.id !== source)
+        .map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)} (${fmt(a.balance)})</option>`)
+        .join('');
+      if (previousDestination && previousDestination !== source) dest.value = previousDestination;
+    };
+
+    document.getElementById('txType').addEventListener('change', syncTransferFields);
+    document.getElementById('txAccount').addEventListener('change', syncTransferFields);
 
     // Save transaction
     const saveTransaction = async () => {
@@ -287,6 +339,7 @@
       const type = document.getElementById('txType').value;
       const category = document.getElementById('txCategory').value.trim();
       const account = document.getElementById('txAccount').value;
+      const toAccount = document.getElementById('txToAccount').value;
       const description = document.getElementById('txDescription').value.trim();
       const merchant = document.getElementById('txMerchant').value.trim();
       const date = document.getElementById('txDate').value;
@@ -294,26 +347,44 @@
       const errEl = document.getElementById('txError');
 
       if (!amount || amount <= 0) { errEl.textContent = 'Please enter a valid amount.'; errEl.style.display='block'; return; }
+      if (type === 'TRANSFER') {
+        if (!account) { errEl.textContent = 'Select the account the money is coming from.'; errEl.style.display='block'; return; }
+        if (!toAccount) { errEl.textContent = 'Select the destination account.'; errEl.style.display='block'; return; }
+        if (account === toAccount) { errEl.textContent = 'Source and destination accounts must differ.'; errEl.style.display='block'; return; }
+      }
       errEl.style.display = 'none';
+
+      // Only money-moving transfers need a key. Keep the previous key after
+      // any failure so the next press is a safe retry of the same transfer.
+      if (type === 'TRANSFER' && !transferKey) transferKey = newTransferKey();
 
       const btn = document.getElementById('saveTxBtn');
       btn.disabled = true; btn.innerHTML = '<i class="ri-loader-line"></i> Saving...';
 
-      const res = await apiFetch('/transactions', {
-        method:'POST',
-        body: JSON.stringify({ amount, type, category: category || undefined, accountId: account || undefined, description: description || undefined, merchant: merchant || undefined, date: date || undefined, paymentMethod: paymentMethod || undefined }),
-      });
+      let res = null;
+      let requestFailed = false;
+      try {
+        res = await apiFetch('/transactions', {
+          method:'POST',
+          body: JSON.stringify({ amount, type, category: category || undefined, accountId: account || undefined, toAccountId: type === 'TRANSFER' ? toAccount : undefined, idempotencyKey: type === 'TRANSFER' ? transferKey : undefined, description: description || undefined, merchant: merchant || undefined, date: date || undefined, paymentMethod: paymentMethod || undefined }),
+        });
+      } catch (_) {
+        requestFailed = true;
+      }
 
       btn.disabled = false; btn.innerHTML = '<i class="ri-check-line"></i> Save Transaction';
 
       if (res?.success) {
+        transferKey = null;
         closeModal('addTxModal');
-        showToast(`${type === 'INCOME' ? '+' : '-'}${fmt(amount)} saved!`, 'success');
+        showToast(type === 'TRANSFER' ? `${fmt(amount)} transferred!` : `${type === 'INCOME' ? '+' : '-'}${fmt(amount)} saved!`, 'success');
         clearTxForm();
         loadTransactions();
         loadSummary();
       } else {
-        errEl.textContent = res?.error?.message || 'Failed to save transaction.';
+        errEl.textContent = requestFailed
+          ? 'The transaction could not be confirmed. Press Save again — the same transfer is retried safely.'
+          : (res?.error?.message || 'Failed to save transaction.');
         errEl.style.display = 'block';
       }
     };
@@ -322,6 +393,10 @@
       ['txAmount','txCategory','txDescription','txMerchant'].forEach(id => document.getElementById(id).value = '');
       document.getElementById('txType').value = 'EXPENSE';
       document.getElementById('txDate').value = '';
+      document.getElementById('txPayment').value = '';
+      document.getElementById('txToAccount').value = '';
+      document.getElementById('txError').style.display = 'none';
+      syncTransferFields();
     };
 
     const deleteTx = async (id) => {
@@ -416,11 +491,11 @@
         document.getElementById('voicePreview').innerHTML = `
           <div style="font-weight:600;margin-bottom:6px;color:#6ee7b7">Detected Transaction:</div>
           <div style="display:flex;gap:12px;margin-bottom:6px;">
-            <div><strong>Type:</strong> <span class="badge ${p.type==='INCOME'?'badge-green':'badge-red'}">${p.type}</span></div>
+            <div><strong>Type:</strong> <span class="badge ${p.type==='INCOME'?'badge-green':'badge-red'}">${escapeHtml(p.type)}</span></div>
             <div><strong>Amount:</strong> <span style="font-weight:700;color:${p.type==='INCOME'?'#10b981':'#ef4444'}">${fmt(p.amount)}</span></div>
-            <div><strong>Category:</strong> <span class="badge badge-blue">${p.category}</span></div>
+            <div><strong>Category:</strong> <span class="badge badge-blue">${escapeHtml(p.category)}</span></div>
           </div>
-          <div style="font-size:12px;color:#94a3b8">Note: "${p.description}"</div>
+          <div style="font-size:12px;color:#94a3b8">Note: "${escapeHtml(p.description)}"</div>
           <div style="margin-top:8px;font-size:12px;color:#34d399">Confirm? Click "Confirm & Save" below.</div>
         `;
         document.getElementById('confirmVoiceBtn').disabled = false;
@@ -458,8 +533,10 @@
     // Modal helpers
     document.getElementById('addTxBtn').onclick = () => {
       document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('txError').style.display = 'none';
       showModal('addTxModal');
       loadAccounts();
+      syncTransferFields();
     };
     document.getElementById('voiceBtn').onclick = () => showModal('voiceModal');
 

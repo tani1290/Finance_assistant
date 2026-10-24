@@ -1,6 +1,6 @@
 const prisma = require('../config/database');
 const smsParserService = require('../services/smsParserService');
-const fcmService = require('../services/fcmService');
+const { enqueuePush } = require('../services/pushQueue');
 const realtime = require('../services/realtimeService');
 
 /**
@@ -533,19 +533,23 @@ exports.confirmPendingSms = async (req, res) => {
           maximumFractionDigits: 0,
         });
 
-        fcmService.sendToMultiple(
+        // Best-effort push: never blocks or fails the confirmed transaction.
+        // The queue retries transient FCM failures and suppresses a duplicate
+        // notification for the same canonical transaction.
+        enqueuePush({
           tokens,
-          {
+          notification: {
             title: `${emoji} ${typeLabel} ${amountLabel}`,
             body: `${finalMerchant || result.transaction.description || 'Transaction'} · ${finalCategoryName}`,
           },
-          {
+          data: {
             transactionId: result.transaction.id,
             type: finalType,
             amount: String(finalAmount),
             screen: 'transactions',
-          }
-        ).catch(() => {}); // silently ignore push failures
+          },
+          dedupeKey: `sms:${result.transaction.id}`,
+        });
       }
     } catch (_) {}
 

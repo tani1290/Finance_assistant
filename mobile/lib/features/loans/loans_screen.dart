@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/api_error.dart';
 import '../../core/models/loan_model.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
+import '../../shared/widgets/error_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/gradient_button.dart';
 import '../../shared/widgets/pressable.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/summary_hero_card.dart';
+import 'add_loan_sheet.dart';
 
 class LoansScreen extends StatefulWidget {
   const LoansScreen({super.key});
@@ -20,6 +23,7 @@ class LoansScreen extends StatefulWidget {
 
 class _LoansScreenState extends State<LoansScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   List<LoanModel> _loans = [];
 
   @override
@@ -29,20 +33,43 @@ class _LoansScreenState extends State<LoansScreen> {
   }
 
   Future<void> _fetchLoans() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final res = await apiClient.get(ApiEndpoints.loans);
       if (res.statusCode == 200 && res.data['success'] == true) {
-        final list = (res.data['data'] as List)
-            .map((json) => LoanModel.fromJson(json))
+        final data = res.data['data'];
+        // The endpoint returns an envelope (`{ totals, loans: [...] }`); accept a
+        // bare list too so older responses keep working.
+        final dynamic raw = data is Map ? data['loans'] : data;
+        if (raw is! List) {
+          throw const FormatException('Loans response missing list');
+        }
+        final list = raw
+            .whereType<Map>()
+            .map((json) => LoanModel.fromJson(Map<String, dynamic>.from(json)))
             .toList();
+        if (!mounted) return;
         setState(() {
           _loans = list;
           _isLoading = false;
         });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'The server returned an unexpected response.';
+          _isLoading = false;
+        });
       }
     } catch (_) {
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _errorMessage =
+            'Your loans could not be loaded. Check your connection and try again.';
+        _isLoading = false;
+      });
     }
   }
 
@@ -52,7 +79,7 @@ class _LoansScreenState extends State<LoansScreen> {
 
   void _showPrepaymentSimulator(LoanModel loan) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final amountController = TextEditingController(text: '50000');
+    final amountController = TextEditingController();
     Map<String, dynamic>? simResult;
     bool isSimulating = false;
 
@@ -105,6 +132,18 @@ class _LoansScreenState extends State<LoansScreen> {
                 text: 'Simulate Savings',
                 isLoading: isSimulating,
                 onPressed: () async {
+                  final prepayment = double.tryParse(
+                    amountController.text.trim(),
+                  );
+                  if (prepayment == null || prepayment <= 0) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text('Enter a valid prepayment amount.'),
+                      ),
+                    );
+                    return;
+                  }
+
                   setSheetState(() => isSimulating = true);
                   try {
                     final res = await apiClient.post(
@@ -113,18 +152,35 @@ class _LoansScreenState extends State<LoansScreen> {
                         'principal': loan.outstandingAmount,
                         'interestRate': loan.interestRate,
                         'tenureMonths': loan.tenureMonths,
-                        'prepaymentAmount':
-                            double.tryParse(amountController.text) ?? 50000,
+                        'prepaymentAmount': prepayment,
                       },
                     );
+                    if (!ctx.mounted) return;
                     if (res.statusCode == 200) {
                       setSheetState(() {
                         simResult = res.data['data'];
                         isSimulating = false;
                       });
+                    } else {
+                      setSheetState(() => isSimulating = false);
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'The simulation could not be calculated. Please try again.',
+                          ),
+                        ),
+                      );
                     }
                   } catch (_) {
+                    if (!ctx.mounted) return;
                     setSheetState(() => isSimulating = false);
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'The simulation could not be calculated. Please try again.',
+                        ),
+                      ),
+                    );
                   }
                 },
               ),
@@ -146,9 +202,13 @@ class _LoansScreenState extends State<LoansScreen> {
                             ),
                           ),
                           Text(
-                            CurrencyFormatter.format(
-                              simResult!['interestSaved'] ?? 24500,
-                            ),
+                            simResult!['interestSaved'] == null
+                                ? '—'
+                                : CurrencyFormatter.format(
+                                    double.tryParse(
+                                      simResult!['interestSaved'].toString(),
+                                    ),
+                                  ),
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               color: AppColors.primaryLight,
@@ -169,7 +229,9 @@ class _LoansScreenState extends State<LoansScreen> {
                             ),
                           ),
                           Text(
-                            '${simResult!['monthsSaved'] ?? 14} months earlier',
+                            simResult!['monthsSaved'] == null
+                                ? '—'
+                                : '${simResult!['monthsSaved']} months earlier',
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary(isDark),
@@ -188,6 +250,65 @@ class _LoansScreenState extends State<LoansScreen> {
     );
   }
 
+  Future<void> _openAddLoan() async {
+    await AddLoanSheet.show(
+      context,
+      onCreated: (message) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+        _fetchLoans();
+      },
+    );
+  }
+
+  /// Loan deletion is irreversible, so it always asks for explicit
+  /// confirmation before calling `DELETE /loans/:id`.
+  Future<void> _deleteLoan(LoanModel loan) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete loan?'),
+        content: Text(
+          'Delete the ${loan.loanType.toLowerCase()} loan'
+          '${loan.lender.isEmpty ? '' : ' from ${loan.lender}'}? '
+          'This removes its EMI and outstanding balance from your totals.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await apiClient.delete(ApiEndpoints.loan(loan.id));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Loan deleted.')),
+      );
+      _fetchLoans();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            apiErrorMessage(error) ??
+                'Loan could not be deleted. Check your connection.',
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -202,8 +323,15 @@ class _LoansScreenState extends State<LoansScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openAddLoan,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add'),
+      ),
       body: _isLoading
           ? _buildSkeleton()
+          : _errorMessage != null
+          ? ErrorStateView(message: _errorMessage!, onRetry: _fetchLoans)
           : _loans.isEmpty
           ? EmptyStateView(
               icon: Icons.credit_card_outlined,
@@ -241,6 +369,7 @@ class _LoansScreenState extends State<LoansScreen> {
                         loan: loan,
                         isDark: isDark,
                         onSimulate: () => _showPrepaymentSimulator(loan),
+                        onDelete: () => _deleteLoan(loan),
                       ),
                     ),
                   ),
@@ -297,11 +426,13 @@ class _LoanCard extends StatelessWidget {
   final LoanModel loan;
   final bool isDark;
   final VoidCallback onSimulate;
+  final VoidCallback onDelete;
 
   const _LoanCard({
     required this.loan,
     required this.isDark,
     required this.onSimulate,
+    required this.onDelete,
   });
 
   @override
@@ -345,6 +476,19 @@ class _LoanCard extends StatelessWidget {
                     color: AppColors.primaryLight,
                   ),
                 ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Loan options',
+                padding: EdgeInsets.zero,
+                onSelected: (value) {
+                  if (value == 'delete') onDelete();
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Text('Delete loan'),
+                  ),
+                ],
               ),
             ],
           ),

@@ -1,4 +1,5 @@
 const prisma = require('../config/database');
+const analyticsEngine = require('./analyticsEngine');
 
 /**
  * Automated Financial Notification Service
@@ -26,17 +27,18 @@ const checkBudgetThresholds = async (userId, transaction) => {
       const startOfMonth = new Date(year, month - 1, 1);
       const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
 
-      const expenseSum = await prisma.transaction.aggregate({
+      const expenseSum = await prisma.transaction.groupBy({
+        by: ['transactionType'],
         where: {
           userId,
-          transactionType: 'EXPENSE',
+          transactionType: { in: analyticsEngine.SPENDING_TYPES },
           categoryId: budget.categoryId,
           date: { gte: startOfMonth, lte: endOfMonth },
         },
         _sum: { amount: true },
       });
 
-      const totalSpent = parseFloat(expenseSum._sum.amount || 0);
+      const totalSpent = Math.max(0, analyticsEngine.signedTotal(expenseSum));
       const limit = parseFloat(budget.monthlyLimit);
       if (limit <= 0) continue;
 

@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
+const { parseDateOnly, formatDateOnly } = require('../utils/dateOnly');
 
 /**
  * GET /api/v1/goals
@@ -30,7 +31,7 @@ const getGoals = async (req, res, next) => {
           remaining,
           formattedRemaining: formatINR(remaining),
           progress,
-          targetDate: g.targetDate,
+          targetDate: formatDateOnly(g.targetDate),
           monthlyContribution: parseFloat(g.monthlyContribution || 0),
           formattedMonthlyContribution: formatINR(g.monthlyContribution || 0),
           priority: g.priority,
@@ -67,7 +68,7 @@ const createGoal = async (req, res, next) => {
         goalType,
         targetAmount: target,
         currentAmount: parseFloat(currentAmount) || 0,
-        targetDate: targetDate ? new Date(targetDate) : null,
+        targetDate: targetDate ? parseDateOnly(targetDate, 'targetDate') : null,
         monthlyContribution: parseFloat(monthlyContribution) || 0,
         priority,
       },
@@ -77,11 +78,15 @@ const createGoal = async (req, res, next) => {
       success: true,
       data: {
         ...goal,
+        targetDate: formatDateOnly(goal.targetDate),
         formattedTarget: formatINR(goal.targetAmount),
         message: `Goal "${name}" created successfully!`,
       },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };
@@ -124,6 +129,7 @@ const contributeToGoal = async (req, res, next) => {
       success: true,
       data: {
         ...updated,
+        targetDate: formatDateOnly(updated.targetDate),
         formattedCurrent: formatINR(updated.currentAmount),
         formattedTarget: formatINR(updated.targetAmount),
         progress: Math.min(100, Math.round((newAmount / parseFloat(goal.targetAmount)) * 100)),
@@ -150,6 +156,7 @@ const getGoal = async (req, res, next) => {
       success: true,
       data: {
         ...goal,
+        targetDate: formatDateOnly(goal.targetDate),
         targetAmount: target,
         currentAmount: current,
         formattedTarget: formatINR(target),
@@ -181,7 +188,7 @@ const updateGoal = async (req, res, next) => {
         ...(goalType && { goalType }),
         ...(targetAmount !== undefined && { targetAmount: parseFloat(targetAmount) }),
         ...(currentAmount !== undefined && { currentAmount: parseFloat(currentAmount) }),
-        ...(targetDate && { targetDate: new Date(targetDate) }),
+        ...(targetDate && { targetDate: parseDateOnly(targetDate, 'targetDate') }),
         ...(monthlyContribution !== undefined && { monthlyContribution: parseFloat(monthlyContribution) }),
         ...(priority && { priority }),
         ...(status && { status }),
@@ -192,12 +199,16 @@ const updateGoal = async (req, res, next) => {
       success: true,
       data: {
         ...updated,
+        targetDate: formatDateOnly(updated.targetDate),
         formattedTarget: formatINR(updated.targetAmount),
         formattedCurrent: formatINR(updated.currentAmount),
         message: 'Goal updated successfully.',
       },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };

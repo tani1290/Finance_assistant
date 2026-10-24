@@ -34,7 +34,9 @@ class FinProSmsReceiver : BroadcastReceiver() {
 
                 // Respect the in-app toggle: a disabled user should never be
                 // processed, buffered, or uploaded.
-                if (!prefs.getBoolean(ENABLED_KEY, true)) {
+                // Default OFF: never process SMS until the user explicitly
+                // enables detection after the in-app prominent disclosure.
+                if (!prefs.getBoolean(ENABLED_KEY, false)) {
                     Log.d(TAG, "SMS detection disabled by user; ignoring message")
                     return
                 }

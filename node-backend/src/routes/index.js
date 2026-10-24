@@ -29,12 +29,18 @@ const sms = require('../controllers/smsController');
 const mobileSync = require('../controllers/mobileSyncController');
 const realtimeCtrl = require('../controllers/realtimeController');
 const notificationRoutes = require('./notificationRoutes');
+const simulatorRoutes = require('./simulatorRoutes');
 
 // Apply auth to all routes below
 router.use(authenticate);
 
 // FCM Push Notifications
 router.use('/notifications', notificationRoutes);
+
+// Synthetic payment simulator. Mutations are environment-gated inside the
+// router; /simulator/status stays readable so the UI can explain why it is
+// unavailable. No route here contacts a real bank, card network or UPI rail.
+router.use('/simulator', simulatorRoutes);
 
 // Dashboard
 router.get('/dashboard', dashboard.getDashboard);
@@ -50,20 +56,10 @@ router.get('/accounts/:accountId', accounts.getAccount);
 router.patch('/accounts/:accountId', accounts.updateAccount);
 router.delete('/accounts/:accountId', accounts.deleteAccount);
 router.post('/accounts/:accountId/deposit', accounts.depositMoney);
-router.post('/accounts/deposit', async (req, res, next) => {
-  const prisma = require('../config/database');
-  let account = await prisma.financialAccount.findFirst({
-    where: { userId: req.user.id, isActive: true },
-    orderBy: { createdAt: 'asc' },
-  });
-  if (!account) {
-    account = await prisma.financialAccount.create({
-      data: { userId: req.user.id, name: 'Primary Account', accountType: 'BANK', balance: 0, currency: 'INR' },
-    });
-  }
-  req.params.accountId = account.id;
-  accounts.depositMoney(req, res, next);
-});
+// The default account is resolved *inside* the deposit transaction, so a
+// first-time deposit cannot race another request into creating two
+// "Primary Account" rows.
+router.post('/accounts/deposit', accounts.depositMoney);
 
 // Transactions
 router.get('/transactions', transactions.getTransactions);
@@ -106,6 +102,8 @@ router.get('/market/quote', investments.getStockQuote);
 router.get('/market/history', investments.getStockHistory);
 router.get('/market/search', investments.searchStocks);
 router.get('/market/metals', investments.getMetals);
+router.get('/market/metals/status', investments.getMetalsStatus);
+router.get('/market/metals/pune', investments.getPuneRetailMetals);
 router.get('/market/gold', investments.getGold);
 router.get('/market/silver', investments.getSilver);
 router.get('/market/popular', investments.getPopularStocks);
@@ -184,6 +182,11 @@ router.delete('/notifications/:id', analytics.deleteNotification);
 
 // AI Advisor & Intelligence
 router.post('/ai/chat', ai.chat);
+router.post('/ai/actions/confirm', ai.resolveAction);
+// Read-only status probe: lets a client that lost the response to a
+// confirmation request learn what actually happened. The token travels in the
+// body so it never lands in an access log or a URL.
+router.post('/ai/actions/status', ai.getActionStatus);
 router.get('/ai/history', ai.getChatHistory);
 router.delete('/ai/history', ai.clearChatHistory);
 router.get('/ai/snapshot', ai.getFinancialSnapshot);

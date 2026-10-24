@@ -1,7 +1,11 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
 const { calculateHealthScore } = require('../utils/financialMath');
+const { currentMonthRange, formatDateOnly, monthLabel } = require('../utils/dateOnly');
 const financialTwin = require('../services/financialTwinService');
+const analyticsEngine = require('../services/analyticsEngine');
+
+const REPORT_TIMEZONE = 'Asia/Kolkata';
 
 /**
  * GET /api/v1/dashboard
@@ -11,8 +15,12 @@ const getDashboard = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    // Transaction dates are calendar dates (`@db.Date`). Use the month that is
+    // actually current in the user-facing timezone, with inclusive date bounds,
+    // so the dashboard, AI context and RAG pipeline all report the same window.
+    const period = currentMonthRange(now, REPORT_TIMEZONE);
+    const startOfMonth = period.start;
+    const endOfMonth = period.end;
 
     // Run all queries in parallel for performance
     const [
@@ -38,8 +46,13 @@ const getDashboard = async (req, res, next) => {
         _sum: { amount: true },
       }),
 
-      prisma.transaction.aggregate({
-        where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
+      prisma.transaction.groupBy({
+        by: ['transactionType'],
+        where: {
+          userId,
+          transactionType: { in: analyticsEngine.SPENDING_TYPES },
+          date: { gte: startOfMonth, lte: endOfMonth },
+        },
         _sum: { amount: true },
       }),
 
@@ -72,7 +85,7 @@ const getDashboard = async (req, res, next) => {
       }),
 
       prisma.budget.findMany({
-        where: { userId, month: now.getMonth() + 1, year: now.getFullYear() },
+        where: { userId, month: period.month, year: period.year },
       }),
 
       prisma.financialPlan.findUnique({
@@ -88,7 +101,7 @@ const getDashboard = async (req, res, next) => {
     // Compute totals
     const totalBalance = accounts.reduce((sum, acc) => sum + parseFloat(acc.balance || 0), 0);
     const incomeAmt = parseFloat(monthlyIncome._sum.amount || 0);
-    const expenseAmt = parseFloat(monthlyExpenses._sum.amount || 0);
+    const expenseAmt = analyticsEngine.signedTotal(monthlyExpenses);
     const monthlySavings = incomeAmt - expenseAmt;
     const savingsRate = incomeAmt > 0 ? Math.round((monthlySavings / incomeAmt) * 100) : 0;
     const investmentValue = parseFloat(portfolio?.currentValue || 0);
@@ -134,6 +147,17 @@ const getDashboard = async (req, res, next) => {
         financialHealthScore: healthScore,
         unreadNotifications: notifications,
 
+        // The reporting window and the basis for "income". Income is the sum of
+        // recorded INCOME transactions in the ledger — never the onboarding
+        // salary estimate on the profile.
+        incomeBasis: 'RECORDED_LEDGER_TRANSACTIONS',
+        period: {
+          label: monthLabel(period.year, period.month),
+          start: formatDateOnly(period.start),
+          end: formatDateOnly(period.end),
+          timezone: REPORT_TIMEZONE,
+        },
+
         // Formatted
         formatted: {
           totalBalance: formatINR(totalBalance),
@@ -154,7 +178,9 @@ const getDashboard = async (req, res, next) => {
           formattedAmount: formatINR(t.amount),
           type: t.transactionType,
           category: t.category?.name || 'Uncategorized',
-          date: t.date,
+          // Calendar date, not an instant: prevents a one-day shift in
+          // browsers west of UTC.
+          date: formatDateOnly(t.date),
         })),
 
         goals: goals.map((g) => ({

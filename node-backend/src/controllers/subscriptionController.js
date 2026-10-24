@@ -1,6 +1,14 @@
 const prisma = require('../config/database');
+const { parseDateOnly, formatDateOnly } = require('../utils/dateOnly');
 
 const formatINR = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(parseFloat(val) || 0);
+
+/** Calendar dates leave the API as YYYY-MM-DD, never an ISO instant. */
+const serializeSubscription = (sub) => ({
+  ...sub,
+  nextBillingDate: formatDateOnly(sub.nextBillingDate),
+  formattedCost: formatINR(sub.cost),
+});
 
 /**
  * GET /api/v1/subscriptions
@@ -13,8 +21,11 @@ const getSubscriptions = async (req, res, next) => {
       orderBy: { nextBillingDate: 'asc' },
     });
 
-    const monthlyTotal = subscriptions.reduce((sum, s) => {
-      const cost = parseFloat(s.cost);
+    // Recurring spend is the spend that is actually active. Inactive
+    // subscriptions remain listed but must not inflate totals.
+    const activeSubscriptions = subscriptions.filter((s) => s.isActive);
+    const monthlyTotal = activeSubscriptions.reduce((sum, s) => {
+      const cost = parseFloat(s.cost || 0);
       if (s.billingCycle === 'ANNUAL') return sum + (cost / 12);
       if (s.billingCycle === 'QUARTERLY') return sum + (cost / 3);
       return sum + cost;
@@ -25,13 +36,11 @@ const getSubscriptions = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: {
-        subscriptions: subscriptions.map(s => ({
-          ...s,
-          formattedCost: formatINR(s.cost),
-        })),
+        subscriptions: subscriptions.map(serializeSubscription),
         summary: {
           totalSubscriptions: subscriptions.length,
-          activeSubscriptions: subscriptions.filter(s => s.isActive).length,
+          activeSubscriptions: activeSubscriptions.length,
+          inactiveSubscriptions: subscriptions.length - activeSubscriptions.length,
           monthlyTotal,
           formattedMonthlyTotal: formatINR(monthlyTotal),
           annualTotal,
@@ -57,7 +66,7 @@ const getSubscription = async (req, res, next) => {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Subscription not found.' } });
     }
 
-    return res.status(200).json({ success: true, data: { ...sub, formattedCost: formatINR(sub.cost) } });
+    return res.status(200).json({ success: true, data: serializeSubscription(sub) });
   } catch (error) {
     next(error);
   }
@@ -84,7 +93,7 @@ const createSubscription = async (req, res, next) => {
         serviceName: serviceName.trim(),
         cost: parseFloat(cost),
         billingCycle: billingCycle || 'MONTHLY',
-        nextBillingDate: new Date(nextBillingDate),
+        nextBillingDate: parseDateOnly(nextBillingDate, 'nextBillingDate'),
         category: category ? category.trim() : 'Entertainment',
         isActive: true,
       },
@@ -93,12 +102,14 @@ const createSubscription = async (req, res, next) => {
     return res.status(201).json({
       success: true,
       data: {
-        ...sub,
-        formattedCost: formatINR(sub.cost),
+        ...serializeSubscription(sub),
         message: 'Subscription added successfully.',
       },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };
@@ -124,7 +135,7 @@ const updateSubscription = async (req, res, next) => {
         ...(serviceName && { serviceName: serviceName.trim() }),
         ...(cost !== undefined && { cost: parseFloat(cost) }),
         ...(billingCycle && { billingCycle }),
-        ...(nextBillingDate && { nextBillingDate: new Date(nextBillingDate) }),
+        ...(nextBillingDate && { nextBillingDate: parseDateOnly(nextBillingDate, 'nextBillingDate') }),
         ...(category && { category: category.trim() }),
         ...(isActive !== undefined && { isActive: Boolean(isActive) }),
       },
@@ -133,12 +144,14 @@ const updateSubscription = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: {
-        ...updated,
-        formattedCost: formatINR(updated.cost),
+        ...serializeSubscription(updated),
         message: 'Subscription updated successfully.',
       },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };

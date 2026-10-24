@@ -12,7 +12,7 @@ FinPro is a full-stack, enterprise-grade personal finance management and advisor
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        CLIENT LAYER (WEB & MOBILE)                     │
-│  - Web SPA: Vanilla JS (ES6+) + CSS3 Custom Design System + ECharts    │
+│  - Web: static multi-page HTML + Vanilla JS + CSS3 design system + ECharts
 │  - Mobile: Flutter 3.x (Dart) + Riverpod 2.x + Native Android SMS Ch.  │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ (HTTPS / Bearer JWT)
@@ -72,10 +72,21 @@ FinPro is a full-stack, enterprise-grade personal finance management and advisor
 
 ### 2.5 Cloud, Authentication & Notifications
 - **Authentication:** Dual-token JWT (60m access token, 7d refresh token) with Bcrypt (10 salt rounds) password hashing; credentials are first-party email + password.
-- **Push Notifications:** Firebase Cloud Messaging (FCM) via Firebase Admin SDK with graceful offline degradation.
+- **Push Notifications:** Firebase Cloud Messaging (FCM) via Firebase Admin SDK, fed by a bounded in-process retry queue. Push is best-effort and degrades to "not sent" without failing the request; queued jobs are not durable across restarts.
 - **AI Core:** Google Gemini (`@google/generative-ai`) grounded in real user records; deterministic rule fallbacks when offline.
 - **OCR & Voice:** Tesseract.js receipt scanner & Web Speech API intent parser.
 - **Containerization & Deployment:** Docker (Node.js Alpine non-root), Docker Compose, Render Blueprint, and Vercel edge deployment.
+
+### 2.6 Resilience, Observability & Operations
+- **Optional shared cache:** in-process L1 plus optional Redis L2, namespaced keys, TTLs, singleflight and a Redis failure circuit. Redis is never required for a core request; public market/news data only.
+- **Upstream client:** explicit timeouts, bounded idempotent-only retries with jitter, `Retry-After` handling, per-host circuit breakers, and a concurrency cap for market/news providers.
+- **Health contract:** `/api/v1/health/live` touches nothing, `/api/v1/health/dependencies` gates on the required database, and `/api/v1/health/ready` remains the strict database+storage probe.
+- **Metrics:** dependency-free Prometheus text endpoint at `/metrics`, token-gated in production, covering HTTP, cache, upstream and push-queue signals.
+- **Backup/DR:** verified `pg_dump` backups with optional AES-256-GCM encryption, SHA-256 manifests, local-only restores into empty databases, checksum/key verification, retention, off-host publishing with download-back verification, and a repeatable recovery drill.
+- **Scaling:** designed for one instance today; shared Redis is required before multi-instance rate limiting, cache or SSE fan-out becomes correct.
+
+Operational procedures are in [OPERATIONS.md](OPERATIONS.md); recovery is in
+[BACKUP_DR.md](BACKUP_DR.md).
 
 ---
 
@@ -83,16 +94,22 @@ FinPro is a full-stack, enterprise-grade personal finance management and advisor
 
 ```
 FinPro/
-├── docs/                     # Canonical architectural, QA, and deployment docs
-│   ├── API.md                # Complete REST API Specification
+├── docs/                     # Canonical documentation set (see docs/README.md)
+│   ├── README.md             # Index and reading order
 │   ├── ARCHITECTURE.md       # Architecture & Tech Stack (This document)
+│   ├── API.md                # REST API + financial data contract
 │   ├── DATABASE.md           # Database Schema & Relational Specifications
-│   ├── DEPLOYMENT.md         # Deployment Handbook (Local, Docker, Render, Vercel, Firebase)
+│   ├── AI.md                 # Assistant pipeline, tools, guardrails
+│   ├── PARITY.md             # Web ⇄ Mobile feature matrix & known defects
+│   ├── DEPLOYMENT.md         # Deployment runbook
+│   ├── OPERATIONS.md         # Health, cache, queue, metrics, scaling rules
+│   ├── BACKUP_DR.md          # Backup, restore and recovery drill
+│   ├── CLOUD_AUDIT.md        # Capability audit and post-change status
 │   ├── DESIGN_SYSTEM.md      # UI/UX Design System Tokens & Guidelines
 │   ├── MOBILE.md             # Flutter Mobile Architecture & SMS Engine
 │   └── TESTING.md            # Testing Guide & Suite Directory
 ├── frontend/
-│   └── public/               # Single Page Application HTML, CSS & JS
+│   └── public/               # Static HTML/CSS/JS app (no build step)
 ├── mobile/                   # Flutter Cross-Platform Mobile Application
 ├── node-backend/             # Canonical Node.js / Express API Backend
 │   ├── prisma/               # Prisma schema & migrations
@@ -102,3 +119,36 @@ FinPro/
 ├── render.yaml               # Render Cloud Blueprint
 └── vercel.json               # Vercel Frontend Reverse Proxy Config
 ```
+
+---
+
+## 4. Client Surfaces
+
+Both clients are first-class consumers of the same `/api/v1` contract. Neither has a private API.
+
+| Surface | Stack | Build | Notes |
+|---|---|---|---|
+| **Web** | Static HTML pages in `frontend/public`, ES modules, one API layer (`assets/js/api.js`), SSE client (`assets/js/realtime.js`) | None — served as files | Every page authenticates with a Bearer JWT and shares the same error envelope handling. No bundler, no framework, no automated test harness. |
+| **Mobile** | Flutter 3 / Dart, Riverpod-style providers, `dio` behind `ApiClient`, Material 3 | `flutter build` | Native Android SMS ingestion is mobile-only. Pull-to-refresh is the sync mechanism; there is no SSE client. |
+
+Shared rules (money formatting, date-only fields, percentage scaling, error envelopes) are written down once in `PARITY.md` §6 rather than re-derived per screen.
+
+### AI pipeline
+
+`POST /ai/chat` is assistant-first and degrades safely: Gemini tool-calling → deterministic action engine → bounded RAG. The model can only act through the declared tool registry, and every tool is scoped to the authenticated user. Mutations are two-phase: a tool call or deterministic mutating intent returns a hashed, single-use proposal, and nothing is written until `POST /ai/actions/confirm`. Full detail is in `AI.md`.
+
+---
+
+## 5. Documentation Map
+
+| Question | Document |
+|---|---|
+| What are the components and how do they fit? | `ARCHITECTURE.md` (this file) |
+| What endpoints exist and what do they return? | `API.md` |
+| What are the tables and relations? | `DATABASE.md` |
+| Does the web do the same thing as mobile? | `PARITY.md` |
+| How does the assistant work and what can it do? | `AI.md` |
+| How do I run and test everything? | `TESTING.md` |
+| How is it deployed, and what must pass first? | `DEPLOYMENT.md` |
+| What are the UI tokens and layout rules? | `DESIGN_SYSTEM.md` |
+| How does the Flutter app and SMS engine work? | `MOBILE.md` |

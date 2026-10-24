@@ -1,4 +1,5 @@
 const prisma = require('../config/database');
+const analyticsEngine = require('../services/analyticsEngine');
 
 /**
  * Controller for Mobile Device Registration and Fast Client Synchronization
@@ -131,8 +132,9 @@ exports.getMobileSyncState = async (req, res) => {
         where: { userId, transactionType: 'INCOME', date: { gte: startOfMonth, lte: endOfMonth } },
         _sum: { amount: true }
       }),
-      prisma.transaction.aggregate({
-        where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
+      prisma.transaction.groupBy({
+        by: ['transactionType'],
+        where: { userId, transactionType: { in: analyticsEngine.SPENDING_TYPES }, date: { gte: startOfMonth, lte: endOfMonth } },
         _sum: { amount: true }
       }),
       prisma.loan.aggregate({
@@ -153,7 +155,7 @@ exports.getMobileSyncState = async (req, res) => {
     const netWorth = totalBalance + investmentValue - loanOutstanding;
 
     const monthlyIncome = parseFloat(monthlyIncomeAgg._sum.amount || 0);
-    const monthlyExpenses = parseFloat(monthlyExpenseAgg._sum.amount || 0);
+    const monthlyExpenses = analyticsEngine.signedTotal(monthlyExpenseAgg);
     const monthlySavings = monthlyIncome - monthlyExpenses;
     const savingsRate = monthlyIncome > 0
       ? Math.round((monthlySavings / monthlyIncome) * 100)

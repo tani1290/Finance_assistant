@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
+const { currentMonthRange, formatDateOnly, monthLabel, DEFAULT_TIME_ZONE } = require('../utils/dateOnly');
 const financialTwin = require('./financialTwinService');
 const notificationService = require('./notificationService');
 const realtime = require('./realtimeService');
@@ -398,10 +399,12 @@ async function handleViewUserData(userId) {
 
   const totalBalance = accounts.reduce((acc, curr) => acc + parseFloat(curr.balance), 0);
 
-  // Fetch current month metrics
+  // Fetch current month metrics. `date` is a calendar date, so use inclusive
+  // UTC date bounds for the month current in the reporting timezone.
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  const period = currentMonthRange(now, DEFAULT_TIME_ZONE);
+  const startOfMonth = period.start;
+  const endOfMonth = period.end;
 
   const monthTransactions = await prisma.transaction.findMany({
     where: {
@@ -440,7 +443,14 @@ async function handleViewUserData(userId) {
   // Build Recent Transactions table
   const txRows = recentTransactions.length > 0
     ? recentTransactions.map((t) => {
-        const dStr = new Date(t.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+        const dateOnly = formatDateOnly(t.date);
+        const dStr = dateOnly
+          ? new Date(`${dateOnly}T00:00:00Z`).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              timeZone: 'UTC',
+            })
+          : '—';
         const sign = t.transactionType === 'INCOME' ? '+' : '-';
         return `| ${dStr} | ${t.description || 'Transaction'} | ${t.category?.name || 'General'} | ${t.account?.name || 'Account'} | **${sign}${formatINR(t.amount)}** |`;
       }).join('\n')
@@ -454,10 +464,14 @@ async function handleViewUserData(userId) {
       }).join('\n')
     : '- *No active financial goals configured.*';
 
-  const monthName = now.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+  const monthName = monthLabel(period.year, period.month);
   const healthScore = user?.financialPlan?.financialHealthScore || 78;
   const riskProfile = user?.financialPlan?.riskProfile || 'Moderate';
-  const monthlySalary = user?.financialProfile?.monthlySalary ? parseFloat(user.financialProfile.monthlySalary) : monthIncome;
+  // Onboarding estimate. Kept separate from recorded ledger income so the AI
+  // never reports an expected salary as money that actually arrived.
+  const profileSalary = user?.financialProfile?.monthlySalary
+    ? parseFloat(user.financialProfile.monthlySalary)
+    : 0;
 
   const responseMarkdown = `### 📊 User Financial Profile & Ledger Overview
 
@@ -467,7 +481,7 @@ Here is your authenticated financial summary:
 - **User:** ${user?.firstName || 'FinPro'} ${user?.lastName || 'User'} (\`${user?.email}\`)
 - **Financial Health Score:** **${healthScore} / 100**
 - **Risk Tolerance Profile:** **${riskProfile}**
-- **Monthly Inflow Target / Salary:** **${formatINR(monthlySalary)}**
+- **Onboarding Salary Estimate:** **${profileSalary > 0 ? formatINR(profileSalary) : 'Not set'}** *(profile estimate — not counted as income)*
 
 ---
 
@@ -481,7 +495,7 @@ ${accountRows}
 ---
 
 #### 📅 Current Month Summary (${monthName})
-- **Total Inflow (Income):** \`${formatINR(monthIncome)}\`
+- **Recorded Inflow (ledger INCOME transactions):** \`${formatINR(monthIncome)}\`
 - **Total Outflow (Expenses):** \`${formatINR(monthExpenses)}\`
 - **Net Monthly Savings:** **${formatINR(monthIncome - monthExpenses)}**
 
@@ -505,6 +519,15 @@ ${goalRows}
     success: true,
     data: {
       user: { name: `${user?.firstName} ${user?.lastName}`, email: user?.email },
+      period: {
+        label: monthName,
+        start: formatDateOnly(period.start),
+        end: formatDateOnly(period.end),
+        timezone: DEFAULT_TIME_ZONE,
+      },
+      incomeBasis: 'RECORDED_LEDGER_TRANSACTIONS',
+      recordedIncome: monthIncome,
+      profileMonthlySalary: profileSalary,
       totalBalance,
       accountsCount: accounts.length,
       recentTransactionsCount: recentTransactions.length,

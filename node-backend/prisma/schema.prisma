@@ -17,61 +17,64 @@ datasource db {
 // ============================================================
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  username      String   @unique
-  password      String?  // null for accounts without a local password
-  firstName     String   @default("")
-  lastName      String   @default("")
-  phone         String?
-  avatarUrl     String?
-  googleId      String?  @unique
-  role          Role     @default(USER)
-  isPremium     Boolean  @default(false)
-  isActive      Boolean  @default(true)
-  country       String   @default("India")
-  timezone      String   @default("Asia/Kolkata")
-  currency      String   @default("INR")
-  lastLoginAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String    @id @default(uuid())
+  email       String    @unique
+  username    String    @unique
+  password    String? // null for accounts without a local password
+  firstName   String    @default("")
+  lastName    String    @default("")
+  phone       String?
+  avatarUrl   String?
+  googleId    String?   @unique
+  role        Role      @default(USER)
+  isPremium   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  country     String    @default("India")
+  timezone    String    @default("Asia/Kolkata")
+  currency    String    @default("INR")
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // Relations
-  profile            Profile?
-  financialProfile   FinancialProfile?
-  financialPlan      FinancialPlan?
-  accounts           FinancialAccount[]
-  transactions       Transaction[]
-  categories         Category[]
-  budgets            Budget[]
-  goals              Goal[]
-  portfolio          Portfolio?
-  loans              Loan[]
-  insurancePolicies  InsurancePolicy[]
-  subscriptions      Subscription[]
-  calendarEvents     CalendarEvent[]
-  notifications      Notification[]
-  chatMessages       ChatMessage[]
-  aiRecommendations  AIRecommendation[]
-  watchlist          MarketWatchlist[]
-  exportJobs         ExportJob[]
-  auditLogs          AuditLog[]
-  refreshTokens      RefreshToken[]
-  healthHistory      FinancialHealthHistory[]
-  cashFlowPredictions CashFlowPrediction[]
-  expenseAnomalies   ExpenseAnomaly[]
-  financialSimulations FinancialSimulation[]
+  profile                Profile?
+  financialProfile       FinancialProfile?
+  financialPlan          FinancialPlan?
+  accounts               FinancialAccount[]
+  transactions           Transaction[]
+  categories             Category[]
+  budgets                Budget[]
+  goals                  Goal[]
+  portfolio              Portfolio?
+  loans                  Loan[]
+  insurancePolicies      InsurancePolicy[]
+  subscriptions          Subscription[]
+  calendarEvents         CalendarEvent[]
+  notifications          Notification[]
+  chatMessages           ChatMessage[]
+  aiRecommendations      AIRecommendation[]
+  aiActionProposals      AiActionProposal[]
+  idempotencyRecords     IdempotencyRecord[]
+  watchlist              MarketWatchlist[]
+  exportJobs             ExportJob[]
+  auditLogs              AuditLog[]
+  refreshTokens          RefreshToken[]
+  healthHistory          FinancialHealthHistory[]
+  cashFlowPredictions    CashFlowPrediction[]
+  expenseAnomalies       ExpenseAnomaly[]
+  financialSimulations   FinancialSimulation[]
   recommendationFeedback AIRecommendationFeedback[]
-  categoryCorrections TransactionCategoryCorrection[]
-  receiptScans       ReceiptScan[]
-  trainingDatasets   TrainingDataset[]
-  trainingRuns       TrainingRun[]
-  mlPredictions      MLPrediction[]
-  cards              Card[]
-  financialTasks     FinancialTask[]
-  mobileDevices      MobileDevice[]
+  categoryCorrections    TransactionCategoryCorrection[]
+  receiptScans           ReceiptScan[]
+  trainingDatasets       TrainingDataset[]
+  trainingRuns           TrainingRun[]
+  mlPredictions          MLPrediction[]
+  cards                  Card[]
+  financialTasks         FinancialTask[]
+  mobileDevices          MobileDevice[]
   pendingSmsTransactions PendingSmsTransaction[]
-  fcmTokens          FcmToken[]
+  fcmTokens              FcmToken[]
+  simulatedPayments      SimulatedPayment[]
 
   @@index([email])
   @@index([googleId])
@@ -98,14 +101,14 @@ model RefreshToken {
 }
 
 model FcmToken {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token      String
-  deviceId   String   @default("default")
-  platform   String   @default("android") // android | ios | web
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String
+  deviceId  String   @default("default")
+  platform  String   @default("android") // android | ios | web
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, deviceId])
   @@index([userId])
@@ -113,14 +116,14 @@ model FcmToken {
 }
 
 model Profile {
-  id               String   @id @default(uuid())
-  userId           String   @unique
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dateOfBirth      DateTime?
-  occupation       String?
-  bio              String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dateOfBirth DateTime?
+  occupation  String?
+  bio         String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("profiles")
 }
@@ -130,24 +133,24 @@ model Profile {
 // ============================================================
 
 model FinancialProfile {
-  id                        String   @id @default(uuid())
-  userId                    String   @unique
-  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  age                       Int      @default(25)
-  city                      String   @default("Mumbai")
-  country                   String   @default("India")
-  monthlySalary             Decimal  @default(0) @db.Decimal(15, 2)
-  otherMonthlyIncome        Decimal  @default(0) @db.Decimal(15, 2)
-  estimatedMonthlyExpenses  Decimal  @default(0) @db.Decimal(15, 2)
-  currentSavings            Decimal  @default(0) @db.Decimal(15, 2)
-  emergencyFund             Decimal  @default(0) @db.Decimal(15, 2)
-  totalDebt                 Decimal  @default(0) @db.Decimal(15, 2)
-  riskProfile               RiskProfile @default(MODERATE)
-  budgetMethod              BudgetMethod @default(FIFTY_THIRTY_TWENTY)
-  financialPriorities       String   @default("Save more, Build emergency fund")
-  isOnboardingComplete      Boolean  @default(false)
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  id                       String       @id @default(uuid())
+  userId                   String       @unique
+  user                     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  age                      Int          @default(25)
+  city                     String       @default("Mumbai")
+  country                  String       @default("India")
+  monthlySalary            Decimal      @default(0) @db.Decimal(15, 2)
+  otherMonthlyIncome       Decimal      @default(0) @db.Decimal(15, 2)
+  estimatedMonthlyExpenses Decimal      @default(0) @db.Decimal(15, 2)
+  currentSavings           Decimal      @default(0) @db.Decimal(15, 2)
+  emergencyFund            Decimal      @default(0) @db.Decimal(15, 2)
+  totalDebt                Decimal      @default(0) @db.Decimal(15, 2)
+  riskProfile              RiskProfile  @default(MODERATE)
+  budgetMethod             BudgetMethod @default(FIFTY_THIRTY_TWENTY)
+  financialPriorities      String       @default("Save more, Build emergency fund")
+  isOnboardingComplete     Boolean      @default(false)
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
 
   @@map("financial_profiles")
 }
@@ -165,21 +168,21 @@ enum BudgetMethod {
 }
 
 model FinancialPlan {
-  id                    String   @id @default(uuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  income                Decimal  @default(0) @db.Decimal(15, 2)
-  expenses              Decimal  @default(0) @db.Decimal(15, 2)
-  savingsTarget         Decimal  @default(0) @db.Decimal(15, 2)
-  emergencyFundTarget   Decimal  @default(0) @db.Decimal(15, 2)
-  investmentTarget      Decimal  @default(0) @db.Decimal(15, 2)
-  debtRepaymentTarget   Decimal  @default(0) @db.Decimal(15, 2)
-  financialHealthScore  Int      @default(0) // 0-100
-  riskProfile           String   @default("Moderate")
-  budgetMethod          String   @default("50/30/20")
-  planSummary           String   @default("")
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  income               Decimal  @default(0) @db.Decimal(15, 2)
+  expenses             Decimal  @default(0) @db.Decimal(15, 2)
+  savingsTarget        Decimal  @default(0) @db.Decimal(15, 2)
+  emergencyFundTarget  Decimal  @default(0) @db.Decimal(15, 2)
+  investmentTarget     Decimal  @default(0) @db.Decimal(15, 2)
+  debtRepaymentTarget  Decimal  @default(0) @db.Decimal(15, 2)
+  financialHealthScore Int      @default(0) // 0-100
+  riskProfile          String   @default("Moderate")
+  budgetMethod         String   @default("50/30/20")
+  planSummary          String   @default("")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@map("financial_plans")
 }
@@ -202,8 +205,10 @@ model FinancialAccount {
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
-  transactions Transaction[]
+  transactions           Transaction[]
+  incomingTransfers      Transaction[]           @relation("TransferDestination")
   pendingSmsTransactions PendingSmsTransaction[]
+  simulatedPayments      SimulatedPayment[]
 
   @@index([userId])
   @@map("financial_accounts")
@@ -214,6 +219,8 @@ enum AccountType {
   CASH
   WALLET
   CREDIT_CARD
+  CASH_WALLET
+  CASH_IN_HAND
   SAVINGS
   CURRENT
   OTHER
@@ -224,18 +231,19 @@ enum AccountType {
 // ============================================================
 
 model Category {
-  id           String          @id @default(uuid())
+  id           String       @id @default(uuid())
   userId       String?
-  user         User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   name         String
-  categoryType CategoryType    @default(EXPENSE)
+  categoryType CategoryType @default(EXPENSE)
   icon         String?
   color        String?
-  isDefault    Boolean         @default(false)
-  createdAt    DateTime        @default(now())
+  isDefault    Boolean      @default(false)
+  createdAt    DateTime     @default(now())
 
-  transactions Transaction[]
-  budgets      Budget[]
+  transactions      Transaction[]
+  budgets           Budget[]
+  simulatedPayments SimulatedPayment[]
 
   @@index([userId])
   @@map("categories")
@@ -248,30 +256,76 @@ enum CategoryType {
 }
 
 model Transaction {
-  id              String          @id @default(uuid())
-  userId          String
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accountId       String?
-  account         FinancialAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  categoryId      String?
-  category        Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  amount          Decimal         @db.Decimal(15, 2)
-  transactionType TransactionType @default(EXPENSE)
-  description     String?
-  merchant        String?
-  notes           String?
-  paymentMethod   String?
-  date            DateTime        @db.Date
-  currency        String          @default("INR")
-  isFraudSuspected Boolean        @default(false)
-  aiCategory      String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id               String            @id @default(uuid())
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId        String?
+  account          FinancialAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  // Destination of a TRANSFER. The money leaves `accountId` and arrives here,
+  // so a transfer has exactly two balance effects and is never income or
+  // expense. Null on every non-transfer row (and on legacy transfers created
+  // before this column existed, which stay source-only on reversal).
+  toAccountId      String?
+  toAccount        FinancialAccount? @relation("TransferDestination", fields: [toAccountId], references: [id], onDelete: SetNull)
+  categoryId       String?
+  category         Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  amount           Decimal           @db.Decimal(15, 2)
+  transactionType  TransactionType   @default(EXPENSE)
+  description      String?
+  merchant         String?
+  notes            String?
+  paymentMethod    String?
+  date             DateTime          @db.Date
+  currency         String            @default("INR")
+  isFraudSuspected Boolean           @default(false)
+  aiCategory       String?
+  // True only for rows written by the built-in payment simulator. The flag is
+  // what lets the simulator reset remove exactly the rows it created without
+  // touching real ledger history.
+  isSimulated      Boolean           @default(false)
+  // Optional client-supplied key that makes a write safe to retry. Two
+  // deposits with the same key for the same user are the same deposit:
+  // the second one replays the first result instead of crediting twice.
+  // NULL means "no key supplied", and NULLs are never equal in PostgreSQL,
+  // so every existing row keeps its current behaviour.
+  //
+  // The uniqueness itself is enforced by the `IdempotencyRecord` table
+  // (its primary key), not by a unique index here: adding a unique
+  // constraint to an existing table makes `prisma db push` refuse to run
+  // without --accept-data-loss, and this project never passes that flag.
+  idempotencyKey   String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@index([userId])
   @@index([userId, date])
   @@index([userId, transactionType])
+  @@index([userId, isSimulated])
+  @@index([toAccountId])
   @@map("transactions")
+}
+
+/// One row per processed idempotent request.
+///
+/// The primary key is the guarantee: a second request with the same
+/// (user, scope, key) cannot be inserted, so a retry is recognised by the
+/// database itself and can never apply the write twice.
+model IdempotencyRecord {
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope              String
+  key                String
+  transactionId      String?
+  amount             Decimal? @db.Decimal(15, 2)
+  /// SHA-256 of the canonical deposit payload (target account, amount, date,
+  /// source, description). Used to reject a key reused with different details.
+  /// Nullable: rows written before this column existed fall back to `amount`.
+  requestFingerprint String?
+  createdAt          DateTime @default(now())
+
+  @@id([userId, scope, key])
+  @@index([createdAt])
+  @@map("idempotency_records")
 }
 
 enum TransactionType {
@@ -280,6 +334,77 @@ enum TransactionType {
   TRANSFER
   INVESTMENT
   LOAN_PAYMENT
+  // Written only by the payment simulator (never accepted from generic
+  // transaction creation). Both credit the account and reduce net spending.
+  REFUND
+  REVERSAL
+}
+
+// ============================================================
+// PAYMENT SIMULATOR
+// ============================================================
+
+/// Synthetic payment attempts. Nothing here touches a real payment network.
+///
+/// A PENDING or FAILED attempt never creates a Transaction and never moves a
+/// balance; only settlement (SUCCESS) materialises an EXPENSE row and debits
+/// the account. Refund/reversal are explicit, auditable REFUND/REVERSAL ledger
+/// rows so net spending can be derived without rewriting history.
+model SimulatedPayment {
+  id                  String                   @id @default(uuid())
+  userId              String
+  user                User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId           String
+  account             FinancialAccount         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId          String?
+  category            Category?                @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  amount              Decimal                  @db.Decimal(15, 2)
+  currency            String                   @default("INR")
+  merchant            String
+  description         String?
+  paymentMethod       SimulatedPaymentMethod   @default(CARD)
+  scenario            SimulatedPaymentScenario @default(SUCCESS)
+  status              SimulatedPaymentStatus   @default(PENDING)
+  failureCode         String?
+  failureMessage      String?
+  originTransactionId String?                  @unique
+  refundTransactionId String?                  @unique
+  /// Client-generated once per logical attempt. The (userId, key) unique
+  /// constraint is the idempotency guarantee; a retry replays the attempt.
+  idempotencyKey      String
+  requestFingerprint  String
+  settledAt           DateTime?
+  refundedAt          DateTime?
+  reversedAt          DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@map("simulated_payments")
+}
+
+enum SimulatedPaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  REVERSED
+}
+
+enum SimulatedPaymentMethod {
+  CARD
+  UPI
+  NET_BANKING
+  WALLET
+  BANK_TRANSFER
+}
+
+enum SimulatedPaymentScenario {
+  SUCCESS
+  PENDING
+  FAILURE
 }
 
 // ============================================================
@@ -287,17 +412,17 @@ enum TransactionType {
 // ============================================================
 
 model Budget {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   categoryId   String?
   category     Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  categoryName String   @default("General")
-  monthlyLimit Decimal  @db.Decimal(15, 2)
-  month        Int      // 1-12
+  categoryName String    @default("General")
+  monthlyLimit Decimal   @db.Decimal(15, 2)
+  month        Int // 1-12
   year         Int
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([userId, categoryName, month, year])
   @@index([userId])
@@ -309,19 +434,19 @@ model Budget {
 // ============================================================
 
 model Goal {
-  id                    String     @id @default(uuid())
-  userId                String
-  user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name                  String
-  goalType              GoalType   @default(OTHER)
-  targetAmount          Decimal    @db.Decimal(15, 2)
-  currentAmount         Decimal    @default(0) @db.Decimal(15, 2)
-  targetDate            DateTime?  @db.Date
-  monthlyContribution   Decimal    @default(0) @db.Decimal(15, 2)
-  priority              Priority   @default(MEDIUM)
-  status                GoalStatus @default(ACTIVE)
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
+  id                  String     @id @default(uuid())
+  userId              String
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  goalType            GoalType   @default(OTHER)
+  targetAmount        Decimal    @db.Decimal(15, 2)
+  currentAmount       Decimal    @default(0) @db.Decimal(15, 2)
+  targetDate          DateTime?  @db.Date
+  monthlyContribution Decimal    @default(0) @db.Decimal(15, 2)
+  priority            Priority   @default(MEDIUM)
+  status              GoalStatus @default(ACTIVE)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
 
   @@index([userId])
   @@map("goals")
@@ -356,13 +481,13 @@ enum GoalStatus {
 // ============================================================
 
 model Portfolio {
-  id             String     @id @default(uuid())
-  userId         String     @unique
-  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  totalInvested  Decimal    @default(0) @db.Decimal(15, 2)
-  currentValue   Decimal    @default(0) @db.Decimal(15, 2)
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalInvested Decimal  @default(0) @db.Decimal(15, 2)
+  currentValue  Decimal  @default(0) @db.Decimal(15, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   investments Investment[]
 
@@ -370,16 +495,16 @@ model Portfolio {
 }
 
 model Investment {
-  id               String      @id @default(uuid())
-  portfolioId      String
-  portfolio        Portfolio   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
-  symbol           String
-  name             String?
-  assetType        AssetType   @default(STOCK)
-  quantity         Decimal     @db.Decimal(15, 6)
-  averageBuyPrice  Decimal     @db.Decimal(15, 2)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  id              String    @id @default(uuid())
+  portfolioId     String
+  portfolio       Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  symbol          String
+  name            String?
+  assetType       AssetType @default(STOCK)
+  quantity        Decimal   @db.Decimal(15, 6)
+  averageBuyPrice Decimal   @db.Decimal(15, 2)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([portfolioId, symbol])
   @@index([portfolioId])
@@ -400,12 +525,12 @@ enum AssetType {
 }
 
 model MarketWatchlist {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  symbol    String
-  name      String?
-  addedAt   DateTime @default(now())
+  id      String   @id @default(uuid())
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  symbol  String
+  name    String?
+  addedAt DateTime @default(now())
 
   @@unique([userId, symbol])
   @@index([userId])
@@ -417,20 +542,20 @@ model MarketWatchlist {
 // ============================================================
 
 model Loan {
-  id                 String    @id @default(uuid())
+  id                 String     @id @default(uuid())
   userId             String
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  loanType           LoanType  @default(PERSONAL)
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loanType           LoanType   @default(PERSONAL)
   lenderName         String?
-  principalAmount    Decimal   @db.Decimal(15, 2)
-  interestRate       Decimal   @db.Decimal(5, 2)
+  principalAmount    Decimal    @db.Decimal(15, 2)
+  interestRate       Decimal    @db.Decimal(5, 2)
   tenureMonths       Int
-  startDate          DateTime  @db.Date
-  emiAmount          Decimal?  @db.Decimal(15, 2)
-  outstandingBalance Decimal   @db.Decimal(15, 2)
+  startDate          DateTime   @db.Date
+  emiAmount          Decimal?   @db.Decimal(15, 2)
+  outstandingBalance Decimal    @db.Decimal(15, 2)
   status             LoanStatus @default(ACTIVE)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   @@index([userId])
   @@map("loans")
@@ -499,18 +624,18 @@ model Subscription {
 // ============================================================
 
 model CalendarEvent {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title       String
   description String?
-  eventType   String    @default("CUSTOM")
-  eventDate   DateTime  @db.Date
-  amount      Decimal?  @db.Decimal(15, 2)
-  isRecurring Boolean   @default(false)
+  eventType   String   @default("CUSTOM")
+  eventDate   DateTime @db.Date
+  amount      Decimal? @db.Decimal(15, 2)
+  isRecurring Boolean  @default(false)
   color       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([userId])
   @@index([userId, eventDate])
@@ -588,7 +713,7 @@ model AIRecommendationFeedback {
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   recommendationId    String?
   recommendationTitle String
-  feedbackType        String   // HELPFUL, NOT_HELPFUL, ALREADY_DONE
+  feedbackType        String // HELPFUL, NOT_HELPFUL, ALREADY_DONE
   comments            String?
   createdAt           DateTime @default(now())
 
@@ -621,17 +746,17 @@ model FinancialHealthHistory {
 }
 
 model CashFlowPrediction {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  timeframeDays    Int      // 7, 30, 90
-  expectedIncome   Decimal  @db.Decimal(15, 2)
-  expectedExpenses Decimal  @db.Decimal(15, 2)
-  expectedBalance  Decimal  @db.Decimal(15, 2)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeframeDays    Int // 7, 30, 90
+  expectedIncome   Decimal   @db.Decimal(15, 2)
+  expectedExpenses Decimal   @db.Decimal(15, 2)
+  expectedBalance  Decimal   @db.Decimal(15, 2)
   lowBalanceDate   DateTime?
-  lowBalanceAmount Decimal? @db.Decimal(15, 2)
+  lowBalanceAmount Decimal?  @db.Decimal(15, 2)
   projections      Json
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
 
   @@index([userId])
   @@map("cash_flow_predictions")
@@ -660,7 +785,7 @@ model FinancialSimulation {
   userId           String
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   scenarioName     String
-  scenarioType     String   // SALARY_INCREASE, EXPENSE_INCREASE, EXTRA_INVESTMENT, LOAN_PREPAY, MAJOR_PURCHASE, CUSTOM
+  scenarioType     String // SALARY_INCREASE, EXPENSE_INCREASE, EXTRA_INVESTMENT, LOAN_PREPAY, MAJOR_PURCHASE, CUSTOM
   parameters       Json
   currentCashFlow  Decimal  @db.Decimal(15, 2)
   scenarioCashFlow Decimal  @db.Decimal(15, 2)
@@ -689,18 +814,18 @@ model TransactionCategoryCorrection {
 }
 
 model ReceiptScan {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   merchant      String?
-  amount        Decimal? @db.Decimal(15, 2)
+  amount        Decimal?  @db.Decimal(15, 2)
   date          DateTime? @db.Date
   category      String?
   items         Json?
   rawText       String?
-  status        String   @default("PENDING_CONFIRMATION") // PENDING_CONFIRMATION, CONFIRMED, REJECTED
+  status        String    @default("PENDING_CONFIRMATION") // PENDING_CONFIRMATION, CONFIRMED, REJECTED
   transactionId String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   @@index([userId])
   @@map("receipt_scans")
@@ -729,7 +854,7 @@ model MarketPriceHistory {
 
 model CommodityPrice {
   id            String   @id @default(uuid())
-  commodityType String   // GOLD_24K, GOLD_22K, SILVER
+  commodityType String // GOLD_24K, GOLD_22K, SILVER
   pricePerGram  Decimal  @db.Decimal(15, 2)
   currency      String   @default("INR")
   provider      String   @default("MCX_Reference")
@@ -747,7 +872,7 @@ model ExportJob {
   id         String   @id @default(uuid())
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exportType String   // transactions, accounts, budgets, etc.
+  exportType String // transactions, accounts, budgets, etc.
   status     String   @default("pending")
   filePath   String?
   createdAt  DateTime @default(now())
@@ -776,21 +901,21 @@ model AuditLog {
 // ============================================================
 
 model TrainingDataset {
-  id             String           @id @default(uuid())
+  id             String   @id @default(uuid())
   userId         String
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name           String
   description    String?
   fileName       String?
-  rowCount       Int              @default(0)
-  columnCount    Int              @default(0)
-  columns        Json             @default("[]")
-  currentVersion Int              @default(1)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  rowCount       Int      @default(0)
+  columnCount    Int      @default(0)
+  columns        Json     @default("[]")
+  currentVersion Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  versions       DatasetVersion[]
-  trainingRuns   TrainingRun[]
+  versions     DatasetVersion[]
+  trainingRuns TrainingRun[]
 
   @@index([userId])
   @@map("training_datasets")
@@ -808,7 +933,7 @@ model DatasetVersion {
   data          Json            @default("[]")
   createdAt     DateTime        @default(now())
 
-  trainingRuns  TrainingRun[]
+  trainingRuns TrainingRun[]
 
   @@unique([datasetId, versionNumber])
   @@map("dataset_versions")
@@ -822,12 +947,12 @@ model TrainingRun {
   dataset          TrainingDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   datasetVersionId String?
   datasetVersion   DatasetVersion? @relation(fields: [datasetVersionId], references: [id], onDelete: SetNull)
-  taskType         String          // REGRESSION | CLASSIFICATION
+  taskType         String // REGRESSION | CLASSIFICATION
   targetColumn     String
   featureColumns   String[]
-  algorithm        String          // LINEAR_REGRESSION | RIDGE | DECISION_TREE | LOGISTIC_REGRESSION | NAIVE_BAYES
+  algorithm        String // LINEAR_REGRESSION | RIDGE | DECISION_TREE | LOGISTIC_REGRESSION | NAIVE_BAYES
   hyperparameters  Json            @default("{}")
-  metrics          Json            // Regression: { mae, mse, rmse, r2 } | Classification: { accuracy, precision, recall, f1 }
+  metrics          Json // Regression: { mae, mse, rmse, r2 } | Classification: { accuracy, precision, recall, f1 }
   modelVersion     String          @default("v1.0.0")
   status           String          @default("COMPLETED")
   errorMessage     String?
@@ -835,7 +960,7 @@ model TrainingRun {
   featureStats     Json?
   createdAt        DateTime        @default(now())
 
-  predictions      MLPrediction[]
+  predictions MLPrediction[]
 
   @@index([userId])
   @@index([datasetId])
@@ -867,22 +992,22 @@ model MLPrediction {
 // ============================================================
 
 model Card {
-  id                 String    @id @default(uuid())
-  userId             String
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cardNickname       String
-  cardType           CardType  @default(CREDIT)
-  issuer             String    // HDFC, SBI, ICICI, Axis, etc.
-  lastFourDigits     String    // e.g. "4321" (NEVER store full PAN, CVV, or PIN)
-  creditLimit        Decimal?  @db.Decimal(15, 2)
-  outstandingAmount  Decimal   @default(0) @db.Decimal(15, 2)
-  minimumDue         Decimal?  @db.Decimal(15, 2)
-  billingCycleDay    Int?      // e.g. 15
-  dueDate            DateTime? @db.Date
-  rewardCategory     String?   // Dining, Travel, Fuel, Cashback
-  isActive           Boolean   @default(true)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardNickname      String
+  cardType          CardType  @default(CREDIT)
+  issuer            String // HDFC, SBI, ICICI, Axis, etc.
+  lastFourDigits    String // e.g. "4321" (NEVER store full PAN, CVV, or PIN)
+  creditLimit       Decimal?  @db.Decimal(15, 2)
+  outstandingAmount Decimal   @default(0) @db.Decimal(15, 2)
+  minimumDue        Decimal?  @db.Decimal(15, 2)
+  billingCycleDay   Int? // e.g. 15
+  dueDate           DateTime? @db.Date
+  rewardCategory    String? // Dining, Travel, Fuel, Cashback
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([userId])
   @@map("payment_cards")
@@ -894,19 +1019,19 @@ enum CardType {
 }
 
 model FinancialTask {
-  id           String       @id @default(uuid())
+  id           String    @id @default(uuid())
   userId       String
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   title        String
-  category     String       @default("GENERAL") // EMI, CREDIT_CARD, SIP, INSURANCE, SUBSCRIPTION, TAX, BUDGET
-  dueDate      DateTime     @db.Date
-  priority     Priority     @default(MEDIUM)
-  isCompleted  Boolean      @default(false)
+  category     String    @default("GENERAL") // EMI, CREDIT_CARD, SIP, INSURANCE, SUBSCRIPTION, TAX, BUDGET
+  dueDate      DateTime  @db.Date
+  priority     Priority  @default(MEDIUM)
+  isCompleted  Boolean   @default(false)
   completedAt  DateTime?
   reminderTime DateTime?
   notes        String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([userId])
   @@index([userId, isCompleted])
@@ -962,14 +1087,46 @@ model PendingSmsTransaction {
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
 
-  @@index([userId])
-  @@index([userId, status])
   // A message hash identifies one SMS for a user. The app's read-then-insert
   // duplicate check is not atomic under concurrent ingests (two devices syncing
   // the same message), so this is the DB-level backstop that makes it impossible
   // to double-ingest. NULL hashes stay distinct, so hash-less rows never collide.
   @@unique([userId, rawMessageHash])
+  @@index([userId])
+  @@index([userId, status])
   @@index([userId, bankReference])
   @@map("pending_sms_transactions")
 }
 
+// Server-side confirmation gate for AI-initiated mutations.
+//
+// The model (or the deterministic intent parser) can only *propose* a change.
+// A proposal is bound to one user, one tool/action and its exact arguments, and
+// is represented to the client by a random token. Only the SHA-256 hash of that
+// token is stored. Consuming a proposal is a single atomic update, so a token
+// cannot be replayed, cannot be used by another user, and cannot execute after
+// it expires.
+model AiActionProposal {
+  id                 String    @id @default(uuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toolName           String
+  args               Json
+  description        String
+  tokenHash          String    @unique
+  status             String    @default("PENDING") // PENDING, EXECUTING, COMPLETED, FAILED, CANCELLED, EXPIRED
+  expiresAt          DateTime
+  createdAt          DateTime  @default(now())
+  resolvedAt         DateTime?
+  resultSummary      String?
+  // Execution state is deliberately separate from confirmation: a token is
+  // consumed before the mutation runs, so a failure must never reopen it.
+  executionStartedAt DateTime?
+  attempts           Int       @default(0)
+  lastError          String?
+  retryable          Boolean   @default(false)
+
+  @@index([userId, status])
+  @@index([expiresAt])
+  @@map("ai_action_proposals")
+}

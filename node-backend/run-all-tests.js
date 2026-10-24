@@ -786,6 +786,11 @@ async function runTests() {
 
     const count500 = () => prisma.transaction.count({ where: { userId: userA.id, amount: 500 } });
     const addExpenseMessage = 'add 500 expense as automated regression coffee paid by cash';
+    const confirmAction = (token, decision = 'CONFIRM') =>
+      request(app)
+        .post('/api/v1/ai/actions/confirm')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ token, decision });
 
     // --- A. Provider unavailable → deterministic action-engine fallback ---
     stubGeminiUnavailable();
@@ -812,16 +817,32 @@ async function runTests() {
     const addChatText = String(addChat.body?.data?.response || '');
     assert(
       addChat.status === 200 &&
-        /ai_action_engine \(ADD_TRANSACTION\)/.test(String(addChat.body?.data?.source || '')),
-      'POST /api/v1/ai/chat routes a natural-language expense to a transaction handler'
+        addChat.body?.data?.source === 'ai_confirmation_gate' &&
+        addChat.body?.data?.pendingConfirmation === true &&
+        typeof addChat.body?.data?.confirmation?.token === 'string',
+      'POST /api/v1/ai/chat proposes a natural-language expense instead of applying it'
     );
     assert(
       addChatText.includes('500') && !addChatText.includes('₹₹'),
       'AI chat renders each amount with exactly one rupee sign (never ₹₹)'
     );
     assert(
-      (await count500()) === before500 + 1,
-      'AI chat ADD_TRANSACTION persists the ₹500 expense to the ledger'
+      (await count500()) === before500,
+      'AI chat does not persist the ₹500 expense before confirmation'
+    );
+
+    const confirmedExpense = await confirmAction(addChat.body?.data?.confirmation?.token);
+    assert(
+      confirmedExpense.status === 200 &&
+        confirmedExpense.body?.data?.executed === true &&
+        (await count500()) === before500 + 1,
+      'Confirming ADD_TRANSACTION persists the ₹500 expense exactly once'
+    );
+
+    const replayedExpense = await confirmAction(addChat.body?.data?.confirmation?.token);
+    assert(
+      replayedExpense.status === 409 && (await count500()) === before500 + 1,
+      'Replaying a consumed confirmation token is rejected without a duplicate expense'
     );
 
     // --- B. Provider answers with a tool call → the REAL tool executor runs ---
@@ -853,15 +874,26 @@ async function runTests() {
     assert(
       toolChat.status === 200 &&
         toolChat.body?.data?.source === 'gemini-tools' &&
+        toolChat.body?.data?.pendingConfirmation === true &&
         toolStep?.name === 'create_transaction' &&
-        toolStep?.ok === true,
-      'AI chat dispatches the model-chosen create_transaction tool through the real assistant service'
+        toolStep?.pendingConfirmation === true &&
+        typeof toolChat.body?.data?.confirmation?.token === 'string',
+      'AI chat prepares the model-chosen create_transaction for confirmation instead of running it'
     );
     assert(
-      (await count500()) === beforeToolCall + 1 &&
-        String(toolStep?.summary || '').includes('500') &&
-        !String(toolStep?.summary || '').includes('₹₹'),
-      'AI tool-calling path persists the ₹500 expense and renders one rupee sign per amount'
+      (await count500()) === beforeToolCall,
+      'AI tool-calling path does not persist before confirmation'
+    );
+
+    const confirmedTool = await confirmAction(toolChat.body?.data?.confirmation?.token);
+    const confirmedToolText = String(confirmedTool.body?.data?.response || '');
+    assert(
+      confirmedTool.status === 200 &&
+        confirmedTool.body?.data?.executed === true &&
+        (await count500()) === beforeToolCall + 1 &&
+        confirmedToolText.includes('500') &&
+        !confirmedToolText.includes('₹₹'),
+      'Confirmed tool call persists the ₹500 expense and renders one rupee sign per amount'
     );
 
     // --- C. Provider error mid-flight → handled gracefully, no 500 surfaced ---
@@ -875,9 +907,17 @@ async function runTests() {
       .send({ message: addExpenseMessage });
     assert(
       errChat.status === 200 &&
-        /ai_action_engine \(ADD_TRANSACTION\)/.test(String(errChat.body?.data?.source || '')) &&
+        errChat.body?.data?.source === 'ai_confirmation_gate' &&
+        errChat.body?.data?.pendingConfirmation === true &&
+        (await count500()) === beforeProviderErr,
+      'AI chat degrades to the deterministic engine when the provider errors (no 500, change still gated)'
+    );
+    const confirmedFallback = await confirmAction(errChat.body?.data?.confirmation?.token);
+    assert(
+      confirmedFallback.status === 200 &&
+        confirmedFallback.body?.data?.executed === true &&
         (await count500()) === beforeProviderErr + 1,
-      'AI chat degrades to the deterministic engine when the provider errors (no 500, action still applied)'
+      'Confirmed deterministic fallback applies the change exactly once'
     );
 
     // --- D. Request validation at the AI boundary ---
@@ -891,6 +931,50 @@ async function runTests() {
     );
 
     restoreGeminiClient();
+
+    // --- E. GET /ai/history returns the NEWEST 50 messages, oldest-first ---
+    // A conversation that outgrows the 50-message cap must still restore the
+    // current thread. Ordering ascending *then* taking returns the oldest 50
+    // and silently hides everything said since the cap was reached.
+    const historyPrefix = 'history-ordering-regression-';
+    await prisma.chatMessage.deleteMany({
+      where: { userId: userA.id, content: { startsWith: historyPrefix } },
+    });
+    const historyBase = Date.now() - 60 * 60 * 1000;
+    await prisma.chatMessage.createMany({
+      data: Array.from({ length: 60 }, (_, i) => ({
+        userId: userA.id,
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `${historyPrefix}${i + 1}`,
+        createdAt: new Date(historyBase + i * 1000),
+      })),
+    });
+
+    const historyRes = await request(app)
+      .get('/api/v1/ai/history')
+      .set('Authorization', `Bearer ${tokenA}`);
+    const history = historyRes.body?.data || [];
+    const historyContents = history.map((m) => m.content);
+    assert(
+      historyRes.status === 200 && history.length === 50,
+      'GET /ai/history caps the transcript at 50 messages'
+    );
+    assert(
+      historyContents.includes(`${historyPrefix}60`) &&
+        !historyContents.includes(`${historyPrefix}1`),
+      'GET /ai/history returns the most recent 50 messages, not the oldest 50'
+    );
+    assert(
+      history.every(
+        (m, i) => i === 0 || new Date(history[i - 1].createdAt) <= new Date(m.createdAt)
+      ),
+      'GET /ai/history returns messages in ascending chronological order'
+    );
+
+    // Leave no fixture residue behind for the next run.
+    await prisma.chatMessage.deleteMany({
+      where: { userId: userA.id, content: { startsWith: historyPrefix } },
+    });
 
     // --- Separate, opt-in live-provider smoke test (excluded from the default run) ---
     if (process.env.AI_LIVE_SMOKE === '1') {

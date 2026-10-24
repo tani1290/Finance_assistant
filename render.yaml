@@ -16,7 +16,12 @@ services:
     # outcome instead of swallowing failures behind `|| true`, and never uses
     # --accept-data-loss. See node-backend/scripts/deploy-migrate.js.
     startCommand: cd node-backend && node scripts/deploy-migrate.js && node src/server.js
-    healthCheckPath: /api/v1/health
+    # Liveness only. The strict /api/v1/health path checks the database *and*
+    # object storage, so a storage outage would make Render restart a healthy
+    # process. /health/live never touches dependencies. Use
+    # /api/v1/health/dependencies to gate on the required database;
+    # /api/v1/health/ready is the strict database+storage probe.
+    healthCheckPath: /api/v1/health/live
     autoDeploy: true
 
     envVars:

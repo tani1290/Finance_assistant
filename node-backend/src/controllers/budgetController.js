@@ -38,11 +38,19 @@ const getBudgets = async (req, res, next) => {
         include: { category: { select: { id: true, name: true } } },
       }),
       prisma.transaction.findMany({
-        where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
+        where: {
+          userId,
+          transactionType: { in: analyticsEngine.SPENDING_TYPES },
+          date: { gte: startOfMonth, lte: endOfMonth },
+        },
         select: BUDGET_TX_SELECT,
       }),
       prisma.transaction.findMany({
-        where: { userId, transactionType: 'EXPENSE', date: { gte: prevBounds.start, lte: prevBounds.end } },
+        where: {
+          userId,
+          transactionType: { in: analyticsEngine.SPENDING_TYPES },
+          date: { gte: prevBounds.start, lte: prevBounds.end },
+        },
         select: BUDGET_TX_SELECT,
       }),
     ]);
@@ -116,18 +124,23 @@ const getBudget = async (req, res, next) => {
     const expenses = await prisma.transaction.findMany({
       where: {
         userId: req.user.id,
-        transactionType: 'EXPENSE',
+        transactionType: { in: analyticsEngine.SPENDING_TYPES },
         date: { gte: startOfMonth, lte: endOfMonth },
       },
       include: { category: { select: { id: true, name: true } } },
     });
 
     const catName = (budget.category?.name || budget.categoryName || '').toLowerCase();
-    const spent = expenses.reduce((sum, t) => {
-      const matchesId = budget.categoryId && t.categoryId === budget.categoryId;
-      const matchesName = t.category?.name && t.category.name.toLowerCase() === catName;
-      return matchesId || matchesName ? sum + parseFloat(t.amount || 0) : sum;
-    }, 0);
+    const spent = Math.max(
+      0,
+      analyticsEngine.round2(
+        expenses.reduce((sum, t) => {
+          const matchesId = budget.categoryId && t.categoryId === budget.categoryId;
+          const matchesName = t.category?.name && t.category.name.toLowerCase() === catName;
+          return matchesId || matchesName ? sum + analyticsEngine.signedSpendingAmount(t) : sum;
+        }, 0)
+      )
+    );
     const limit = parseFloat(budget.monthlyLimit);
     const pct = limit > 0 ? Math.round((spent / limit) * 100) : 0;
 

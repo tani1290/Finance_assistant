@@ -70,6 +70,28 @@
       z-index: 0;
     }
 
+    /*
+     * Ambient water ripples — PUBLIC LANDING PAGE ONLY.
+     * Absolutely positioned and pointer-events:none, so it never intercepts
+     * input, never contributes to layout, and cannot overflow the page.
+     * It sits at z-index 0 behind the hero (z-index 1) and showcase (z-index 2).
+     */
+    .ripple-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: min(100vh, 880px);
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.85;
+    }
+
+    /* Motion is decorative: remove it entirely for reduced-motion users. */
+    @media (prefers-reduced-motion: reduce) {
+      .ripple-canvas { display: none; }
+    }
+
     /* ===== NAVIGATION ===== */
     nav {
       position: sticky;
@@ -1045,6 +1067,7 @@
 <body>
 
   <div class="bg-gradient"></div>
+  <canvas id="rippleCanvas" class="ripple-canvas" aria-hidden="true"></canvas>
 
   <!-- NAVIGATION -->
   <nav>
@@ -1604,6 +1627,203 @@
 
     // Initial calculation on load
     calculateSIP();
+
+    // ===== Ambient Water Ripples (public landing page only) =====
+    (function initWaterRipples() {
+      const canvas = document.getElementById('rippleCanvas');
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const FRAME_MS = 1000 / 30; // Cap at 30fps: decorative, not a game loop.
+      const MAX_DPR = 2;
+
+      let origins = [];
+      let ripples = [];
+      let width = 0;
+      let height = 0;
+      let rafId = 0;
+      let running = false;
+      let lastDraw = 0;
+      let resizeTimer = 0;
+      let inView = true;
+      let observer = null;
+
+      function seedOrigins() {
+        origins = [
+          { xr: 0.50, yr: 0.30, interval: 2400, maxRadius: 0.30, nextIn: 250, tone: 0 },
+          { xr: 0.16, yr: 0.52, interval: 3300, maxRadius: 0.24, nextIn: 1450, tone: 1 },
+          { xr: 0.84, yr: 0.44, interval: 3000, maxRadius: 0.22, nextIn: 2300, tone: 1 },
+        ];
+      }
+
+      function spawn(origin) {
+        const base = Math.min(width, height) || width;
+        ripples.push({
+          x: origin.xr * width + (Math.random() - 0.5) * 24,
+          y: origin.yr * height + (Math.random() - 0.5) * 16,
+          age: 0,
+          life: 4600 + Math.random() * 900,
+          from: 4,
+          to: base * origin.maxRadius * (0.85 + Math.random() * 0.3),
+          squash: 0.42 + Math.random() * 0.10,
+          tone: origin.tone,
+        });
+        // Never let a stalled tab accumulate a wall of rings.
+        if (ripples.length > 48) ripples.splice(0, ripples.length - 48);
+      }
+
+      function render(dt) {
+        ctx.clearRect(0, 0, width, height);
+
+        for (const origin of origins) {
+          origin.nextIn -= dt;
+          if (origin.nextIn <= 0) {
+            spawn(origin);
+            origin.nextIn = origin.interval * (0.85 + Math.random() * 0.3);
+          }
+        }
+
+        for (let i = ripples.length - 1; i >= 0; i -= 1) {
+          const ring = ripples[i];
+          ring.age += dt;
+          const t = ring.age / ring.life;
+          if (t >= 1) {
+            ripples.splice(i, 1);
+            continue;
+          }
+
+          const eased = 1 - Math.pow(1 - t, 2.2);
+          const radius = ring.from + (ring.to - ring.from) * eased;
+          const fade = Math.pow(1 - t, 1.7);
+          const alpha = fade * (ring.tone === 0 ? 0.17 : 0.12);
+          const stroke = ring.tone === 0
+            ? 'rgba(5, 150, 105, ' + alpha.toFixed(3) + ')'
+            : 'rgba(13, 148, 136, ' + alpha.toFixed(3) + ')';
+
+          ctx.save();
+          ctx.translate(ring.x, ring.y);
+          ctx.scale(1, ring.squash);
+          ctx.beginPath();
+          ctx.arc(0, 0, radius, 0, Math.PI * 2);
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = 0.8 + 1.4 * fade;
+          ctx.stroke();
+
+          if (radius > 18) {
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.max(1, radius - 8 - 6 * fade), 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(16, 185, 129, ' + (alpha * 0.35).toFixed(3) + ')';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+
+      function tick(now) {
+        if (!running) return;
+        rafId = requestAnimationFrame(tick);
+        if (now - lastDraw < FRAME_MS) return;
+        const dt = Math.min(now - lastDraw, 80);
+        lastDraw = now;
+        render(dt);
+      }
+
+      function start() {
+        if (running || motionQuery.matches || document.hidden || !inView) return;
+        if (!width || !height) return;
+        running = true;
+        lastDraw = 0;
+        rafId = requestAnimationFrame(tick);
+      }
+
+      function stop() {
+        running = false;
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = 0;
+        ctx.clearRect(0, 0, width, height);
+      }
+
+      function resize() {
+        const rect = canvas.getBoundingClientRect();
+        width = rect.width;
+        height = rect.height;
+        if (!width || !height) {
+          stop();
+          return;
+        }
+        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ripples = [];
+        seedOrigins();
+        start();
+      }
+
+      function scheduleResize() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(resize, 150);
+      }
+
+      function onVisibility() {
+        if (document.hidden) {
+          stop();
+        } else {
+          start();
+        }
+      }
+
+      function onMotionChange() {
+        if (motionQuery.matches) {
+          stop();
+        } else {
+          start();
+        }
+      }
+
+      function cleanup() {
+        stop();
+        window.removeEventListener('resize', scheduleResize);
+        window.removeEventListener('orientationchange', scheduleResize);
+        window.removeEventListener('pagehide', cleanup);
+        document.removeEventListener('visibilitychange', onVisibility);
+        if (motionQuery.removeEventListener) {
+          motionQuery.removeEventListener('change', onMotionChange);
+        } else if (motionQuery.removeListener) {
+          motionQuery.removeListener(onMotionChange);
+        }
+        if (observer) observer.disconnect();
+      }
+
+      if ('IntersectionObserver' in window) {
+        observer = new IntersectionObserver((entries) => {
+          inView = entries.some((entry) => entry.isIntersecting);
+          if (inView) {
+            start();
+          } else {
+            stop();
+          }
+        }, { threshold: 0 });
+        observer.observe(canvas);
+      }
+
+      window.addEventListener('resize', scheduleResize);
+      window.addEventListener('orientationchange', scheduleResize);
+      window.addEventListener('pagehide', cleanup, { once: true });
+      document.addEventListener('visibilitychange', onVisibility);
+      if (motionQuery.addEventListener) {
+        motionQuery.addEventListener('change', onMotionChange);
+      } else if (motionQuery.addListener) {
+        motionQuery.addListener(onMotionChange);
+      }
+
+      seedOrigins();
+      resize();
+    })();
   </script>
 </body>
 </html>

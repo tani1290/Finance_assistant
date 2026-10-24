@@ -1,7 +1,9 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
 const { calculateHealthScore } = require('../utils/financialMath');
+const { currentMonthRange, formatDateOnly, monthLabel, DEFAULT_TIME_ZONE } = require('../utils/dateOnly');
 const financialTwin = require('./financialTwinService');
+const analyticsEngine = require('./analyticsEngine');
 
 /**
  * AI Service — Gemini Integration with Financial Context
@@ -37,13 +39,19 @@ const getGeminiClient = () => {
  */
 const getUserFinancialContext = async (userId) => {
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const period = currentMonthRange(now, DEFAULT_TIME_ZONE);
+  const startOfMonth = period.start;
+  const endOfMonth = period.end;
 
   const [user, accounts, monthlyIncome, monthlyExpenses, totalIncome, totalExpenses, goals, loans, portfolio, budgets, topCategories] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { firstName: true, lastName: true, email: true },
+      select: {
+        firstName: true,
+        lastName: true,
+        email: true,
+        financialProfile: { select: { monthlySalary: true } },
+      },
     }),
     prisma.financialAccount.aggregate({
       where: { userId, isActive: true },
@@ -53,8 +61,9 @@ const getUserFinancialContext = async (userId) => {
       where: { userId, transactionType: 'INCOME', date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
-    prisma.transaction.aggregate({
-      where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
+    prisma.transaction.groupBy({
+      by: ['transactionType'],
+      where: { userId, transactionType: { in: analyticsEngine.SPENDING_TYPES }, date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
     prisma.transaction.aggregate({
@@ -86,8 +95,9 @@ const getUserFinancialContext = async (userId) => {
 
   const totalBalance = parseFloat(accounts._sum.balance || 0);
   const incomeThisMonth = parseFloat(monthlyIncome._sum.amount || 0);
-  const expensesThisMonth = parseFloat(monthlyExpenses._sum.amount || 0);
+  const expensesThisMonth = analyticsEngine.signedTotal(monthlyExpenses);
   const savingsThisMonth = incomeThisMonth - expensesThisMonth;
+  const profileMonthlySalary = parseFloat(user?.financialProfile?.monthlySalary || 0);
   const totalDebt = parseFloat(loans._sum.outstandingBalance || 0);
   const monthlyEMI = parseFloat(loans._sum.emiAmount || 0);
   const investmentValue = parseFloat(portfolio?.currentValue || 0);
@@ -114,10 +124,18 @@ const getUserFinancialContext = async (userId) => {
 
   return {
     user,
+    period: {
+      label: monthLabel(period.year, period.month),
+      start: formatDateOnly(period.start),
+      end: formatDateOnly(period.end),
+      timezone: DEFAULT_TIME_ZONE,
+    },
     totalBalance,
     incomeThisMonth,
     expensesThisMonth,
     savingsThisMonth,
+    // Onboarding estimate only. Never used as recorded income.
+    profileMonthlySalary,
     totalDebt,
     monthlyEMI,
     investmentValue,
@@ -134,8 +152,11 @@ const getUserFinancialContext = async (userId) => {
  * Build system prompt with user context
  */
 const buildSystemPrompt = (ctx) => {
-  const { user, totalBalance, incomeThisMonth, expensesThisMonth, savingsThisMonth, totalDebt, investmentValue, netWorth, healthScore, goals } = ctx;
+  const { user, period, totalBalance, incomeThisMonth, expensesThisMonth, savingsThisMonth, profileMonthlySalary, totalDebt, investmentValue, netWorth, healthScore, goals } = ctx;
   const name = user?.firstName || 'User';
+  const salaryLine = profileMonthlySalary > 0
+    ? `- Onboarding Salary Estimate (profile; NOT recorded income, do not present as actual inflow): ${formatINR(profileMonthlySalary)}`
+    : '- Onboarding Salary Estimate: not set';
 
   return `You are FinPro AI, a professional financial advisor for ${name}.
 
@@ -144,12 +165,15 @@ CRITICAL RULES:
 - Always respond in Indian context. Use ₹ (INR) and Indian numbering (lakhs, crores).
 - Be concise, practical, and empathetic. Avoid overwhelming the user.
 - If a question is unrelated to personal finance, politely redirect.
+- "Income this month" means the sum of INCOME transactions recorded in the ledger for ${period?.label || 'the current month'}. Never substitute the onboarding salary estimate for it.
 
 USER'S CURRENT FINANCIAL SNAPSHOT (from database):
+- Reporting month: ${period?.label || 'Current month'} (${period?.start || ''} to ${period?.end || ''}, ${period?.timezone || 'Asia/Kolkata'})
 - Total Bank Balance: ${formatINR(totalBalance)}
-- Monthly Income (this month): ${formatINR(incomeThisMonth)}
+- Recorded Income (this month, ledger): ${formatINR(incomeThisMonth)}
 - Monthly Expenses (this month): ${formatINR(expensesThisMonth)}
 - Monthly Savings: ${formatINR(savingsThisMonth)}
+${salaryLine}
 - Outstanding Debt: ${formatINR(totalDebt)}
 - Investment Portfolio Value: ${formatINR(investmentValue)}
 - Net Worth: ${formatINR(netWorth)}
@@ -171,7 +195,10 @@ const generateRuleBasedResponse = (userMessage, ctx) => {
   }
 
   if (msg.includes('income') || msg.includes('salary') || msg.includes('earn')) {
-    return `Your income this month is **${formatINR(incomeThisMonth)}**. ${incomeThisMonth > 0 ? 'Keep tracking all income sources for accurate financial planning.' : 'No income recorded yet this month. Add income transactions to get started.'}`;
+    const estimate = ctx.profileMonthlySalary > 0
+      ? ` Your onboarding salary estimate is **${formatINR(ctx.profileMonthlySalary)}**, but it is not counted as income until it appears in your ledger.`
+      : '';
+    return `Your recorded income this month is **${formatINR(incomeThisMonth)}**.${estimate} ${incomeThisMonth > 0 ? 'Keep tracking all income sources for accurate financial planning.' : 'No income recorded yet this month. Add income transactions to get started.'}`;
   }
 
   if (msg.includes('expense') || msg.includes('spend') || msg.includes('spent')) {

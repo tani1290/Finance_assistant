@@ -1,7 +1,10 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
+const { currentMonthParts, monthRange, parseDateOnly, formatDateOnly } = require('../utils/dateOnly');
 const financialTwin = require('../services/financialTwinService');
 const analyticsEngine = require('../services/analyticsEngine');
+
+const { SPENDING_TYPES } = analyticsEngine;
 
 // Columns needed to feed the pure analytics engine for an authenticated user.
 // `id` is included so duplicate-suspect reports can identify individual rows for
@@ -73,17 +76,18 @@ const getAnalytics = async (req, res, next) => {
         _sum: { amount: true },
         _count: true,
       }),
-      prisma.transaction.aggregate({
-        where: { userId, transactionType: 'EXPENSE', date: dateFilter },
+      // Refund/reversal rows are fetched with expenses so the totals below are
+      // net spending, not gross spending with refunds silently ignored.
+      prisma.transaction.groupBy({
+        by: ['transactionType'],
+        where: { userId, transactionType: { in: SPENDING_TYPES }, date: dateFilter },
         _sum: { amount: true },
-        _count: true,
+        _count: { _all: true },
       }),
       prisma.transaction.groupBy({
-        by: ['categoryId'],
-        where: { userId, transactionType: 'EXPENSE', date: dateFilter },
+        by: ['categoryId', 'transactionType'],
+        where: { userId, transactionType: { in: SPENDING_TYPES }, date: dateFilter },
         _sum: { amount: true },
-        orderBy: { _sum: { amount: 'desc' } },
-        take: 10,
       }),
       prisma.transaction.groupBy({
         by: ['date'],
@@ -98,15 +102,27 @@ const getAnalytics = async (req, res, next) => {
         orderBy: { date: 'asc' },
       }),
       prisma.transaction.groupBy({
-        by: ['date'],
-        where: { userId, transactionType: 'EXPENSE', date: dateFilter },
+        by: ['date', 'transactionType'],
+        where: { userId, transactionType: { in: SPENDING_TYPES }, date: dateFilter },
         _sum: { amount: true },
         orderBy: { date: 'asc' },
       }),
     ]);
 
+    // Net each category: a refund reduces the category it paid into.
+    const categoryTotals = new Map();
+    for (const row of categoryBreakdown) {
+      const key = row.categoryId || null;
+      categoryTotals.set(key, (categoryTotals.get(key) || 0) + analyticsEngine.signedTotal([row]));
+    }
+    const netCategoryBreakdown = Array.from(categoryTotals.entries())
+      .map(([categoryId, amount]) => ({ categoryId, amount: analyticsEngine.round2(amount) }))
+      .filter((row) => row.amount > 0)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 10);
+
     // Resolve category names
-    const categoryIds = categoryBreakdown.map(c => c.categoryId).filter(Boolean);
+    const categoryIds = netCategoryBreakdown.map(c => c.categoryId).filter(Boolean);
     const categories = await prisma.category.findMany({
       where: { id: { in: categoryIds } },
       select: { id: true, name: true },
@@ -114,7 +130,10 @@ const getAnalytics = async (req, res, next) => {
     const catMap = Object.fromEntries(categories.map(c => [c.id, c.name]));
 
     const totalIncome = parseFloat(income._sum.amount || 0);
-    const totalExpenses = parseFloat(expenses._sum.amount || 0);
+    const totalExpenses = analyticsEngine.signedTotal(expenses);
+    const expenseTransactions = expenses
+      .filter((row) => row.transactionType === 'EXPENSE')
+      .reduce((sum, row) => sum + (row._count?._all || 0), 0);
     const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0;
 
     // Month-over-month (only meaningful when a calendar month is in play).
@@ -128,14 +147,15 @@ const getAnalytics = async (req, res, next) => {
           _sum: { amount: true },
           _count: true,
         }),
-        prisma.transaction.aggregate({
-          where: { userId, transactionType: 'EXPENSE', date: { gte: prevBounds.start, lte: prevBounds.end } },
+        prisma.transaction.groupBy({
+          by: ['transactionType'],
+          where: { userId, transactionType: { in: SPENDING_TYPES }, date: { gte: prevBounds.start, lte: prevBounds.end } },
           _sum: { amount: true },
-          _count: true,
+          _count: { _all: true },
         }),
       ]);
       const prevIncomeTotal = parseFloat(prevIncome._sum.amount || 0);
-      const prevExpenseTotal = parseFloat(prevExpenses._sum.amount || 0);
+      const prevExpenseTotal = analyticsEngine.signedTotal(prevExpenses);
       const toSummary = (inc, exp) => ({
         income: inc,
         expenses: exp,
@@ -153,7 +173,15 @@ const getAnalytics = async (req, res, next) => {
     // income-vs-expense trend (the legacy `monthlyTrend` is preserved as-is).
     const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
     const incomeByDay = new Map(incomeTrend.map((t) => [dayKey(t.date), parseFloat(t._sum.amount || 0)]));
-    const expenseByDay = new Map(expenseTrend.map((t) => [dayKey(t.date), parseFloat(t._sum.amount || 0)]));
+    // A day can hold both an expense and its refund; net them per day.
+    const expenseByDay = new Map();
+    for (const row of expenseTrend) {
+      const key = dayKey(row.date);
+      expenseByDay.set(key, (expenseByDay.get(key) || 0) + analyticsEngine.signedTotal([row]));
+    }
+    for (const [key, value] of expenseByDay) {
+      expenseByDay.set(key, analyticsEngine.round2(value));
+    }
     const allDays = Array.from(new Set([...incomeByDay.keys(), ...expenseByDay.keys()])).sort();
     const dailyFlow = allDays.map((day) => {
       const dayIncome = incomeByDay.get(day) || 0;
@@ -175,14 +203,14 @@ const getAnalytics = async (req, res, next) => {
           formattedNetSavings: formatINR(totalIncome - totalExpenses),
           savingsRate,
           incomeTransactions: income._count,
-          expenseTransactions: expenses._count,
+          expenseTransactions,
         },
         monthOverMonth,
-        categoryBreakdown: categoryBreakdown.map(c => ({
+        categoryBreakdown: netCategoryBreakdown.map(c => ({
           category: catMap[c.categoryId] || 'Uncategorized',
-          amount: parseFloat(c._sum.amount || 0),
-          formattedAmount: formatINR(c._sum.amount || 0),
-          percentage: totalExpenses > 0 ? Math.round((parseFloat(c._sum.amount || 0) / totalExpenses) * 100) : 0,
+          amount: c.amount,
+          formattedAmount: formatINR(c.amount),
+          percentage: totalExpenses > 0 ? Math.round((c.amount / totalExpenses) * 100) : 0,
         })),
         monthlyTrend: monthlyTrend.map(t => ({
           date: t.date,
@@ -348,17 +376,16 @@ const getMonthlyFinancialReport = async (req, res, next) => {
         _sum: { amount: true },
         _count: true,
       }),
-      prisma.transaction.aggregate({
-        where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
+      prisma.transaction.groupBy({
+        by: ['transactionType'],
+        where: { userId, transactionType: { in: SPENDING_TYPES }, date: { gte: startOfMonth, lte: endOfMonth } },
         _sum: { amount: true },
-        _count: true,
+        _count: { _all: true },
       }),
       prisma.transaction.groupBy({
-        by: ['categoryId'],
-        where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
+        by: ['categoryId', 'transactionType'],
+        where: { userId, transactionType: { in: SPENDING_TYPES }, date: { gte: startOfMonth, lte: endOfMonth } },
         _sum: { amount: true },
-        orderBy: { _sum: { amount: 'desc' } },
-        take: 5,
       }),
       prisma.budget.findMany({ where: { userId } }),
       prisma.portfolio.findUnique({ where: { userId }, include: { investments: true } }),
@@ -370,9 +397,20 @@ const getMonthlyFinancialReport = async (req, res, next) => {
     ]);
 
     const totalIncome = parseFloat(incomes._sum.amount || 0);
-    const totalExpenses = parseFloat(expenses._sum.amount || 0);
+    const totalExpenses = analyticsEngine.signedTotal(expenses);
     const netSavings = totalIncome - totalExpenses;
     const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0;
+
+    const reportCategoryTotals = new Map();
+    for (const row of categoryExpenses) {
+      const key = row.categoryId || null;
+      reportCategoryTotals.set(key, (reportCategoryTotals.get(key) || 0) + analyticsEngine.signedTotal([row]));
+    }
+    const topExpenseCategories = Array.from(reportCategoryTotals.entries())
+      .map(([categoryId, amount]) => ({ categoryId, amount: analyticsEngine.round2(amount) }))
+      .filter((row) => row.amount > 0)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
 
     return res.status(200).json({
       success: true,
@@ -391,10 +429,10 @@ const getMonthlyFinancialReport = async (req, res, next) => {
           healthScore: healthScore.overallScore,
         },
         healthBreakdown: healthScore.components,
-        topExpenseCategories: categoryExpenses.map(c => ({
+        topExpenseCategories: topExpenseCategories.map(c => ({
           categoryId: c.categoryId,
-          amount: parseFloat(c._sum.amount || 0),
-          formattedAmount: formatINR(c._sum.amount || 0),
+          amount: c.amount,
+          formattedAmount: formatINR(c.amount),
         })),
         activeLoansCount: loans.length,
         totalDebt: loans.reduce((s, l) => s + parseFloat(l.outstandingBalance), 0),
@@ -415,11 +453,19 @@ const getMonthlyFinancialReport = async (req, res, next) => {
 const getCalendarEvents = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const now = new Date();
-    const month = parseInt(req.query.month) || now.getMonth() + 1;
-    const year = parseInt(req.query.year) || now.getFullYear();
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const fallback = currentMonthParts();
+    const requestedMonth = parseInt(req.query.month, 10);
+    const requestedYear = parseInt(req.query.year, 10);
+    const month = Number.isInteger(requestedMonth) && requestedMonth >= 1 && requestedMonth <= 12
+      ? requestedMonth
+      : fallback.month;
+    const year = Number.isInteger(requestedYear) && requestedYear >= 1900 && requestedYear <= 2200
+      ? requestedYear
+      : fallback.year;
+    const range = monthRange(year, month);
+    const startDate = range.start;
+    const endDate = range.end;
+    const pad2 = (n) => String(n).padStart(2, '0');
 
     const [customEvents, loans, subscriptions, goals] = await Promise.all([
       prisma.calendarEvent.findMany({
@@ -446,7 +492,7 @@ const getCalendarEvents = async (req, res, next) => {
         title: e.title,
         description: e.description || '',
         type: e.eventType || 'CUSTOM',
-        date: e.eventDate,
+        date: formatDateOnly(e.eventDate),
         amount: e.amount ? parseFloat(e.amount) : null,
         formattedAmount: e.amount ? formatINR(e.amount) : null,
         color: e.color || '#4F46E5',
@@ -456,7 +502,11 @@ const getCalendarEvents = async (req, res, next) => {
         title: `${l.loanType} Loan EMI Due`,
         description: `Monthly EMI: ${formatINR(l.emiAmount)}`,
         type: 'EMI',
-        date: new Date(year, month - 1, new Date(l.startDate).getDate()),
+        // EMI repeats on the loan's start day, clamped to the short month.
+        date: `${year}-${pad2(month)}-${pad2(Math.min(
+          Number(formatDateOnly(l.startDate)?.slice(8, 10)) || 1,
+          range.end.getUTCDate()
+        ))}`,
         amount: parseFloat(l.emiAmount || 0),
         formattedAmount: formatINR(l.emiAmount || 0),
         color: '#EF4444',
@@ -466,7 +516,7 @@ const getCalendarEvents = async (req, res, next) => {
         title: `${s.serviceName} Renewal`,
         description: `Subscription: ${formatINR(s.cost)}`,
         type: 'SUBSCRIPTION',
-        date: s.nextBillingDate,
+        date: formatDateOnly(s.nextBillingDate),
         amount: parseFloat(s.cost || 0),
         formattedAmount: formatINR(s.cost || 0),
         color: '#F59E0B',
@@ -476,14 +526,15 @@ const getCalendarEvents = async (req, res, next) => {
         title: `Goal Deadline: ${g.name}`,
         description: `Target: ${formatINR(g.targetAmount)}`,
         type: 'GOAL',
-        date: g.targetDate,
+        date: formatDateOnly(g.targetDate),
         amount: parseFloat(g.targetAmount || 0),
         formattedAmount: formatINR(g.targetAmount || 0),
         color: '#10B981',
       })),
     ];
 
-    events.sort((a, b) => new Date(a.date) - new Date(b.date));
+    // All dates are YYYY-MM-DD now, so string ordering is date ordering.
+    events.sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
     return res.status(200).json({
       success: true,
@@ -515,14 +566,20 @@ const createCalendarEvent = async (req, res, next) => {
         title: title.trim(),
         description: description?.trim() || null,
         eventType,
-        eventDate: new Date(eventDate),
+        eventDate: parseDateOnly(eventDate, 'eventDate'),
         amount: amount ? parseFloat(amount) : null,
         color: color || '#4F46E5',
       },
     });
 
-    return res.status(201).json({ success: true, data: { ...event, message: 'Event created!' } });
+    return res.status(201).json({
+      success: true,
+      data: { ...event, eventDate: formatDateOnly(event.eventDate), message: 'Event created!' },
+    });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };
@@ -546,14 +603,20 @@ const updateCalendarEvent = async (req, res, next) => {
         ...(title && { title: title.trim() }),
         ...(description !== undefined && { description: description?.trim() || null }),
         ...(eventType && { eventType }),
-        ...(eventDate && { eventDate: new Date(eventDate) }),
+        ...(eventDate && { eventDate: parseDateOnly(eventDate, 'eventDate') }),
         ...(amount !== undefined && { amount: amount ? parseFloat(amount) : null }),
         ...(color && { color }),
       },
     });
 
-    return res.status(200).json({ success: true, data: { ...updated, message: 'Event updated.' } });
+    return res.status(200).json({
+      success: true,
+      data: { ...updated, eventDate: formatDateOnly(updated.eventDate), message: 'Event updated.' },
+    });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };
@@ -815,7 +878,7 @@ const getForecast = async (req, res, next) => {
 
     const bounds = analyticsEngine.getMonthBounds(parsed.year, parsed.month);
     const transactions = await prisma.transaction.findMany({
-      where: { userId, transactionType: 'EXPENSE', date: { gte: bounds.start, lte: bounds.end } },
+      where: { userId, transactionType: { in: SPENDING_TYPES }, date: { gte: bounds.start, lte: bounds.end } },
       select: ANALYTICS_TX_SELECT,
     });
 

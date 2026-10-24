@@ -7,6 +7,7 @@ import '../../core/models/transaction_model.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
+import '../../shared/widgets/error_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/transaction_tile.dart';
@@ -27,6 +28,7 @@ class CategoryDetailScreen extends StatefulWidget {
 
 class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   List<TransactionModel> _categoryTransactions = [];
 
   @override
@@ -36,28 +38,54 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   }
 
   Future<void> _fetchCategoryTransactions() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
-      final res = await apiClient.get(ApiEndpoints.transactions);
+      final res = await apiClient.get(
+        ApiEndpoints.transactions,
+        queryParameters: {'category': widget.categoryName, 'limit': 100},
+      );
       if (res.statusCode == 200 && res.data['success'] == true) {
-        final list =
-            (res.data['data']['transactions'] ?? res.data['data'] as List)
-                .map((json) => TransactionModel.fromJson(json))
-                .where(
-                  (t) =>
-                      t.categoryName.toLowerCase() ==
-                      widget.categoryName.toLowerCase(),
-                )
-                .toList();
+        final data = res.data['data'];
+        final dynamic raw = data is Map ? data['transactions'] : data;
+        if (raw is! List) {
+          throw const FormatException('Transactions response missing list');
+        }
+        final list = raw
+            .whereType<Map>()
+            .map(
+              (json) => TransactionModel.fromJson(
+                Map<String, dynamic>.from(json),
+              ),
+            )
+            .where(
+              (t) =>
+                  t.categoryName.toLowerCase() ==
+                  widget.categoryName.toLowerCase(),
+            )
+            .toList();
 
+        if (!mounted) return;
         setState(() {
           _categoryTransactions = list;
           _isLoading = false;
         });
       } else {
-        setState(() => _isLoading = false);
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'The server returned an unexpected response.';
+          _isLoading = false;
+        });
       }
     } catch (_) {
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _errorMessage =
+            'Transactions for this category could not be loaded. Check your connection and try again.';
+        _isLoading = false;
+      });
     }
   }
 
@@ -73,6 +101,11 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       appBar: AppBar(title: Text(widget.categoryName)),
       body: _isLoading
           ? _buildSkeleton()
+          : _errorMessage != null
+          ? ErrorStateView(
+              message: _errorMessage!,
+              onRetry: _fetchCategoryTransactions,
+            )
           : _categoryTransactions.isEmpty
           ? EmptyStateView(
               icon: Icons.receipt_long_rounded,

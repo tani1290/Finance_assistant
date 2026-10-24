@@ -1,5 +1,10 @@
-const axios = require('axios');
 const prisma = require('../config/database');
+const cacheService = require('./cacheService');
+const { createHttpClient } = require('./httpClient');
+
+// Public market data only. No account, transaction or user-scoped value may be
+// written to the shared cache from this service.
+const http = createHttpClient({ name: 'market', timeoutMs: 8000, retries: 1, maxConcurrent: 8 });
 
 /**
  * Jinay Finance AI — Production Market Data Service (Zero Fake Data)
@@ -36,7 +41,14 @@ const getCached = (key) => {
 };
 
 const setCached = (key, data) => {
-  memCache.set(key, { data, ts: Date.now() });
+  const ts = Date.now();
+  memCache.set(key, { data, ts });
+  // Only public quotes are shared across instances. The value keeps its
+  // observation timestamp so a second instance cannot make stale data look
+  // fresh; Redis failures are swallowed by the cache service.
+  if (key.startsWith('QUOTE_')) {
+    void cacheService.set(`market:${key}`, { data, ts }, { ttlMs: STALE_TTL_MS });
+  }
 };
 
 // Monotonic write: never replace a NEWER validated observation with an older
@@ -233,7 +245,7 @@ const getYahooSession = async () => {
     return yahooSession;
   }
   try {
-    const res1 = await axios.get('https://fc.yahoo.com', {
+    const res1 = await http.get('https://fc.yahoo.com', {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
       },
@@ -242,7 +254,7 @@ const getYahooSession = async () => {
     });
     const cookie = res1.headers['set-cookie']?.join('; ');
     if (cookie) {
-      const res2 = await axios.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+      const res2 = await http.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
           'Cookie': cookie,
@@ -273,7 +285,7 @@ const fetchYahooChart = async (symbol, queryParam = 'interval=1d&range=1d') => {
     try {
       const crumbPart = session.crumb ? (queryParam ? `&crumb=${encodeURIComponent(session.crumb)}` : `crumb=${encodeURIComponent(session.crumb)}`) : '';
       const url = `${host}/v8/finance/chart/${encodeURIComponent(symbol)}?${queryParam}${crumbPart}`;
-      const res = await axios.get(url, {
+      const res = await http.get(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
           'Accept': '*/*',
@@ -321,7 +333,7 @@ const fetchLiveUSDINR = async () => {
   try {
     const avKey = process.env.ALPHA_VANTAGE_API_KEY;
     if (avKey) {
-      const r = await axios.get('https://www.alphavantage.co/query', {
+      const r = await http.get('https://www.alphavantage.co/query', {
         params: { function: 'CURRENCY_EXCHANGE_RATE', from_currency: 'USD', to_currency: 'INR', apikey: avKey },
         timeout: 6000,
       });
@@ -484,7 +496,7 @@ const fetchAndValidateQuote = async (rawSymbol) => {
     const avKey = process.env.ALPHA_VANTAGE_API_KEY;
     if (avKey) {
       const avSymbol = symbolInfo.av || rawSymbol;
-      const r = await axios.get('https://www.alphavantage.co/query', {
+      const r = await http.get('https://www.alphavantage.co/query', {
         params: { function: 'GLOBAL_QUOTE', symbol: avSymbol, apikey: avKey },
         timeout: 8000,
       });
@@ -555,7 +567,7 @@ const fetchAndValidateQuote = async (rawSymbol) => {
     const fhKey = process.env.FINNHUB_API_KEY;
     if (fhKey) {
       const fhSymbol = symbolInfo.fh || rawSymbol;
-      const r = await axios.get('https://finnhub.io/api/v1/quote', {
+      const r = await http.get('https://finnhub.io/api/v1/quote', {
         params: { symbol: fhSymbol, token: fhKey },
         timeout: 6000,
       });
@@ -726,7 +738,16 @@ const getQuote = async (symbol) => {
   const rawSymbol = (symbol || 'RELIANCE').toUpperCase().trim();
   const cacheKey = `QUOTE_${rawSymbol}`;
 
-  const cached = getCached(cacheKey);
+  let cached = getCached(cacheKey);
+  if (!cached) {
+    // Optional shared-cache hydration. A cold instance can serve a quote warmed
+    // by another instance without calling the provider again.
+    const shared = await cacheService.get(`market:${cacheKey}`);
+    if (shared?.data) {
+      memCache.set(cacheKey, { data: shared.data, ts: shared.ts || Date.now() });
+      cached = getCached(cacheKey);
+    }
+  }
   const session = getMarketSession();
   // Fresh (< LIVE_TTL_MS): serve immediately. LIVE only during an open session.
   if (cached && cached.is_fresh) {
@@ -884,6 +905,142 @@ const getStockHistory = async (symbol, timeframe = '1M') => {
 // ── 3. Precious Metals Engine (24K/22K Gold & Silver) ─────────────────────────
 
 /**
+ * Indian statutory loadings used for the Pune retail parity estimate.
+ *
+ * These are transparent, published percentages applied to the converted
+ * international spot. They are an ESTIMATE, not a live shop quote, and the
+ * response is labelled `DERIVED_INDICATIVE` /
+ * `is_live_provider_quote: false` so no caller can mistake it for a feed.
+ */
+const INDIAN_BULLION_TARIFFS = Object.freeze({
+  basicCustomsDutyPct: 6.0, // BCD + AIDC
+  gstPct: 3.0,
+  puneDeliveryMarginPct: 0.45, // assaying, insurance, transit & local handling
+  jewelleryMakingChargePct: 8.0,
+});
+
+const round2 = (value) => Math.round(value * 100) / 100;
+
+/**
+ * Build Pune retail bullion estimates from the already-converted live spot.
+ * Returns null when either metal is unavailable, so callers never receive a
+ * partially fabricated market.
+ */
+const buildPuneMarket = ({
+  goldPerGram24k,
+  silverPerGram,
+  providerTimestamp,
+  timestampIST,
+  dataStatus,
+  source,
+  usdToInr,
+}) => {
+  if (!Number.isFinite(goldPerGram24k) || goldPerGram24k <= 0) return null;
+  if (!Number.isFinite(silverPerGram) || silverPerGram <= 0) return null;
+
+  const dutyRate = INDIAN_BULLION_TARIFFS.basicCustomsDutyPct / 100;
+  const gstRate = INDIAN_BULLION_TARIFFS.gstPct / 100;
+  const marginRate = INDIAN_BULLION_TARIFFS.puneDeliveryMarginPct / 100;
+  const makingRate = INDIAN_BULLION_TARIFFS.jewelleryMakingChargePct / 100;
+
+  const goldCustomsPerGram = round2(goldPerGram24k * dutyRate);
+  const goldGstPerGram = round2((goldPerGram24k + goldCustomsPerGram) * gstRate);
+  const goldDeliveryPerGram = round2(
+    (goldPerGram24k + goldCustomsPerGram + goldGstPerGram) * marginRate
+  );
+  const puneBullion24kGram = round2(
+    goldPerGram24k + goldCustomsPerGram + goldGstPerGram + goldDeliveryPerGram
+  );
+  const puneBullion22kGram = round2(puneBullion24kGram * (22 / 24));
+  const puneJewellery22kGram = round2(puneBullion22kGram * (1 + makingRate));
+  const puneBullion18kGram = round2(puneBullion24kGram * (18 / 24));
+  const puneJewellery18kGram = round2(puneBullion18kGram * (1 + makingRate));
+
+  const silverCustomsPerGram = round2(silverPerGram * dutyRate);
+  const silverGstPerGram = round2((silverPerGram + silverCustomsPerGram) * gstRate);
+  const silverDeliveryPerGram = round2(
+    (silverPerGram + silverCustomsPerGram + silverGstPerGram) * marginRate
+  );
+  const puneBullionSilverGram = round2(
+    silverPerGram + silverCustomsPerGram + silverGstPerGram + silverDeliveryPerGram
+  );
+
+  return {
+    city: 'Pune',
+    state: 'Maharashtra',
+    country: 'India',
+    market_label: 'Pune Local Bullion & Retail Indicative Market (Laxmi Road / Raviwar Peth)',
+    selection_status: 'DERIVED_INDICATIVE',
+    is_live_provider_quote: false,
+    provider: 'FinPro landed-import parity engine',
+    derived_from: source,
+    data_status: dataStatus,
+    usdToInr,
+    timestamp: timestampIST || getISTTimestamp(providerTimestamp),
+    gold: {
+      karat24: {
+        perGram: puneBullion24kGram,
+        per10Gram: round2(puneBullion24kGram * 10),
+        purity: '99.9% Pure Bullion (24/24)',
+        currency: 'INR',
+        description: 'Investment bullion bar / coin (ex-making charges)',
+      },
+      karat22: {
+        bullionPerGram: puneBullion22kGram,
+        bullionPer10Gram: round2(puneBullion22kGram * 10),
+        jewelleryPerGram: puneJewellery22kGram,
+        jewelleryPer10Gram: round2(puneJewellery22kGram * 10),
+        purity: '91.67% BIS Hallmark Standard (22/24)',
+        currency: 'INR',
+        description:
+          'Standard Indian retail jewellery benchmark with estimated 8% making charges',
+      },
+      karat18: {
+        bullionPerGram: puneBullion18kGram,
+        bullionPer10Gram: round2(puneBullion18kGram * 10),
+        jewelleryPerGram: puneJewellery18kGram,
+        jewelleryPer10Gram: round2(puneJewellery18kGram * 10),
+        purity: '75.0% Diamond/Gemstone Jewellery (18/24)',
+        currency: 'INR',
+        description:
+          '18K retail jewellery benchmark with estimated 8% making charges',
+      },
+      tariff_and_tax_breakdown: {
+        base_international_converted_spot_per_gram: goldPerGram24k,
+        basic_customs_duty_and_aidc_pct: INDIAN_BULLION_TARIFFS.basicCustomsDutyPct,
+        basic_customs_duty_amount: goldCustomsPerGram,
+        gst_pct: INDIAN_BULLION_TARIFFS.gstPct,
+        gst_amount: goldGstPerGram,
+        pune_handling_and_delivery_margin_pct: INDIAN_BULLION_TARIFFS.puneDeliveryMarginPct,
+        pune_handling_amount: goldDeliveryPerGram,
+        final_indicative_bullion_rate_per_gram: puneBullion24kGram,
+        estimated_making_charges_pct: INDIAN_BULLION_TARIFFS.jewelleryMakingChargePct,
+      },
+      disclaimer:
+        'Indicative Pune retail bullion reference computed from landed import parity (6% BCD/AIDC + 3% GST + 0.45% handling). Actual Laxmi Road / Camp counter bills vary with making charges and craftsmanship.',
+    },
+    silver: {
+      perGram: puneBullionSilverGram,
+      per10Gram: round2(puneBullionSilverGram * 10),
+      perKg: round2(puneBullionSilverGram * 1000),
+      currency: 'INR',
+      tariff_and_tax_breakdown: {
+        base_international_converted_spot_per_gram: silverPerGram,
+        basic_customs_duty_and_aidc_pct: INDIAN_BULLION_TARIFFS.basicCustomsDutyPct,
+        basic_customs_duty_amount: silverCustomsPerGram,
+        gst_pct: INDIAN_BULLION_TARIFFS.gstPct,
+        gst_amount: silverGstPerGram,
+        pune_handling_and_delivery_margin_pct: INDIAN_BULLION_TARIFFS.puneDeliveryMarginPct,
+        pune_handling_amount: silverDeliveryPerGram,
+        final_indicative_silver_rate_per_kg: round2(puneBullionSilverGram * 1000),
+      },
+      disclaimer:
+        'Indicative Pune retail bullion reference computed from landed import parity (6% BCD + 3% GST + 0.45% handling).',
+    },
+  };
+};
+
+/**
  * Fetch verified Precious Metals rates.
  * Source: COMEX Gold Continuous Futures (GC=F) & COMEX Silver Continuous Futures (SI=F) converted via real-time USD/INR FX rate.
  * Unit conversions:
@@ -936,7 +1093,7 @@ const getPreciousMetals = async () => {
     try {
       const avKey = process.env.ALPHA_VANTAGE_API_KEY;
       if (avKey) {
-        const r = await axios.get('https://www.alphavantage.co/query', {
+        const r = await http.get('https://www.alphavantage.co/query', {
           params: { function: 'GLOBAL_PRICE_OF_GOLD', apikey: avKey },
           timeout: 8000,
         });
@@ -968,6 +1125,16 @@ const getPreciousMetals = async () => {
         const goldGram = parseFloat(dbGold.pricePerGram);
         const silverGram = parseFloat(dbSilver.pricePerGram);
         const ageSec = Math.round((Date.now() - new Date(dbGold.timestamp).getTime()) / 1000);
+
+        const puneMarket = buildPuneMarket({
+          goldPerGram24k: goldGram,
+          silverPerGram: silverGram,
+          providerTimestamp: new Date(dbGold.timestamp).toISOString(),
+          timestampIST: getISTTimestamp(dbGold.timestamp),
+          dataStatus: ageSec < 15 * 60 ? 'CACHED' : 'STALE',
+          source: `${dbGold.provider} (DB Cache)`,
+          usdToInr,
+        });
 
         return {
           gold: {
@@ -1007,6 +1174,7 @@ const getPreciousMetals = async () => {
             },
           },
           usdToInr,
+          puneMarket,
           marketStatus      : 'CLOSED',
           market_status     : 'CLOSED',
           source            : `${dbGold.provider} (DB Cache)`,
@@ -1039,6 +1207,16 @@ const getPreciousMetals = async () => {
     // Persist to PostgreSQL
     await persistCommodityToDB('GOLD_24K', gold24kGram, source, providerTimestamp);
     await persistCommodityToDB('SILVER', silverGram, source, providerTimestamp);
+
+    const puneMarket = buildPuneMarket({
+      goldPerGram24k: gold24kGram,
+      silverPerGram: silverGram,
+      providerTimestamp,
+      timestampIST: getISTTimestamp(providerTimestamp),
+      dataStatus,
+      source,
+      usdToInr,
+    });
 
     const result = {
       gold: {
@@ -1081,6 +1259,7 @@ const getPreciousMetals = async () => {
         },
       },
       usdToInr,
+      puneMarket,
       marketStatus      : isMarketOpen() ? 'OPEN' : 'CLOSED',
       market_status     : isMarketOpen() ? 'OPEN' : 'CLOSED',
       source,
@@ -1121,6 +1300,7 @@ const getPreciousMetals = async () => {
       },
     },
     usdToInr,
+    puneMarket        : null,
     marketStatus      : 'UNAVAILABLE',
     market_status     : 'UNAVAILABLE',
     source            : 'None',
@@ -1133,6 +1313,60 @@ const getPreciousMetals = async () => {
     cache_age_seconds : null,
     timestamp         : getISTTimestamp(),
     error_status      : 'Market data temporarily unavailable.',
+  };
+};
+
+/**
+ * Diagnostics for the precious-metals integration.
+ *
+ * Booleans only: no env value or credential is ever returned. The Pune block
+ * is explicitly a derived estimate, so a status consumer cannot treat it as a
+ * provider feed.
+ */
+const getMetalsStatus = () => {
+  const cached = getCached('PRECIOUS_METALS');
+  const dataStatus = cached?.data_status || 'UNKNOWN';
+  return {
+    provider: 'COMEX futures via Yahoo Finance + live USD/INR FX',
+    endpoint: '/api/v1/market/metals',
+    isConfigured: true,
+    configured: true,
+    hasCachedData: !!cached,
+    cacheAgeSeconds: cached?.cache_age_seconds ?? null,
+    isFresh: cached?.is_fresh ?? null,
+    dataStatus,
+    lastProviderTimestamp: cached?.provider_timestamp ?? null,
+    lastFetchedAt: cached?.fetched_at ?? null,
+    supportedMetals: ['Gold (GC=F)', 'Silver (SI=F)'],
+    supportedUnits: ['per gram (g)', 'per 10 grams (10g)', 'per kilogram (kg)', 'per troy ounce (oz)'],
+    troyOunceConversionConstant: 31.1035,
+    credentials: {
+      alphaVantageConfigured: Boolean(process.env.ALPHA_VANTAGE_API_KEY),
+      finnhubConfigured: Boolean(process.env.FINNHUB_API_KEY),
+      databaseCacheConfigured: Boolean(prisma?.commodityPrice),
+    },
+    cache: {
+      freshTtlSeconds: Math.round(LIVE_TTL_MS / 1000),
+      staleTtlSeconds: Math.round(STALE_TTL_MS / 1000),
+    },
+    derivedMarkets: {
+      pune: {
+        endpoint: '/api/v1/market/metals/pune',
+        selection_status: 'DERIVED_INDICATIVE',
+        is_live_provider_quote: false,
+        statutoryDutyPct: INDIAN_BULLION_TARIFFS.basicCustomsDutyPct,
+        gstPct: INDIAN_BULLION_TARIFFS.gstPct,
+        puneMarginPct: INDIAN_BULLION_TARIFFS.puneDeliveryMarginPct,
+        jewelleryMakingChargePct: INDIAN_BULLION_TARIFFS.jewelleryMakingChargePct,
+      },
+    },
+    warnings:
+      dataStatus === 'UNAVAILABLE'
+        ? ['No live or cached precious-metals quote is currently available.']
+        : dataStatus === 'STALE'
+        ? ['Showing the last recorded quote; the provider may be offline.']
+        : [],
+    timestamp: getISTTimestamp(),
   };
 };
 
@@ -1151,7 +1385,7 @@ const fetchSMA = async (symbol, period = 20) => {
   if (!avKey) return null;
   const avSymbol = SYMBOL_MAP[symbol]?.av || `${symbol}.BSE`;
   try {
-    const r = await axios.get('https://www.alphavantage.co/query', {
+    const r = await http.get('https://www.alphavantage.co/query', {
       params: { function: 'SMA', symbol: avSymbol, interval: 'daily', time_period: period, series_type: 'close', apikey: avKey },
       timeout: 7000,
     });
@@ -1170,7 +1404,7 @@ const fetchEMA = async (symbol, period = 20) => {
   if (!avKey) return null;
   const avSymbol = SYMBOL_MAP[symbol]?.av || `${symbol}.BSE`;
   try {
-    const r = await axios.get('https://www.alphavantage.co/query', {
+    const r = await http.get('https://www.alphavantage.co/query', {
       params: { function: 'EMA', symbol: avSymbol, interval: 'daily', time_period: period, series_type: 'close', apikey: avKey },
       timeout: 7000,
     });
@@ -1189,7 +1423,7 @@ const fetchRSI = async (symbol, period = 14) => {
   if (!avKey) return null;
   const avSymbol = SYMBOL_MAP[symbol]?.av || `${symbol}.BSE`;
   try {
-    const r = await axios.get('https://www.alphavantage.co/query', {
+    const r = await http.get('https://www.alphavantage.co/query', {
       params: { function: 'RSI', symbol: avSymbol, interval: 'daily', time_period: period, series_type: 'close', apikey: avKey },
       timeout: 7000,
     });
@@ -1205,7 +1439,7 @@ const fetchMACD = async (symbol) => {
   if (!avKey) return null;
   const avSymbol = SYMBOL_MAP[symbol]?.av || `${symbol}.BSE`;
   try {
-    const r = await axios.get('https://www.alphavantage.co/query', {
+    const r = await http.get('https://www.alphavantage.co/query', {
       params: { function: 'MACD', symbol: avSymbol, interval: 'daily', series_type: 'close', fastperiod: 12, slowperiod: 26, signalperiod: 9, apikey: avKey },
       timeout: 7000,
     });
@@ -1227,7 +1461,7 @@ const fetchBBands = async (symbol, period = 20) => {
   if (!avKey) return null;
   const avSymbol = SYMBOL_MAP[symbol]?.av || `${symbol}.BSE`;
   try {
-    const r = await axios.get('https://www.alphavantage.co/query', {
+    const r = await http.get('https://www.alphavantage.co/query', {
       params: { function: 'BBANDS', symbol: avSymbol, interval: 'daily', time_period: period, series_type: 'close', nbdevup: 2, nbdevdn: 2, apikey: avKey },
       timeout: 7000,
     });
@@ -1248,8 +1482,7 @@ const fetchBBands = async (symbol, period = 20) => {
 // ── Technical indicator math (computed from live daily price history) ─────────
 // Yahoo returns closes in the instrument's own quote currency, so these results
 // line up with /market/quote and need no FX conversion.
-
-const round2 = (n) => Math.round(n * 100) / 100;
+// `round2` is defined once at the top of the precious-metals section.
 
 const smaSeries = (values, period) => {
   if (values.length < period) return null;
@@ -1415,7 +1648,7 @@ const fetchCompanyOverview = async (symbol) => {
   if (cached) return cached;
 
   try {
-    const r = await axios.get('https://www.alphavantage.co/query', {
+    const r = await http.get('https://www.alphavantage.co/query', {
       params: { function: 'OVERVIEW', symbol: avSymbol, apikey: avKey },
       timeout: 8000,
     });
@@ -1474,7 +1707,7 @@ const fetchEarnings = async (symbol) => {
   if (cached) return cached;
 
   try {
-    const r = await axios.get('https://www.alphavantage.co/query', {
+    const r = await http.get('https://www.alphavantage.co/query', {
       params: { function: 'EARNINGS', symbol: avSymbol, apikey: avKey },
       timeout: 8000,
     });
@@ -1544,7 +1777,7 @@ const fetchCommodity = async (commodityFunction = 'WTI', interval = 'monthly') =
   try {
     const avKey = process.env.ALPHA_VANTAGE_API_KEY;
     if (avKey) {
-      const r = await axios.get('https://www.alphavantage.co/query', {
+      const r = await http.get('https://www.alphavantage.co/query', {
         params: { function: type, interval, apikey: avKey },
         timeout: 8000,
       });
@@ -1577,7 +1810,7 @@ const getMarketNews = async (category = 'general') => {
   const apiKey = process.env.FINNHUB_API_KEY;
   if (apiKey) {
     try {
-      const r = await axios.get('https://finnhub.io/api/v1/news', {
+      const r = await http.get('https://finnhub.io/api/v1/news', {
         params: { category, token: apiKey },
         timeout: 6000,
       });
@@ -1626,7 +1859,7 @@ const getCompanyProfile = async (symbol) => {
   if (apiKey) {
     try {
       const fhSymbol = SYMBOL_MAP[rawSymbol]?.fh || rawSymbol;
-      const r = await axios.get('https://finnhub.io/api/v1/stock/profile2', {
+      const r = await http.get('https://finnhub.io/api/v1/stock/profile2', {
         params: { symbol: fhSymbol, token: apiKey },
         timeout: 5000,
       });
@@ -1836,6 +2069,8 @@ module.exports = {
   searchStocks,
   getPopularStocks,
   getPreciousMetals,
+  getMetalsStatus,
+  buildPuneMarket,
   getMarketNews,
   getCompanyProfile,
   getMarketDashboard,

@@ -19,6 +19,7 @@
 'use strict';
 
 const aiService = require('./aiService');
+const aiConfirmation = require('./aiConfirmationService');
 const { TOOL_MAP, DECLARATIONS } = require('./aiTools');
 const { formatINR } = require('../utils/inr');
 
@@ -28,6 +29,14 @@ const MODEL_CHAIN = Array.from(
 );
 const MAX_ROUNDS = 6;
 const TIMEOUT_MS = 20_000;
+// Total wall-clock budget for one chat turn, shared across model retries and
+// tool rounds. Without this, a slow provider could hold the request open for
+// minutes even though each individual call has a timeout.
+const TOTAL_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.AI_ASSISTANT_TOTAL_TIMEOUT_MS);
+  if (!Number.isFinite(raw) || raw <= 0) return 45_000;
+  return Math.min(Math.max(raw, 5_000), 120_000);
+})();
 
 function withTimeout(promise, ms) {
   let timer;
@@ -47,6 +56,7 @@ You can BOTH answer questions AND actually perform financial actions using your 
 
 RULES:
 - Any money-moving or data-changing request MUST go through a tool. Never claim you did something unless a tool returned ok:true.
+- Data-changing tools return "pendingConfirmation: true". That means the change was only *proposed* and the user must press Confirm in the app. Never say it was applied, and never ask the user to type "yes" as a substitute for the confirmation button.
 - If a required detail is missing (for example the amount), ask a short follow-up question instead of guessing.
 - Never invent balances, transactions or prices — read them with a tool first.
 - For questions about the user's identity, profile or account details (name, email, risk profile), call get_profile.
@@ -54,13 +64,16 @@ RULES:
 - Reply concisely, like a sharp human assistant. Lead with the outcome, then one supporting detail.
 - After a successful action, confirm briefly and quote the new balance/state the tool returned.
 - Only ever discuss ${name}'s own finances.
+- "Income this month" is the sum of recorded INCOME transactions for ${ctx.period?.label || 'the current month'} — never the onboarding salary estimate.
 
 LIVE SNAPSHOT (as of now):
+- Reporting month: ${ctx.period?.label || 'Current month'} (${ctx.period?.start || ''} to ${ctx.period?.end || ''})
 - Net worth: ${formatINR(ctx.netWorth)}
 - Total balance: ${formatINR(ctx.totalBalance)}
-- This month: income ${formatINR(ctx.incomeThisMonth)}, expenses ${formatINR(
+- This month: recorded income ${formatINR(ctx.incomeThisMonth)}, expenses ${formatINR(
     ctx.expensesThisMonth
   )}, savings ${formatINR(ctx.savingsThisMonth)}
+- Onboarding salary estimate (not counted as income): ${ctx.profileMonthlySalary > 0 ? formatINR(ctx.profileMonthlySalary) : 'not set'}
 - Debt: ${formatINR(ctx.totalDebt)} (EMI ${formatINR(ctx.monthlyEMI)})
 - Investments: ${formatINR(ctx.investmentValue)} (P&L ${formatINR(ctx.investmentPnl)})
 - Health score: ${ctx.healthScore}/100
@@ -135,11 +148,13 @@ async function run(userId, userMessage, chatHistory = []) {
     console.warn('[AI-ASSISTANT] context load failed:', err.message);
     ctx = {
       user: null,
+      period: null,
       netWorth: 0,
       totalBalance: 0,
       incomeThisMonth: 0,
       expensesThisMonth: 0,
       savingsThisMonth: 0,
+      profileMonthlySalary: 0,
       totalDebt: 0,
       monthlyEMI: 0,
       investmentValue: 0,
@@ -165,6 +180,7 @@ async function run(userId, userMessage, chatHistory = []) {
   ];
 
   let lastError = null;
+  const deadline = Date.now() + TOTAL_TIMEOUT_MS;
 
   for (const modelName of MODEL_CHAIN) {
     const model = client.getGenerativeModel({
@@ -176,15 +192,21 @@ async function run(userId, userMessage, chatHistory = []) {
     const contents = baseContents.slice();
     const steps = [];
     let executedAny = false;
+    let createdProposal = null;
 
     try {
       for (let round = 0; round < MAX_ROUNDS; round++) {
+        const remaining = deadline - Date.now();
+        if (remaining < 250) {
+          lastError = new Error('AI response deadline exceeded');
+          break;
+        }
         const result = await withTimeout(
           model.generateContent({
             contents,
             generationConfig: { temperature: 0.4, maxOutputTokens: 1600 },
           }),
-          TIMEOUT_MS
+          Math.min(TIMEOUT_MS, remaining)
         );
         const response = result.response;
         const calls = extractCalls(response);
@@ -217,13 +239,44 @@ async function run(userId, userMessage, chatHistory = []) {
 
         const responseParts = [];
         for (const call of calls) {
-          const out = await executeTool(userId, call);
-          executedAny = true;
+          const mutating = aiConfirmation.isMutatingTool(call.name);
+          let out;
+
+          if (mutating) {
+            // Server-side gate: never let the model write directly. The first
+            // mutating call becomes a proposal; the rest are deferred so the
+            // user approves one unambiguous change at a time.
+            if (createdProposal) {
+              out = {
+                ok: false,
+                pendingConfirmation: true,
+                error: 'Only one change can be prepared per turn. Ask again after resolving the first.',
+              };
+            } else {
+              const prepared = await aiConfirmation.createProposal({
+                userId,
+                toolName: call.name,
+                args: call.args || {},
+              });
+              createdProposal = prepared;
+              out = {
+                ok: false,
+                pendingConfirmation: true,
+                message: 'Change prepared but NOT applied. The user must confirm it in the app.',
+                description: prepared.confirmation.description,
+              };
+            }
+          } else {
+            out = await executeTool(userId, call);
+            executedAny = true;
+          }
+
           steps.push({
             name: call.name,
             args: call.args || {},
-            ok: out.ok !== false,
-            summary: out.summary || out.error || '',
+            ok: out.ok !== false && !out.pendingConfirmation,
+            pendingConfirmation: Boolean(out.pendingConfirmation),
+            summary: out.summary || out.error || out.message || '',
           });
           responseParts.push({
             functionResponse: { name: call.name, response: out },
@@ -231,6 +284,19 @@ async function run(userId, userMessage, chatHistory = []) {
         }
         // The API accepts function responses on a `user` turn.
         contents.push({ role: 'user', parts: responseParts });
+
+        if (createdProposal) {
+          return {
+            handled: true,
+            response: createdProposal.message,
+            action: null,
+            pendingConfirmation: true,
+            confirmation: createdProposal.confirmation,
+            steps,
+            model: modelName,
+            source: 'gemini-tools',
+          };
+        }
       }
 
       // Ran out of rounds with calls still pending — report what was done.
@@ -247,6 +313,18 @@ async function run(userId, userMessage, chatHistory = []) {
     } catch (err) {
       lastError = err;
       console.warn(`[AI-ASSISTANT] model "${modelName}" failed:`, err.message);
+      if (createdProposal) {
+        return {
+          handled: true,
+          response: createdProposal.message,
+          action: null,
+          pendingConfirmation: true,
+          confirmation: createdProposal.confirmation,
+          steps,
+          model: modelName,
+          source: 'gemini-tools',
+        };
+      }
       // Never retry after a mutation — that would double-apply user actions.
       // Instead, fall back to the human-readable summary each tool already
       // produced, so the user still gets a real answer.

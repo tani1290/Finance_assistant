@@ -11,6 +11,7 @@ import '../../core/models/transaction_model.dart';
 import '../../core/sms/sms_platform_channel.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../shared/widgets/financial_card.dart';
+import '../../shared/widgets/error_state_view.dart';
 import '../../shared/widgets/pressable.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/skeleton_loader.dart';
@@ -26,20 +27,38 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   static const _months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
 
   bool _isLoading = true;
+  bool _hasLoaded = false;
+  bool _analyticsFailed = false;
+  bool _dashboardFailed = false;
   String? _errorMessage;
 
   double _netWorth = 0.0;
   double _monthlyIncome = 0.0;
   double _monthlyExpenses = 0.0;
   double _savingsRate = 0.0;
-  int _healthScore = 78;
+  int? _healthScore;
   int _pendingSmsCount = 0;
   String? _aiInsight;
+
+  /// Real daily expense points for the current month. Empty until verified
+  /// analytics data arrives; the UI never substitutes sample values.
+  List<FlSpot> _expenseSpots = const [];
+  double _expenseChartMaxY = 0.0;
 
   List<AccountModel> _accounts = [];
   List<TransactionModel> _recentTransactions = [];
@@ -62,6 +81,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _analyticsFailed = false;
+      _dashboardFailed = false;
+      _expenseSpots = const [];
+      _expenseChartMaxY = 0.0;
     });
 
     try {
@@ -71,14 +94,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         final data = syncRes.data['data'];
         final summary = data['summary'] ?? {};
 
-        _netWorth = double.tryParse(summary['netWorth']?.toString() ?? '0') ?? 0.0;
+        _netWorth =
+            double.tryParse(summary['netWorth']?.toString() ?? '0') ?? 0.0;
         _monthlyIncome =
             double.tryParse(summary['monthlyIncome']?.toString() ?? '0') ?? 0.0;
         _monthlyExpenses =
-            double.tryParse(summary['monthlyExpenses']?.toString() ?? '0') ?? 0.0;
+            double.tryParse(summary['monthlyExpenses']?.toString() ?? '0') ??
+            0.0;
         _savingsRate =
             double.tryParse(summary['savingsRate']?.toString() ?? '0') ?? 0.0;
-        _pendingSmsCount = int.tryParse(summary['pendingSmsCount']?.toString() ?? '0') ?? 0;
+        _pendingSmsCount =
+            int.tryParse(summary['pendingSmsCount']?.toString() ?? '0') ?? 0;
 
         if (data['accounts'] is List) {
           _accounts = (data['accounts'] as List)
@@ -91,6 +117,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               .map((json) => TransactionModel.fromJson(json))
               .toList();
         }
+
+        _hasLoaded = true;
+      } else {
+        _errorMessage = 'Could not load live dashboard data. Pull to refresh.';
       }
 
       // 2. Fetch Dashboard aggregations & health score
@@ -101,40 +131,77 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           // Net worth is authoritative here: it folds in investments and loans,
           // not just cash balances, so it never under-reports portfolio value.
           _netWorth =
-              double.tryParse(dashData['netWorth']?.toString() ?? '') ?? _netWorth;
+              double.tryParse(dashData['netWorth']?.toString() ?? '') ??
+              _netWorth;
           _monthlyIncome =
-              double.tryParse(dashData['monthlyIncome']?.toString() ?? '') ?? _monthlyIncome;
+              double.tryParse(dashData['monthlyIncome']?.toString() ?? '') ??
+              _monthlyIncome;
           _monthlyExpenses =
-              double.tryParse(dashData['monthlyExpenses']?.toString() ?? '') ?? _monthlyExpenses;
+              double.tryParse(dashData['monthlyExpenses']?.toString() ?? '') ??
+              _monthlyExpenses;
           _savingsRate =
-              double.tryParse(dashData['savingsRate']?.toString() ?? '') ?? _savingsRate;
-          _healthScore =
-              int.tryParse(dashData['financialHealthScore']?.toString() ?? '75') ?? 75;
-          _aiInsight = dashData['aiAdvice'] ?? dashData['insight'] ?? dashData['planSummary'];
+              double.tryParse(dashData['savingsRate']?.toString() ?? '') ??
+              _savingsRate;
+          _healthScore = int.tryParse(
+            dashData['financialHealthScore']?.toString() ?? '',
+          );
+          final insight =
+              dashData['aiAdvice'] ??
+              dashData['insight'] ??
+              dashData['planSummary'];
+          _aiInsight = insight is String ? insight : null;
+        } else {
+          _dashboardFailed = true;
         }
-      } catch (_) {}
+      } catch (_) {
+        _dashboardFailed = true;
+      }
 
-      // Fallback calculations if endpoints returned zeroes
-      if (_monthlyIncome == 0 && _recentTransactions.isNotEmpty) {
-        _monthlyIncome = _recentTransactions
-            .where((t) => t.isIncome)
-            .fold(0.0, (sum, t) => sum + t.amount);
+      // 3. Fetch the real current-month daily cash flow for the trend chart.
+      try {
+        final analyticsRes = await apiClient.get(ApiEndpoints.analytics);
+        if (analyticsRes.statusCode == 200 &&
+            analyticsRes.data['success'] == true) {
+          final analyticsData = analyticsRes.data['data'];
+          final dailyFlow = analyticsData is Map
+              ? analyticsData['dailyFlow']
+              : null;
+          if (dailyFlow is List) {
+            final spots = <FlSpot>[];
+            var maxExpense = 0.0;
+            for (final entry in dailyFlow) {
+              if (entry is! Map) continue;
+              final day = DateTime.tryParse(entry['date']?.toString() ?? '');
+              final expense = double.tryParse(
+                entry['expenses']?.toString() ?? '',
+              );
+              if (day == null || expense == null) continue;
+              if (expense > maxExpense) maxExpense = expense;
+              spots.add(FlSpot(day.day.toDouble(), expense));
+            }
+            spots.sort((a, b) => a.x.compareTo(b.x));
+            _expenseSpots = spots;
+            _expenseChartMaxY = maxExpense;
+          }
+        } else {
+          _analyticsFailed = true;
+        }
+      } catch (_) {
+        _analyticsFailed = true;
       }
-      if (_monthlyExpenses == 0 && _recentTransactions.isNotEmpty) {
-        _monthlyExpenses = _recentTransactions
-            .where((t) => !t.isIncome)
-            .fold(0.0, (sum, t) => sum + t.amount);
-      }
+
+      // Do not infer monthly income/expenses from the recent-transactions
+      // preview: it is a truncated list and would under-report the month.
+      // Zeroes are shown honestly when the backend has no data yet.
       if (_savingsRate == 0 && _monthlyIncome > 0) {
         _savingsRate =
-            (((_monthlyIncome - _monthlyExpenses) / _monthlyIncome) * 100).clamp(0, 100);
+            (((_monthlyIncome - _monthlyExpenses) / _monthlyIncome) * 100)
+                .clamp(0, 100);
       }
-      if (_aiInsight == null || _aiInsight!.isEmpty) {
-        _aiInsight =
-            "Your spending is on track this month. You're maintaining a ${_savingsRate.toStringAsFixed(0)}% savings rate across your primary bank accounts.";
-      }
-    } catch (e) {
+    } catch (_) {
       _errorMessage = 'Could not load live dashboard data. Pull to refresh.';
+      _dashboardFailed = true;
+      _analyticsFailed = true;
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -188,6 +255,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ? SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: _buildLoadingSkeleton(),
+              )
+            : _errorMessage != null && !_hasLoaded
+            ? ErrorStateView(
+                message: _errorMessage!,
+                onRetry: _fetchDashboardData,
               )
             : SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -253,7 +325,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline_rounded, color: AppColors.expense, size: 20),
+          const Icon(
+            Icons.info_outline_rounded,
+            color: AppColors.expense,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -284,7 +360,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 color: AppColors.warning.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.sms_rounded, color: AppColors.warning, size: 20),
+              child: const Icon(
+                Icons.sms_rounded,
+                color: AppColors.warning,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -324,7 +404,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: isDark ? AppColors.heroGradientDark : AppColors.heroGradientLight,
+          colors: isDark
+              ? AppColors.heroGradientDark
+              : AppColors.heroGradientLight,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -351,35 +433,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   color: textSecondary,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.favorite_rounded, size: 12, color: AppColors.primaryLight),
-                    const SizedBox(width: 5),
-                    Text(
-                      '$_healthScore',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
+              if (_healthScore != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.favorite_rounded,
+                        size: 12,
                         color: AppColors.primaryLight,
                       ),
-                    ),
-                    Text(
-                      '/100',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: textSecondary,
+                      const SizedBox(width: 5),
+                      Text(
+                        '${_healthScore!}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryLight,
+                        ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        '/100',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -395,12 +485,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           const SizedBox(height: 14),
           Row(
             children: [
-              const StatusBadge(
-                label: '+12.4% this year',
-                color: AppColors.primaryLight,
-                icon: Icons.trending_up_rounded,
-              ),
-              const SizedBox(width: 12),
+              if (_monthlyIncome > 0) ...[
+                StatusBadge(
+                  label: '${_savingsRate.toStringAsFixed(0)}% savings rate',
+                  color: _savingsRate >= 0
+                      ? AppColors.primaryLight
+                      : AppColors.expense,
+                  icon: _savingsRate >= 0
+                      ? Icons.trending_up_rounded
+                      : Icons.trending_down_rounded,
+                ),
+                const SizedBox(width: 12),
+              ],
               Flexible(
                 child: Text(
                   '${_accounts.length} linked ${_accounts.length == 1 ? "account" : "accounts"}',
@@ -480,7 +576,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           const SizedBox(height: 10),
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary(isDark),
+            ),
           ),
           const SizedBox(height: 2),
           FittedBox(
@@ -501,6 +600,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildAiInsightCard(bool isDark) {
+    final insight = (_aiInsight != null && _aiInsight!.trim().isNotEmpty)
+        ? _aiInsight!.trim()
+        : _dashboardFailed
+        ? 'Your financial insight could not be loaded. Pull to refresh to try again.'
+        : 'No AI insight available yet. Add transactions or connect an account to get personalised guidance.';
+
     return Pressable(
       onTap: () => context.push('/ai-advisor'),
       child: Container(
@@ -522,10 +627,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Container(
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: AppColors.primaryGradient),
+                gradient: const LinearGradient(
+                  colors: AppColors.primaryGradient,
+                ),
                 borderRadius: BorderRadius.circular(11),
               ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -546,13 +657,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       Icon(
                         Icons.arrow_forward_ios_rounded,
                         size: 12,
-                        color: isDark ? AppColors.primaryLight : AppColors.primary,
+                        color: isDark
+                            ? AppColors.primaryLight
+                            : AppColors.primary,
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    _aiInsight ?? 'Reviewing your accounts and daily patterns...',
+                    insight,
                     style: TextStyle(
                       fontSize: 12.5,
                       color: AppColors.textPrimary(isDark),
@@ -570,12 +683,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildQuickActionsRow(bool isDark) {
     final actions = <_QuickAction>[
-      _QuickAction(Icons.sms_outlined, 'SMS Inbox', () => context.push('/pending-sms')),
-      _QuickAction(Icons.pie_chart_outline_rounded, 'Budgets', () => context.push('/budgets')),
-      _QuickAction(Icons.account_balance_outlined, 'Accounts', () => context.push('/accounts')),
-      _QuickAction(Icons.show_chart_rounded, 'Invest', () => context.push('/investments')),
+      _QuickAction(
+        Icons.insights_rounded,
+        'Analytics',
+        () => context.push('/analytics'),
+      ),
+      _QuickAction(
+        Icons.sms_outlined,
+        'SMS Inbox',
+        () => context.push('/pending-sms'),
+      ),
+      _QuickAction(
+        Icons.pie_chart_outline_rounded,
+        'Budgets',
+        () => context.push('/budgets'),
+      ),
+      _QuickAction(
+        Icons.account_balance_outlined,
+        'Accounts',
+        () => context.push('/accounts'),
+      ),
+      _QuickAction(
+        Icons.show_chart_rounded,
+        'Invest',
+        () => context.push('/investments'),
+      ),
       _QuickAction(Icons.flag_outlined, 'Goals', () => context.push('/goals')),
-      _QuickAction(Icons.credit_card_outlined, 'Loans', () => context.push('/loans')),
+      _QuickAction(
+        Icons.credit_card_outlined,
+        'Loans',
+        () => context.push('/loans'),
+      ),
     ];
 
     return SizedBox(
@@ -622,6 +760,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _buildSpendingTrendChart(bool isDark) {
     final now = DateTime.now();
     final monthLabel = '${_months[now.month - 1]} ${now.year}';
+    // A single point is not a trend; show an honest empty state instead.
+    final hasTrend = _expenseSpots.length >= 2 && _expenseChartMaxY > 0;
+    final maxY = hasTrend ? _expenseChartMaxY * 1.2 : 100.0;
 
     return FinancialCard(
       child: Column(
@@ -630,82 +771,103 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Spending & Cash Flow', style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'Spending & Cash Flow',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceSubtle(isDark),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   monthLabel,
-                  style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary(isDark)),
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.textSecondary(isDark),
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          SizedBox(
-            height: 150,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 25,
-                  getDrawingHorizontalLine: (v) => FlLine(
-                    color: AppColors.border(isDark).withValues(alpha: 0.6),
-                    strokeWidth: 1,
-                  ),
+          if (!hasTrend)
+            Container(
+              height: 120,
+              alignment: Alignment.center,
+              child: Text(
+                _analyticsFailed
+                    ? 'The spending trend could not be loaded. Pull to refresh.'
+                    : 'Not enough activity this month to chart a spending trend.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: AppColors.textSecondary(isDark),
+                  height: 1.4,
                 ),
-                titlesData: const FlTitlesData(show: false),
-                borderData: FlBorderData(show: false),
-                lineTouchData: const LineTouchData(enabled: false),
-                minY: 0,
-                maxY: 100,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: const [
-                      FlSpot(0, 30),
-                      FlSpot(1, 45),
-                      FlSpot(2, 28),
-                      FlSpot(3, 60),
-                      FlSpot(4, 52),
-                      FlSpot(5, 75),
-                      FlSpot(6, 68),
-                    ],
-                    isCurved: true,
-                    curveSmoothness: 0.35,
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primaryLight, AppColors.teal],
-                    ),
-                    barWidth: 3,
-                    isStrokeCapRound: true,
-                    dotData: FlDotData(
-                      show: true,
-                      getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
-                        radius: 3,
-                        color: AppColors.primaryLight,
-                        strokeWidth: 2,
-                        strokeColor: AppColors.surface(isDark),
-                      ),
-                    ),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          AppColors.primaryLight.withValues(alpha: 0.28),
-                          AppColors.primaryLight.withValues(alpha: 0.0),
-                        ],
-                      ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 150,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: maxY / 4,
+                    getDrawingHorizontalLine: (v) => FlLine(
+                      color: AppColors.border(isDark).withValues(alpha: 0.6),
+                      strokeWidth: 1,
                     ),
                   ),
-                ],
+                  titlesData: const FlTitlesData(show: false),
+                  borderData: FlBorderData(show: false),
+                  lineTouchData: const LineTouchData(enabled: false),
+                  minY: 0,
+                  maxY: maxY,
+                  minX: _expenseSpots.first.x,
+                  maxX: _expenseSpots.last.x,
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: _expenseSpots,
+                      isCurved: true,
+                      curveSmoothness: 0.35,
+                      gradient: const LinearGradient(
+                        colors: [AppColors.primaryLight, AppColors.teal],
+                      ),
+                      barWidth: 3,
+                      isStrokeCapRound: true,
+                      dotData: FlDotData(
+                        show: _expenseSpots.length <= 10,
+                        getDotPainter: (spot, percent, bar, index) =>
+                            FlDotCirclePainter(
+                              radius: 3,
+                              color: AppColors.primaryLight,
+                              strokeWidth: 2,
+                              strokeColor: AppColors.surface(isDark),
+                            ),
+                      ),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            AppColors.primaryLight.withValues(alpha: 0.28),
+                            AppColors.primaryLight.withValues(alpha: 0.0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -727,69 +889,78 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             child: Center(
               child: Text(
                 'No accounts yet — add one to get started.',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark)),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary(isDark),
+                ),
               ),
             ),
           )
         else
-          ..._accounts.take(3).map(
-            (acc) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: FinancialCard(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                onTap: () => context.push('/accounts'),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.account_balance_rounded,
-                        size: 20,
-                        color: AppColors.primaryLight,
-                      ),
+          ..._accounts
+              .take(3)
+              .map(
+                (acc) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: FinancialCard(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            acc.name,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: AppColors.textPrimary(isDark),
-                            ),
+                    onTap: () => context.push('/accounts'),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          Text(
-                            acc.accountNumberMasked != null
-                                ? 'A/c •••• ${acc.accountNumberMasked}'
-                                : acc.accountType,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary(isDark),
-                            ),
+                          child: const Icon(
+                            Icons.account_balance_rounded,
+                            size: 20,
+                            color: AppColors.primaryLight,
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                acc.name,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color: AppColors.textPrimary(isDark),
+                                ),
+                              ),
+                              Text(
+                                acc.accountNumberMasked != null &&
+                                        acc.accountNumberMasked!.isNotEmpty
+                                    ? '${acc.accountTypeLabel} • •••• ${acc.accountNumberMasked}'
+                                    : acc.accountTypeLabel,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary(isDark),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          CurrencyFormatter.format(acc.balance),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: AppColors.textPrimary(isDark),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      CurrencyFormatter.format(acc.balance),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        color: AppColors.textPrimary(isDark),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
       ],
     );
   }
@@ -810,20 +981,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               child: Text(
                 'No transactions yet. Bank SMS will appear here automatically.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark)),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary(isDark),
+                ),
               ),
             ),
           )
         else
-          ..._recentTransactions.take(5).map(
-            (tx) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: TransactionTile(
-                tx: tx,
-                onTap: () => context.push('/transactions/${tx.id}'),
+          ..._recentTransactions
+              .take(5)
+              .map(
+                (tx) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: TransactionTile(
+                    tx: tx,
+                    onTap: () => context.push('/transactions/${tx.id}'),
+                  ),
+                ),
               ),
-            ),
-          ),
       ],
     );
   }
@@ -838,11 +1014,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: SkeletonLoader(width: 100, height: 92, borderRadius: 18)),
+              Expanded(
+                child: SkeletonLoader(width: 100, height: 92, borderRadius: 18),
+              ),
               SizedBox(width: 12),
-              Expanded(child: SkeletonLoader(width: 100, height: 92, borderRadius: 18)),
+              Expanded(
+                child: SkeletonLoader(width: 100, height: 92, borderRadius: 18),
+              ),
               SizedBox(width: 12),
-              Expanded(child: SkeletonLoader(width: 100, height: 92, borderRadius: 18)),
+              Expanded(
+                child: SkeletonLoader(width: 100, height: 92, borderRadius: 18),
+              ),
             ],
           ),
           SizedBox(height: 20),

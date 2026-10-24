@@ -1,3 +1,5 @@
+import 'model_parse.dart';
+
 class UserModel {
   final String id;
   final String email;
@@ -23,10 +25,11 @@ class UserModel {
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    const model = 'UserModel';
     return UserModel(
-      id: json['id'] ?? '',
-      email: json['email'] ?? '',
-      username: json['username'] ?? '',
+      id: parseRequiredString(json, 'id', model: model),
+      email: parseRequiredString(json, 'email', model: model),
+      username: json['username'] ?? json['email'] ?? 'User',
       firstName: json['firstName'] ?? '',
       lastName: json['lastName'] ?? '',
       currency: json['currency'] ?? 'INR',

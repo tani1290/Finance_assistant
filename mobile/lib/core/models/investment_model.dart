@@ -1,3 +1,5 @@
+import 'model_parse.dart';
+
 class InvestmentModel {
   final String id;
   final String symbol;
@@ -26,28 +28,51 @@ class InvestmentModel {
   bool get isProfit => returnsPercent >= 0;
 
   factory InvestmentModel.fromJson(Map<String, dynamic> json) {
-    final qty = (json['quantity'] != null)
-        ? double.tryParse(json['quantity'].toString()) ?? 0.0
-        : 0.0;
-    final bPrice = (json['buyPrice'] != null)
-        ? double.tryParse(json['buyPrice'].toString()) ?? 0.0
-        : 0.0;
-    final cPrice = (json['currentPrice'] != null)
-        ? double.tryParse(json['currentPrice'].toString()) ?? bPrice
+    const model = 'InvestmentModel';
+
+    // The portfolio endpoint names these `averageBuyPrice`, `totalCost` and
+    // `pnlPercent`; accept the short/legacy names too, then keep the derived
+    // fallbacks for payloads that omit the value figures entirely.
+    final qty = parseRequiredDouble(json, 'quantity', model: model);
+    final bPrice = parseRequiredDoubleValue(
+      json['averageBuyPrice'] ?? json['buyPrice'],
+      field: 'averageBuyPrice',
+      model: model,
+    );
+    final cPrice = json['currentPrice'] != null
+        ? parseRequiredDoubleValue(
+            json['currentPrice'],
+            field: 'currentPrice',
+            model: model,
+          )
         : bPrice;
-    final invVal = (json['investedValue'] != null)
-        ? double.tryParse(json['investedValue'].toString()) ?? (qty * bPrice)
+    final rawInvested = json['totalCost'] ?? json['investedValue'];
+    final invVal = rawInvested != null
+        ? parseRequiredDoubleValue(
+            rawInvested,
+            field: 'totalCost',
+            model: model,
+          )
         : (qty * bPrice);
-    final curVal = (json['currentValue'] != null)
-        ? double.tryParse(json['currentValue'].toString()) ?? (qty * cPrice)
+    final curVal = json['currentValue'] != null
+        ? parseRequiredDoubleValue(
+            json['currentValue'],
+            field: 'currentValue',
+            model: model,
+          )
         : (qty * cPrice);
-    final retPct = (json['returnsPercent'] != null)
-        ? double.tryParse(json['returnsPercent'].toString()) ?? 0.0
+    final rawReturns = json['pnlPercent'] ?? json['returnsPercent'];
+    final retPct = rawReturns != null
+        ? parseRequiredDoubleValue(
+            rawReturns,
+            field: 'pnlPercent',
+            model: model,
+          )
         : (invVal > 0 ? ((curVal - invVal) / invVal) * 100 : 0.0);
 
     return InvestmentModel(
-      id: json['id'] ?? '',
-      symbol: json['symbol'] ?? '',
+      id: parseRequiredString(json, 'id', model: model),
+      symbol: parseRequiredString(json, 'symbol', model: model),
       name: json['name'] ?? json['symbol'] ?? 'Asset',
       assetType: json['assetType'] ?? 'STOCK',
       quantity: qty,

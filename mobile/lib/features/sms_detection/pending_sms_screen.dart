@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
@@ -22,6 +23,7 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
   bool _isLoading = true;
   List<PendingSmsModel> _pendingItems = [];
   String? _errorMessage;
+  int _requestId = 0;
 
   @override
   void initState() {
@@ -30,6 +32,7 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
   }
 
   Future<void> _loadPendingSms() async {
+    final requestId = ++_requestId;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -37,16 +40,32 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
 
     try {
       final res = await apiClient.get(ApiEndpoints.smsPending);
+      if (!mounted || requestId != _requestId) return;
+
       if (res.statusCode == 200 && res.data['success'] == true) {
-        final list = (res.data['data'] as List)
-            .map((json) => PendingSmsModel.fromJson(json))
-            .toList();
+        final raw = res.data['data'];
+        final items = raw is List
+            ? raw
+                  .whereType<Map>()
+                  .map(
+                    (json) => PendingSmsModel.fromJson(
+                      Map<String, dynamic>.from(json),
+                    ),
+                  )
+                  .toList()
+            : <PendingSmsModel>[];
         setState(() {
-          _pendingItems = list;
+          _pendingItems = items;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = 'Failed to load pending SMS transactions.';
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } catch (_) {
+      if (!mounted || requestId != _requestId) return;
       setState(() {
         _errorMessage = 'Failed to load pending SMS transactions.';
         _isLoading = false;
@@ -79,8 +98,12 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
           ),
         );
         _loadPendingSms();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to confirm transaction')),
+        );
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to confirm transaction')),
@@ -92,13 +115,23 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
   Future<void> _handleReject(PendingSmsModel item) async {
     try {
       final res = await apiClient.post(ApiEndpoints.smsPendingReject(item.id));
-      if (res.statusCode == 200 && mounted) {
+      if (!mounted) return;
+      if (res.statusCode == 200) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Candidate rejected.')));
         _loadPendingSms();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to reject candidate.')),
+        );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to reject candidate.')),
+      );
+    }
   }
 
   void _showConfirmDialog(PendingSmsModel item) {
@@ -278,8 +311,12 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
                     ),
                   );
                   _loadPendingSms();
+                } else if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to ingest candidate')),
+                  );
                 }
-              } catch (e) {
+              } catch (_) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Failed to ingest candidate')),
@@ -306,11 +343,14 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
       appBar: AppBar(
         title: const Text('Pending SMS'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_comment_rounded),
-            tooltip: 'Simulate/Test SMS',
-            onPressed: _showSimulateSmsDialog,
-          ),
+          // Injecting a fake bank SMS is a development tool. It must never be
+          // reachable in a release build.
+          if (kDebugMode)
+            IconButton(
+              icon: const Icon(Icons.add_comment_rounded),
+              tooltip: 'Simulate/Test SMS',
+              onPressed: _showSimulateSmsDialog,
+            ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _loadPendingSms,
@@ -352,8 +392,9 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
               title: 'All Caught Up!',
               description:
                   'No pending SMS transactions awaiting review. Incoming banking alerts will appear here.',
-              actionLabel: 'Simulate a Bank SMS',
-              onAction: _showSimulateSmsDialog,
+              // Debug-only simulator; release builds show no action here.
+              actionLabel: kDebugMode ? 'Simulate a Bank SMS' : null,
+              onAction: kDebugMode ? _showSimulateSmsDialog : null,
             )
           : RefreshIndicator(
               onRefresh: _loadPendingSms,

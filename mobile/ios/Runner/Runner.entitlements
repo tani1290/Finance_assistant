@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  The APNs environment is injected per build configuration so a sandbox
+	  device build cannot claim to be a production push target and vice versa.
+	  See APS_ENVIRONMENT in Runner.xcodeproj/project.pbxproj:
+	    Debug/Profile -> development
+	    Release       -> production
+	-->
+	<key>aps-environment</key>
+	<string>$(APS_ENVIRONMENT)</string>
+</dict>
+</plist>

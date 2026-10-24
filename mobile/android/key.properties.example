@@ -1,0 +1,17 @@
+# Copy to `key.properties` (same directory) and fill in real values.
+#
+# `key.properties` and every `*.jks` file are git-ignored. Never commit either
+# one: the keystore and its passwords are the app's release signing identity.
+#
+# Generate the keystore once, then keep a secure backup of the .jks file and
+# the four values below. Losing them means you can no longer ship updates to
+# an app already published under this signing key.
+#
+#   keytool -genkeypair -v -keystore finpro-release.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias finpro
+#
+# storeFile is resolved relative to the android/ directory.
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=finpro
+storeFile=finpro-release.jks

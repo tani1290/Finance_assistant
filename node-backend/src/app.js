@@ -18,10 +18,15 @@ const authRoutes = require('./routes/authRoutes');
 const apiRoutes = require('./routes/index');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const requestLogger = require('./middleware/requestLogger');
+const metricsMiddleware = require('./middleware/metricsMiddleware');
 const { securityHeaders, inputSanitizer, hppProtection } = require('./middleware/cybersecurity');
 const realtimePublisher = require('./middleware/realtimePublisher');
 const prisma = require('./config/database');
+const cacheService = require('./services/cacheService');
+const { HybridRateLimitStore } = require('./services/rateLimitStore');
+const metrics = require('./services/metrics');
 const { sanitizeErrorForLog } = require('./utils/logSanitizer');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -47,6 +52,7 @@ if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
 
 app.use(securityHeaders);
 app.use(requestLogger);
+app.use(metricsMiddleware);
 
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
@@ -107,6 +113,8 @@ if (process.env.NODE_ENV !== 'test') {
     max: 200,
     standardHeaders: true,
     legacyHeaders: false,
+    // Shared when Redis is configured; per-instance memory when it is not.
+    store: new HybridRateLimitStore({ name: 'api' }),
     // Realtime traffic is long-lived / high-frequency by design (SSE keep-alive
     // + the polling fallback). It must never consume the general API budget.
     skip: (req) => req.originalUrl.startsWith('/api/v1/realtime'),
@@ -117,6 +125,9 @@ if (process.env.NODE_ENV !== 'test') {
     windowMs: 15 * 60 * 1000,
     max: 100,
     skipSuccessfulRequests: true,
+    // A separate namespace keeps auth attempts from consuming the general API
+    // budget (and vice versa) when both limiters share Redis.
+    store: new HybridRateLimitStore({ name: 'auth' }),
     message: { success: false, error: { code: 'AUTH_RATE_LIMITED', message: 'Too many authentication attempts. Try again in 15 minutes.' } },
   });
 
@@ -191,6 +202,92 @@ app.get('/api/v1/health', async (req, res) => {
   });
 });
 
+// Liveness: proves the process can answer HTTP. It deliberately does NOT touch
+// the database, object storage or Redis, so a dependency outage does not make
+// the platform restart a healthy process. Use /health/dependencies to gate on
+// the required database only. /health/ready is a strict full-feature probe
+// (database + storage) kept for backward compatibility, not a platform
+// liveness or traffic-gating endpoint.
+app.get('/api/v1/health/live', (req, res) => {
+  res.json({
+    live: true,
+    status: 'alive',
+    pid: process.pid,
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Dependency health. Only the database is required for the API to be useful;
+// Redis and object storage are reported but must not declare the whole app
+// unavailable. No secret, URL or credential is returned.
+app.get('/api/v1/health/dependencies', async (req, res) => {
+  const [dbResult, storageResult] = await Promise.allSettled([
+    prisma.checkHealth(),
+    storageService.checkStorageHealth(),
+  ]);
+
+  const db = dbResult.status === 'fulfilled' ? dbResult.value : { healthy: false, status: 'error', latencyMs: null };
+  const storage = storageResult.status === 'fulfilled'
+    ? storageResult.value
+    : { available: false, status: 'error', provider: 'unknown', latencyMs: null };
+
+  const cache = cacheService.getStatus();
+  const requiredHealthy = db.healthy === true;
+
+  res.status(requiredHealthy ? 200 : 503).json({
+    ready: requiredHealthy,
+    status: requiredHealthy ? 'ready' : 'not_ready',
+    timestamp: new Date().toISOString(),
+    dependencies: {
+      database: {
+        required: true,
+        healthy: db.healthy === true,
+        status: db.status,
+        latencyMs: db.latencyMs,
+        tier: db.isCloud ? 'cloud' : 'local',
+      },
+      cache: {
+        required: false,
+        configured: cache.configured,
+        status: cache.status,
+        available: cache.available,
+        circuitOpen: cache.circuitOpen,
+        memoryEntries: cache.memoryEntries,
+      },
+      storage: {
+        required: false,
+        available: storage.available === true,
+        durable: storage.durable === true,
+        status: storage.status,
+        provider: storage.provider,
+        latencyMs: storage.latencyMs,
+      },
+    },
+  });
+});
+
+// Prometheus/OpenMetrics scrape endpoint. In production it is closed unless
+// METRICS_TOKEN is configured; the endpoint never contains secrets or user data.
+app.get('/metrics', (req, res) => {
+  const configuredToken = process.env.METRICS_TOKEN;
+  if (configuredToken) {
+    const provided = req.get('authorization')?.replace(/^Bearer\s+/i, '') || req.get('x-metrics-token') || '';
+    const a = Buffer.from(String(provided));
+    const b = Buffer.from(String(configuredToken));
+    const valid = a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (!valid) {
+      return res.status(401).json({ success: false, error: { code: 'METRICS_UNAUTHORIZED', message: 'Metrics token required.' } });
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found.' } });
+  }
+
+  res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  res.send(metrics.render());
+});
+
 app.get('/api/v1/health/database', async (req, res) => {
   const dbHealth = await prisma.checkHealth();
   const statusCode = dbHealth.healthy ? 200 : 503;
@@ -244,8 +341,15 @@ app.get('/api/v1/health/ready', async (req, res) => {
 
 app.get('/api/v1/health/cloud-detailed', async (req, res) => {
   try {
-    const health = await cloudHealthService.checkAllSubsystems();
-    res.json(health);
+    // Expensive fan-out (12 probes). Cache the public result for a short window
+    // so a loop of unauthenticated requests cannot amplify provider load.
+    const cached = await cacheService.withCache(
+      'health:cloud-detailed',
+      30 * 1000,
+      () => cloudHealthService.checkAllSubsystems(),
+      { lockWaitMs: 250 }
+    );
+    res.json(cached.value);
   } catch (err) {
     console.error(`[Health] cloud-detailed probe failed: ${sanitizeErrorForLog(err)}`);
     res.status(500).json({

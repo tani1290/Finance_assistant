@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
+const analyticsEngine = require('./analyticsEngine');
 
 /**
  * Financial Twin & Predictive Intelligence Service
@@ -32,8 +33,9 @@ const calculateDetailedHealthScore = async (userId) => {
       where: { userId, transactionType: 'INCOME', date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
-    prisma.transaction.aggregate({
-      where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth, lte: endOfMonth } },
+    prisma.transaction.groupBy({
+      by: ['transactionType'],
+      where: { userId, transactionType: { in: analyticsEngine.SPENDING_TYPES }, date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
     prisma.transaction.aggregate({
@@ -41,10 +43,11 @@ const calculateDetailedHealthScore = async (userId) => {
       _sum: { amount: true },
       _count: true,
     }),
-    prisma.transaction.aggregate({
-      where: { userId, transactionType: 'EXPENSE' },
+    prisma.transaction.groupBy({
+      by: ['transactionType'],
+      where: { userId, transactionType: { in: analyticsEngine.SPENDING_TYPES } },
       _sum: { amount: true },
-      _count: true,
+      _count: { _all: true },
     }),
     prisma.loan.findMany({ where: { userId, status: 'ACTIVE' } }),
     prisma.portfolio.findUnique({ where: { userId }, include: { investments: true } }),
@@ -56,7 +59,7 @@ const calculateDetailedHealthScore = async (userId) => {
 
   const totalBankBalance = accounts.reduce((sum, a) => sum + parseFloat(a.balance), 0);
   const monthlyIncome = parseFloat(monthlyIncomeAgg._sum.amount || 0) || parseFloat(financialProfile?.monthlySalary || 0);
-  const monthlyExpenses = parseFloat(monthlyExpenseAgg._sum.amount || 0) || parseFloat(financialProfile?.estimatedMonthlyExpenses || 0);
+  const monthlyExpenses = analyticsEngine.signedTotal(monthlyExpenseAgg) || parseFloat(financialProfile?.estimatedMonthlyExpenses || 0);
   const totalDebt = loans.reduce((sum, l) => sum + parseFloat(l.outstandingBalance), 0);
   const monthlyEMI = loans.reduce((sum, l) => sum + parseFloat(l.emiAmount || 0), 0);
   const investmentValue = parseFloat(portfolio?.currentValue || 0) || (portfolio?.investments || []).reduce((sum, i) => sum + (parseFloat(i.quantity) * parseFloat(i.averageBuyPrice)), 0);
@@ -291,14 +294,17 @@ const predictCashFlow = async (userId, timeframeDays = 30) => {
       where: { userId, transactionType: 'INCOME', date: { gte: past60Days } },
     }),
     prisma.transaction.findMany({
-      where: { userId, transactionType: 'EXPENSE', date: { gte: past60Days } },
+      where: { userId, transactionType: { in: analyticsEngine.SPENDING_TYPES }, date: { gte: past60Days } },
     }),
     prisma.loan.findMany({ where: { userId, status: 'ACTIVE' } }),
     prisma.subscription.findMany({ where: { userId, isActive: true } }),
   ]);
 
   const totalPastIncome = incomes.reduce((s, t) => s + parseFloat(t.amount), 0);
-  const totalPastExpense = expenses.reduce((s, t) => s + parseFloat(t.amount), 0);
+  const totalPastExpense = Math.max(
+    0,
+    expenses.reduce((s, t) => s + analyticsEngine.signedSpendingAmount(t), 0)
+  );
   const avgDailyIncome = totalPastIncome > 0 ? totalPastIncome / 60 : 0;
   const avgDailyExpense = totalPastExpense > 0 ? totalPastExpense / 60 : 0;
 
@@ -463,8 +469,8 @@ const optimizeBudget = async (userId, method = '50/30/20') => {
     }),
     prisma.budget.findMany({ where: { userId } }),
     prisma.transaction.groupBy({
-      by: ['categoryId'],
-      where: { userId, transactionType: 'EXPENSE', date: { gte: startOfMonth } },
+      by: ['categoryId', 'transactionType'],
+      where: { userId, transactionType: { in: analyticsEngine.SPENDING_TYPES }, date: { gte: startOfMonth } },
       _sum: { amount: true },
     }),
   ]);
@@ -500,10 +506,23 @@ const optimizeBudget = async (userId, method = '50/30/20') => {
     });
   }
 
-  // Category specific recommendations
-  const categoryOptimizations = expensesByCategory.map(exp => {
+  // Category specific recommendations. Refund/reversal rows are netted per
+  // category so an optimiser never suggests a budget based on gross spend.
+  const netExpensesByCategory = (() => {
+    const totals = new Map();
+    for (const row of expensesByCategory) {
+      const key = row.categoryId || null;
+      totals.set(key, (totals.get(key) || 0) + analyticsEngine.signedTotal([row]));
+    }
+    return Array.from(totals.entries())
+      .map(([categoryId, amount]) => ({ categoryId, amount: analyticsEngine.round2(amount) }))
+      .filter((row) => row.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+  })();
+
+  const categoryOptimizations = netExpensesByCategory.map(exp => {
     const catName = catMap[exp.categoryId] || 'General';
-    const spent = parseFloat(exp._sum.amount || 0);
+    const spent = exp.amount;
     const existingBudget = currentBudgets.find(b => b.categoryId === exp.categoryId || b.categoryName === catName);
     const currentLimit = existingBudget ? parseFloat(existingBudget.monthlyLimit) : 0;
     

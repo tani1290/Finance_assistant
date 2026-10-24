@@ -134,6 +134,92 @@
       box-shadow: 0 0 20px rgba(16,185,129,0.4);
       transform: translateY(-1px);
     }
+    .account-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 13px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .account-row:last-child { border-bottom: none; }
+    .account-row-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(16,185,129,0.12);
+      color: #34d399;
+      flex-shrink: 0;
+    }
+    .account-row-main { flex: 1; min-width: 0; }
+    .account-row-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .account-row-meta {
+      font-size: 11.5px;
+      color: #94a3b8;
+      margin-top: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .account-type-pill {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      padding: 2px 7px;
+      border-radius: 5px;
+      color: #34d399;
+      background: rgba(16,185,129,0.12);
+      border: 1px solid rgba(16,185,129,0.25);
+    }
+    .account-row-balance {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f8fafc;
+      white-space: nowrap;
+    }
+    .account-row-actions { display: flex; gap: 4px; }
+    .account-icon-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: #94a3b8;
+      border-radius: 7px;
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .account-icon-btn:hover {
+      color: #f8fafc;
+      border-color: rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.05);
+    }
+    .account-form {
+      display: none;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .account-form.open { display: block; }
+    .account-empty {
+      padding: 20px 0 8px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+    @media (max-width: 640px) {
+      .account-row { flex-wrap: wrap; }
+      .account-row-balance { width: 100%; padding-left: 52px; }
+    }
   </style>
 </head>
 <body class="app-layout">
@@ -262,6 +348,51 @@
         </div>
       </div>
 
+      <!-- Assets & Accounts -->
+      <div class="card" id="accountsCard">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="card-title" style="margin-bottom:0;"><i class="ri-wallet-3-line" style="color:#10b981"></i> Assets & Accounts</div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span id="accountsTotal" style="font-size:12px;color:#94a3b8;">Total liquid assets: —</span>
+            <button type="button" class="btn btn-secondary" id="addAccountBtn" style="padding:7px 12px;font-size:12px;"><i class="ri-add-line"></i> Add Account</button>
+          </div>
+        </div>
+        <div id="accountsStatus" style="font-size:12px;color:#94a3b8;margin:8px 0 2px;"></div>
+        <div id="accountsList"></div>
+
+        <form id="accountForm" class="account-form" autocomplete="off">
+          <input type="hidden" id="accountId">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Account Name</label>
+              <input type="text" id="accountName" class="form-control" maxlength="80" placeholder="e.g. Salary A/c">
+            </div>
+            <div class="form-group">
+              <label>Category</label>
+              <select id="accountType" class="form-control" style="color-scheme:dark;"></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Bank / Provider / Note (optional)</label>
+              <input type="text" id="accountInstitution" class="form-control" maxlength="120" placeholder="e.g. HDFC Bank">
+            </div>
+            <div class="form-group">
+              <label>Last 4 Digits (optional for cash)</label>
+              <input type="text" id="accountMasked" class="form-control" inputmode="numeric" maxlength="4" placeholder="1234">
+            </div>
+            <div class="form-group">
+              <label>Balance (₹)</label>
+              <input type="number" id="accountBalance" class="form-control" min="0" step="0.01" placeholder="0.00">
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px;">
+            <button type="button" class="btn btn-secondary" id="cancelAccountBtn">Cancel</button>
+            <button type="submit" class="btn-save" id="saveAccountBtn" style="padding:10px 18px;"><i class="ri-save-line"></i> Save Account</button>
+          </div>
+        </form>
+      </div>
+
       <!-- Action Footer -->
       <div style="display:flex;justify-content:flex-end;gap:14px;align-items:center;">
         <span id="saveStatus" style="font-size:13px;color:#34d399;display:none;"></span>
@@ -353,6 +484,223 @@
       }
     };
 
+    // ------------------------------------------------------------------
+    // Assets & Accounts management (create / edit / delete / categories)
+    // ------------------------------------------------------------------
+    const ACCOUNT_CATEGORIES = [
+      { value: 'BANK', label: 'Bank Account' },
+      { value: 'CASH', label: 'Cash' },
+      { value: 'WALLET', label: 'Wallet' },
+      { value: 'CREDIT_CARD', label: 'Credit Card' },
+      { value: 'CASH_WALLET', label: 'Cash Wallet' },
+      { value: 'CASH_IN_HAND', label: 'Cash in Hand' },
+      { value: 'SAVINGS', label: 'Savings Account' },
+      { value: 'CURRENT', label: 'Current Account' },
+      { value: 'OTHER', label: 'Other' },
+    ];
+    const CASH_LIKE_TYPES = ['CASH', 'CASH_WALLET', 'CASH_IN_HAND', 'OTHER'];
+    const accountCategoryLabel = (value) =>
+      ACCOUNT_CATEGORIES.find((c) => c.value === value)?.label || String(value || 'Other');
+    const accountCategoryIcon = (value) => {
+      switch (value) {
+        case 'CASH':
+        case 'CASH_IN_HAND': return 'ri-money-rupee-circle-line';
+        case 'CASH_WALLET':
+        case 'WALLET': return 'ri-wallet-3-line';
+        case 'CREDIT_CARD': return 'ri-bank-card-line';
+        case 'SAVINGS': return 'ri-safe-2-line';
+        case 'CURRENT': return 'ri-briefcase-line';
+        case 'BANK': return 'ri-bank-line';
+        default: return 'ri-wallet-line';
+      }
+    };
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[ch]));
+    const formatMoney = (value) => new Intl.NumberFormat('en-IN', {
+      style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).format(Number(value) || 0);
+
+    const accountsListEl = document.getElementById('accountsList');
+    const accountsStatusEl = document.getElementById('accountsStatus');
+    const accountsTotalEl = document.getElementById('accountsTotal');
+    const accountFormEl = document.getElementById('accountForm');
+    const accountTypeEl = document.getElementById('accountType');
+    const accountIdEl = document.getElementById('accountId');
+    const accountNameEl = document.getElementById('accountName');
+    const accountInstitutionEl = document.getElementById('accountInstitution');
+    const accountMaskedEl = document.getElementById('accountMasked');
+    const accountBalanceEl = document.getElementById('accountBalance');
+    const saveAccountBtn = document.getElementById('saveAccountBtn');
+    let accountsCache = [];
+
+    ACCOUNT_CATEGORIES.forEach((category) => {
+      const option = document.createElement('option');
+      option.value = category.value;
+      option.textContent = category.label;
+      accountTypeEl.appendChild(option);
+    });
+
+    const setAccountsStatus = (message, isError = false) => {
+      accountsStatusEl.textContent = message || '';
+      accountsStatusEl.style.color = isError ? '#f87171' : '#94a3b8';
+    };
+
+    const renderAccounts = () => {
+      if (accountsCache.length === 0) {
+        accountsListEl.innerHTML =
+          '<div class="account-empty">No accounts yet. Add a bank account, cash wallet or cash in hand to start tracking balances.</div>';
+        return;
+      }
+      accountsListEl.innerHTML = accountsCache.map((account) => {
+        const meta = [];
+        if (account.institution) meta.push(escapeHtml(account.institution));
+        if (account.accountNumberMasked) meta.push('•••• ' + escapeHtml(account.accountNumberMasked));
+        if (account.currency) meta.push(escapeHtml(account.currency));
+        return `
+          <div class="account-row">
+            <div class="account-row-icon"><i class="${accountCategoryIcon(account.accountType)}"></i></div>
+            <div class="account-row-main">
+              <div class="account-row-name">
+                ${escapeHtml(account.name)}
+                <span class="account-type-pill">${escapeHtml(accountCategoryLabel(account.accountType))}</span>
+              </div>
+              <div class="account-row-meta">${meta.join(' · ') || 'No extra details'}</div>
+            </div>
+            <div class="account-row-balance">${formatMoney(account.balance)}</div>
+            <div class="account-row-actions">
+              <button type="button" class="account-icon-btn" data-edit="${escapeHtml(account.id)}" title="Edit account" aria-label="Edit account"><i class="ri-edit-line"></i></button>
+              <button type="button" class="account-icon-btn" data-delete="${escapeHtml(account.id)}" title="Remove account" aria-label="Remove account"><i class="ri-delete-bin-line"></i></button>
+            </div>
+          </div>`;
+      }).join('');
+    };
+
+    const loadAccounts = async () => {
+      setAccountsStatus('Loading accounts…');
+      try {
+        const res = await apiFetch('/accounts');
+        if (!res) return;
+        if (!res.success || !res.data) {
+          setAccountsStatus(res?.error?.message || 'Accounts could not be loaded.', true);
+          return;
+        }
+        accountsCache = Array.isArray(res.data.accounts) ? res.data.accounts : [];
+        accountsTotalEl.textContent = `Total liquid assets: ${formatMoney(res.data.totalBalance)}`;
+        setAccountsStatus(
+          `${accountsCache.length} active ${accountsCache.length === 1 ? 'account' : 'accounts'}`
+        );
+        renderAccounts();
+      } catch {
+        setAccountsStatus('Accounts could not be loaded. Check your connection.', true);
+      }
+    };
+
+    const closeAccountForm = () => {
+      accountFormEl.classList.remove('open');
+      accountFormEl.reset();
+      accountIdEl.value = '';
+      accountMaskedEl.value = '';
+      saveAccountBtn.innerHTML = '<i class="ri-save-line"></i> Save Account';
+    };
+
+    const openAccountForm = (account = null) => {
+      accountFormEl.classList.add('open');
+      if (account) {
+        accountIdEl.value = account.id || '';
+        accountNameEl.value = account.name || '';
+        accountTypeEl.value = account.accountType || 'BANK';
+        accountInstitutionEl.value = account.institution || '';
+        accountMaskedEl.value = account.accountNumberMasked || '';
+        accountBalanceEl.value = Number(account.balance || 0).toFixed(2);
+        saveAccountBtn.innerHTML = '<i class="ri-save-line"></i> Save Changes';
+      } else {
+        accountFormEl.reset();
+        accountIdEl.value = '';
+        accountTypeEl.value = 'BANK';
+        accountBalanceEl.value = '0';
+        saveAccountBtn.innerHTML = '<i class="ri-save-line"></i> Save Account';
+      }
+      accountFormEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    document.getElementById('addAccountBtn').addEventListener('click', () => openAccountForm());
+    document.getElementById('cancelAccountBtn').addEventListener('click', closeAccountForm);
+
+    accountsListEl.addEventListener('click', async (event) => {
+      const editBtn = event.target.closest('[data-edit]');
+      if (editBtn) {
+        const account = accountsCache.find((a) => a.id === editBtn.dataset.edit);
+        if (account) openAccountForm(account);
+        return;
+      }
+      const deleteBtn = event.target.closest('[data-delete]');
+      if (!deleteBtn) return;
+      const account = accountsCache.find((a) => a.id === deleteBtn.dataset.delete);
+      if (!account) return;
+      if (!window.confirm(`Remove "${account.name}"? The ledger history is kept; the account is only hidden.`)) return;
+      const res = await apiFetch(`/accounts/${encodeURIComponent(account.id)}`, { method: 'DELETE' });
+      if (res?.success) {
+        closeAccountForm();
+        await loadAccounts();
+      } else {
+        setAccountsStatus(res?.error?.message || 'Account could not be removed.', true);
+      }
+    });
+
+    accountFormEl.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const id = accountIdEl.value.trim();
+      const name = accountNameEl.value.trim();
+      const type = accountTypeEl.value;
+      const masked = accountMaskedEl.value.trim();
+      const balance = Number(accountBalanceEl.value);
+      const requiresMasked = !CASH_LIKE_TYPES.includes(type);
+
+      if (!name) return setAccountsStatus('Enter an account name.', true);
+      if (masked && !/^\d{4}$/.test(masked)) {
+        return setAccountsStatus('Enter exactly the last 4 digits, or leave it empty for a cash account.', true);
+      }
+      if (requiresMasked && !masked) {
+        return setAccountsStatus('Enter the last 4 digits of the account number.', true);
+      }
+      if (!Number.isFinite(balance) || balance < 0) {
+        return setAccountsStatus('Enter a valid balance of zero or more.', true);
+      }
+
+      const payload = {
+        name,
+        accountType: type,
+        institution: accountInstitutionEl.value.trim(),
+        balance,
+      };
+      if (masked) payload.accountNumberMasked = masked;
+      else if (id) payload.accountNumberMasked = '';
+
+      const originalLabel = saveAccountBtn.innerHTML;
+      saveAccountBtn.disabled = true;
+      saveAccountBtn.innerHTML = '<i class="ri-loader-line"></i> Saving…';
+      try {
+        const res = await apiFetch(id ? `/accounts/${encodeURIComponent(id)}` : '/accounts', {
+          method: id ? 'PATCH' : 'POST',
+          body: JSON.stringify(payload),
+        });
+        if (res?.success) {
+          closeAccountForm();
+          await loadAccounts();
+          setAccountsStatus(id ? 'Account updated.' : 'Account added.');
+          if (window.finproAudio) window.finproAudio.playAudioChime('success');
+        } else {
+          setAccountsStatus(res?.error?.message || 'Account could not be saved.', true);
+        }
+      } catch {
+        setAccountsStatus('Account could not be saved. Check your connection.', true);
+      } finally {
+        saveAccountBtn.disabled = false;
+        saveAccountBtn.innerHTML = originalLabel;
+      }
+    });
+
     // Save Profile
     document.getElementById('saveProfileBtn').addEventListener('click', async () => {
       const btn = document.getElementById('saveProfileBtn');
@@ -435,11 +783,12 @@
 
     updateNotifStatus();
     loadProfile();
+    loadAccounts();
 
     // Cross-device sync: profile or account changes published elsewhere.
     window.finproRealtime.mount({
       resources: ['profile', 'accounts'],
-      reload: () => { loadProfile(); updateNotifStatus(); },
+      reload: () => { loadProfile(); loadAccounts(); updateNotifStatus(); },
     });
   </script>
 </body>

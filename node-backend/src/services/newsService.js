@@ -1,4 +1,9 @@
-const axios = require('axios');
+const cacheService = require('./cacheService');
+const { createHttpClient } = require('./httpClient');
+
+// Public news only. Provider keys stay in the query string on the server and
+// are never written to logs or the cache.
+const http = createHttpClient({ name: 'news', timeoutMs: 8000, retries: 1, maxConcurrent: 4 });
 
 /**
  * Financial News Service (Phase 30 & Phase 31)
@@ -21,8 +26,11 @@ const getCachedNews = (key) => {
   return { ...entry.data, cache_age_seconds: Math.round(age / 1000), data_status: 'CACHED' };
 };
 
-const setCachedNews = (key, data) => {
-  newsCache.set(key, { data, ts: Date.now() });
+const setCachedNews = (key, data, ts = Date.now()) => {
+  newsCache.set(key, { data, ts });
+  // Public news only. Keep the fetch timestamp so another instance reports the
+  // real age instead of presenting the item as freshly fetched.
+  void cacheService.set(`news:${key}`, { data, ts }, { ttlMs: NEWS_CACHE_TTL_MS });
 };
 
 /**
@@ -30,7 +38,14 @@ const setCachedNews = (key, data) => {
  */
 const getFinancialNews = async ({ search = '', category = 'general', symbols = '', limit = 10 } = {}) => {
   const cacheKey = `NEWS_${search}_${category}_${symbols}_${limit}`;
-  const cached = getCachedNews(cacheKey);
+  let cached = getCachedNews(cacheKey);
+  if (!cached) {
+    const shared = await cacheService.get(`news:${cacheKey}`);
+    if (shared?.data) {
+      newsCache.set(cacheKey, { data: shared.data, ts: shared.ts || Date.now() });
+      cached = getCachedNews(cacheKey);
+    }
+  }
   if (cached) return cached;
 
   const marketauxKey = process.env.MARKETAUX_API_KEY;
@@ -53,7 +68,7 @@ const getFinancialNews = async ({ search = '', category = 'general', symbols = '
         params.industries = category;
       }
 
-      const res = await axios.get('https://api.marketaux.com/v1/news/all', {
+      const res = await http.get('https://api.marketaux.com/v1/news/all', {
         params,
         timeout: 8000,
       });
@@ -106,7 +121,7 @@ const getFinancialNews = async ({ search = '', category = 'general', symbols = '
   // 2. Secondary: Finnhub General Market News
   if (finnhubKey && finnhubKey !== 'YOUR_FINNHUB_API_KEY') {
     try {
-      const res = await axios.get('https://finnhub.io/api/v1/news', {
+      const res = await http.get('https://finnhub.io/api/v1/news', {
         params: { category: category === 'general' ? 'general' : category, token: finnhubKey },
         timeout: 7000,
       });

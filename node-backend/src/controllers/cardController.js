@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
+const { parseDateOnly, formatDateOnly } = require('../utils/dateOnly');
 
 /**
  * Card Management Controller (Phase 26)
@@ -43,7 +44,7 @@ const getCards = async (req, res, next) => {
         minimumDue: minDue,
         formattedMinimumDue: formatINR(minDue),
         billingCycleDay: c.billingCycleDay,
-        dueDate: c.dueDate ? c.dueDate.toISOString().split('T')[0] : null,
+        dueDate: formatDateOnly(c.dueDate),
         rewardCategory: c.rewardCategory || 'General',
         utilizationPct: utilization,
         utilizationSeverity: utilization > 50 ? 'HIGH' : utilization > 30 ? 'MODERATE' : 'HEALTHY',
@@ -126,7 +127,7 @@ const createCard = async (req, res, next) => {
         outstandingAmount: parseFloat(outstandingAmount || 0),
         minimumDue: minimumDue ? parseFloat(minimumDue) : null,
         billingCycleDay: billingCycleDay ? parseInt(billingCycleDay, 10) : null,
-        dueDate: dueDate ? new Date(dueDate) : null,
+        dueDate: dueDate ? parseDateOnly(dueDate, 'dueDate') : null,
         rewardCategory: rewardCategory ? rewardCategory.trim() : null,
       },
     });
@@ -145,6 +146,9 @@ const createCard = async (req, res, next) => {
       },
     });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };
@@ -163,7 +167,10 @@ const getCard = async (req, res, next) => {
       });
     }
 
-    return res.status(200).json({ success: true, data: card });
+    return res.status(200).json({
+      success: true,
+      data: { ...card, dueDate: formatDateOnly(card.dueDate) },
+    });
   } catch (error) {
     next(error);
   }
@@ -200,14 +207,20 @@ const updateCard = async (req, res, next) => {
         ...(outstandingAmount !== undefined && { outstandingAmount: parseFloat(outstandingAmount) }),
         ...(minimumDue !== undefined && { minimumDue: parseFloat(minimumDue) }),
         ...(creditLimit !== undefined && { creditLimit: parseFloat(creditLimit) }),
-        ...(dueDate && { dueDate: new Date(dueDate) }),
+        ...(dueDate && { dueDate: parseDateOnly(dueDate, 'dueDate') }),
         ...(billingCycleDay !== undefined && { billingCycleDay: parseInt(billingCycleDay, 10) }),
         ...(rewardCategory && { rewardCategory: rewardCategory.trim() }),
       },
     });
 
-    return res.status(200).json({ success: true, data: updated });
+    return res.status(200).json({
+      success: true,
+      data: { ...updated, dueDate: formatDateOnly(updated.dueDate) },
+    });
   } catch (error) {
+    if (error instanceof RangeError) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.message } });
+    }
     next(error);
   }
 };

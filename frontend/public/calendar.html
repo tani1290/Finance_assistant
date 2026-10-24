@@ -135,8 +135,21 @@
       const isToday = (d, m, y) => d === today.getDate() && m === today.getMonth() + 1 && y === today.getFullYear();
 
       const eventsMap = {};
+      // Calendar dates arrive as `YYYY-MM-DD`. Parse them as local calendar days
+      // so a UTC-midnight timestamp cannot slip into the previous day in
+      // negative-offset time zones.
+      const parseCalDate = (value) => {
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+        if (!m) return new Date(value);
+        return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      };
+      const calDateKey = (value) => {
+        const d = parseCalDate(value);
+        if (Number.isNaN(d.getTime())) return '';
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      };
       allEvents.forEach(e => {
-        const d = new Date(e.eventDate || e.date);
+        const d = parseCalDate(e.eventDate || e.date);
         const key = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
         if (!eventsMap[key]) eventsMap[key] = [];
         eventsMap[key].push(e);
@@ -168,10 +181,10 @@
       document.getElementById('calendarBody').innerHTML = cells;
 
       // Upcoming events list
-      const upcomingEvts = allEvents.filter(e => {
-        const d = new Date(e.eventDate || e.date);
-        return d >= today;
-      }).sort((a, b) => new Date(a.eventDate||a.date) - new Date(b.eventDate||b.date)).slice(0, 10);
+      const todayKey = calDateKey(`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`);
+      const upcomingEvts = allEvents.filter(e => calDateKey(e.eventDate || e.date) >= todayKey)
+        .sort((a, b) => calDateKey(a.eventDate||a.date).localeCompare(calDateKey(b.eventDate||b.date)))
+        .slice(0, 10);
 
       if (!upcomingEvts.length) {
         document.getElementById('eventsList').innerHTML = '<div style="text-align:center;padding:16px;font-size:12px;color:#6b7280">No upcoming events this month.</div>';
@@ -182,7 +195,7 @@
           <div class="event-dot" style="background:${e.type==='emi'||e.eventType==='EMI_DUE'?'#ef4444':'#10b981'}"></div>
           <div style="flex:1">
             <div style="font-size:12px;font-weight:600">${e.title||e.name||e.loanType||e.serviceName}</div>
-            <div style="font-size:10px;color:#6b7280">${new Date(e.eventDate||e.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</div>
+            <div style="font-size:10px;color:#6b7280">${parseCalDate(e.eventDate||e.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</div>
           </div>
           ${e.amount||e.emiAmount||e.cost ? `<div style="font-size:12px;font-weight:600">${fmt(e.amount||e.emiAmount||e.cost)}</div>` : ''}
         </div>
@@ -195,7 +208,7 @@
         eventType: document.getElementById('evtType').value,
         eventDate: document.getElementById('evtDate').value,
         amount: parseFloat(document.getElementById('evtAmount').value) || undefined,
-        notes: document.getElementById('evtNotes').value.trim() || undefined,
+        description: document.getElementById('evtNotes').value.trim() || undefined,
       };
       if (!payload.title) { showToast('Enter a title.','error'); return; }
       if (!payload.eventDate) { showToast('Select a date.','error'); return; }

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/api_error.dart';
 import '../../core/models/goal_model.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
+import '../../shared/widgets/error_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/pressable.dart';
 import '../../shared/widgets/skeleton_loader.dart';
@@ -18,6 +20,7 @@ class GoalsScreen extends StatefulWidget {
 
 class _GoalsScreenState extends State<GoalsScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   List<GoalModel> _goals = [];
 
   @override
@@ -27,22 +30,40 @@ class _GoalsScreenState extends State<GoalsScreen> {
   }
 
   Future<void> _fetchGoals() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final res = await apiClient.get(ApiEndpoints.goals);
       if (res.statusCode == 200 && res.data['success'] == true) {
-        final list = (res.data['data'] as List)
-            .map((json) => GoalModel.fromJson(json))
+        final raw = res.data['data'];
+        if (raw is! List) {
+          throw const FormatException('Goals response missing list');
+        }
+        final list = raw
+            .whereType<Map>()
+            .map((json) => GoalModel.fromJson(Map<String, dynamic>.from(json)))
             .toList();
+        if (!mounted) return;
         setState(() {
           _goals = list;
           _isLoading = false;
         });
       } else {
-        setState(() => _isLoading = false);
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'The server returned an unexpected response.';
+          _isLoading = false;
+        });
       }
     } catch (_) {
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _errorMessage =
+            'Your goals could not be loaded. Check your connection and try again.';
+        _isLoading = false;
+      });
     }
   }
 
@@ -81,30 +102,57 @@ class _GoalsScreenState extends State<GoalsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (nameController.text.trim().isEmpty) return;
-              Navigator.pop(ctx);
+              final name = nameController.text.trim();
+              final target = double.tryParse(targetController.text.trim());
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Enter a goal name.')),
+                );
+                return;
+              }
+              if (target == null || target <= 0) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Enter a valid target amount.')),
+                );
+                return;
+              }
+
               try {
                 await apiClient.post(
                   ApiEndpoints.goals,
                   data: {
-                    'name': nameController.text.trim(),
-                    'targetAmount':
-                        double.tryParse(targetController.text) ?? 100000,
+                    'name': name,
+                    'targetAmount': target,
                     'currentAmount': 0,
                   },
                 );
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
                 _fetchGoals();
-              } catch (_) {}
+              } catch (error) {
+                if (!ctx.mounted) return;
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      apiErrorMessage(error) ??
+                          'Goal could not be created. Please try again.',
+                    ),
+                  ),
+                );
+              }
             },
             child: const Text('Create Goal'),
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      nameController.dispose();
+      targetController.dispose();
+    });
   }
 
   void _showContributeDialog(GoalModel goal) {
-    final amountController = TextEditingController(text: '5000');
+    final amountController = TextEditingController();
 
     showDialog(
       context: context,
@@ -127,22 +175,86 @@ class _GoalsScreenState extends State<GoalsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final amt = double.tryParse(amountController.text) ?? 0;
-              if (amt <= 0) return;
-              Navigator.pop(ctx);
+              final amt = double.tryParse(amountController.text.trim()) ?? 0;
+              if (amt <= 0) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(
+                    content: Text('Enter a valid contribution amount.'),
+                  ),
+                );
+                return;
+              }
+
               try {
                 await apiClient.patch(
                   '${ApiEndpoints.goals}/${goal.id}/contribute',
                   data: {'amount': amt},
                 );
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
                 _fetchGoals();
-              } catch (_) {}
+              } catch (error) {
+                if (!ctx.mounted) return;
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      apiErrorMessage(error) ??
+                          'Contribution could not be saved. Please try again.',
+                    ),
+                  ),
+                );
+              }
             },
             child: const Text('Contribute'),
           ),
         ],
       ),
+    ).whenComplete(() => amountController.dispose());
+  }
+
+  /// Goal deletion is irreversible, so it always asks for explicit
+  /// confirmation before calling `DELETE /goals/:id`.
+  Future<void> _deleteGoal(GoalModel goal) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete goal?'),
+        content: Text(
+          'Delete “${goal.name}”? The saved amount stays in your accounts; '
+          'only the goal and its progress are removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await apiClient.delete(ApiEndpoints.goal(goal.id));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Goal deleted.')),
+      );
+      _fetchGoals();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            apiErrorMessage(error) ??
+                'Goal could not be deleted. Check your connection.',
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -163,6 +275,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
       ),
       body: _isLoading
           ? _buildSkeleton()
+          : _errorMessage != null
+          ? ErrorStateView(message: _errorMessage!, onRetry: _fetchGoals)
           : _goals.isEmpty
           ? EmptyStateView(
               icon: Icons.flag_rounded,
@@ -182,6 +296,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   child: _GoalCard(
                     goal: _goals[index],
                     onContribute: () => _showContributeDialog(_goals[index]),
+                    onDelete: () => _deleteGoal(_goals[index]),
                   ),
                 ),
               ),
@@ -224,8 +339,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
 class _GoalCard extends StatelessWidget {
   final GoalModel goal;
   final VoidCallback onContribute;
+  final VoidCallback onDelete;
 
-  const _GoalCard({required this.goal, required this.onContribute});
+  const _GoalCard({
+    required this.goal,
+    required this.onContribute,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -272,6 +392,19 @@ class _GoalCard extends StatelessWidget {
                         : AppColors.primaryLight,
                   ),
                 ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Goal options',
+                padding: EdgeInsets.zero,
+                onSelected: (value) {
+                  if (value == 'delete') onDelete();
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Text('Delete goal'),
+                  ),
+                ],
               ),
             ],
           ),

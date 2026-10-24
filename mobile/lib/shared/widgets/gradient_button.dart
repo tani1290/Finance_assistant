@@ -79,13 +79,20 @@ class _GradientButtonState extends State<GradientButton> {
                 Icon(widget.icon, size: 19),
                 const SizedBox(width: 8),
               ],
-              Text(
-                widget.text,
-                style: const TextStyle(
-                  fontSize: 15.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.1,
-                  color: Colors.white,
+              // Scale the label down rather than overflow when the available
+              // width is small or the text scale is large.
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.text,
+                    style: const TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -119,14 +126,19 @@ class _GradientButtonState extends State<GradientButton> {
                       Icon(widget.icon, size: 18),
                       const SizedBox(width: 8),
                     ],
-                    Text(
-                      widget.text,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? AppColors.darkTextPrimary
-                            : AppColors.lightTextPrimary,
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          widget.text,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.lightTextPrimary,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -168,7 +180,12 @@ class _GradientButtonState extends State<GradientButton> {
                       ),
                     ],
             ),
-            child: Center(child: content),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: content,
+              ),
+            ),
           ),
         ),
       ),

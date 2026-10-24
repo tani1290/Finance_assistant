@@ -10,6 +10,28 @@ const { formatINR } = require('../utils/inr');
 const ragService = require('../services/ragService');
 const aiActionService = require('../services/aiActionService');
 const aiAssistantService = require('../services/aiAssistantService');
+const aiConfirmation = require('../services/aiConfirmationService');
+const { TOOL_MAP } = require('../services/aiTools');
+
+// Deterministic fallback intents that change data. VIEW_DATA stays read-only.
+const LEGACY_MUTATING_INTENTS = new Set(['ADD_TRANSACTION', 'DELETE_TRANSACTION', 'EDIT_TRANSACTION']);
+
+function confirmationPayload(prepared, extra = {}) {
+  return {
+    response: prepared.message,
+    source: 'ai_confirmation_gate',
+    pendingConfirmation: true,
+    confirmation: prepared.confirmation,
+    sources: ['Financial Ledger Engine'],
+    action: {
+      executed: false,
+      type: prepared.confirmation.toolName,
+      requiresConfirmation: true,
+      data: null,
+    },
+    ...extra,
+  };
+}
 
 /**
  * POST /api/v1/ai/chat
@@ -57,7 +79,17 @@ const chat = async (req, res, next) => {
             response: assistant.response,
             source: assistant.source,
             sources: ['Gemini Function Calling', 'PostgreSQL Database'],
-            action: acted.length
+            pendingConfirmation: Boolean(assistant.pendingConfirmation),
+            confirmation: assistant.confirmation || null,
+            action: assistant.pendingConfirmation
+              ? {
+                  executed: false,
+                  type: assistant.confirmation?.toolName || null,
+                  requiresConfirmation: true,
+                  data: null,
+                  steps: assistant.steps,
+                }
+              : acted.length
               ? {
                   executed: true,
                   type: acted[acted.length - 1],
@@ -80,7 +112,35 @@ const chat = async (req, res, next) => {
       console.warn('[AI] Tool-calling assistant failed, falling back:', err.message);
     }
 
-    // 2. FALLBACK: deterministic action engine for the core intents.
+    // 2. FALLBACK: deterministic action engine for the core intents. Anything
+    //    that mutates data must be proposed and confirmed, never executed from
+    //    the chat text alone.
+    const intent = aiActionService.parseActionIntent(message.trim());
+    if (intent && LEGACY_MUTATING_INTENTS.has(intent.type)) {
+      const prepared = await aiConfirmation.createProposal({
+        userId,
+        toolName: `legacy:${intent.type}`,
+        args: { message: message.trim() },
+      });
+
+      await prisma.chatMessage.create({
+        data: { userId, role: 'assistant', content: prepared.message },
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: confirmationPayload(prepared, {
+          rag: {
+            enabled: true,
+            sources: ['Financial Ledger Engine'],
+            retrievedDocCount: 1,
+            intents: [intent.type],
+            tenantVerified: true,
+          },
+        }),
+      });
+    }
+
     const actionResult = await aiActionService.tryExecuteAction(userId, message.trim());
     if (actionResult && actionResult.handled) {
       // Save assistant action response
@@ -94,8 +154,10 @@ const chat = async (req, res, next) => {
           response: actionResult.response,
           source: `ai_action_engine (${actionResult.action})`,
           sources: ['Financial Ledger Engine', 'PostgreSQL Database'],
+          pendingConfirmation: false,
+          confirmation: null,
           action: {
-            executed: actionResult.success,
+            executed: actionResult.success === true,
             type: actionResult.action,
             data: actionResult.data || null,
           },
@@ -143,11 +205,17 @@ const chat = async (req, res, next) => {
  */
 const getChatHistory = async (req, res, next) => {
   try {
+    // Fetch newest-first so `take` caps the *most recent* 50 messages, then
+    // reverse to hand the client ascending order. Ordering ascending with a
+    // take would silently return the oldest 50 once a conversation grows past
+    // the cap, so the client would restore a stale opening instead of the
+    // current thread.
     const messages = await prisma.chatMessage.findMany({
       where: { userId: req.user.id },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       take: 50,
     });
+    messages.reverse();
 
     return res.status(200).json({
       success: true,
@@ -187,6 +255,9 @@ const getFinancialSnapshot = async (req, res, next) => {
         formattedNetWorth: formatINR(ctx.netWorth),
         incomeThisMonth: ctx.incomeThisMonth,
         formattedIncome: formatINR(ctx.incomeThisMonth),
+        profileMonthlySalary: ctx.profileMonthlySalary,
+        incomeBasis: 'RECORDED_LEDGER_TRANSACTIONS',
+        period: ctx.period,
         expensesThisMonth: ctx.expensesThisMonth,
         formattedExpenses: formatINR(ctx.expensesThisMonth),
         savingsThisMonth: ctx.savingsThisMonth,
@@ -496,8 +567,190 @@ const parseVoiceIntent = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/v1/ai/actions/confirm
+ * Body: { token, decision: 'CONFIRM' | 'CANCEL' }
+ *
+ * The token is the one returned by /ai/chat. It is bound server-side to this
+ * user, this tool and these exact arguments, stored hashed, and consumed once.
+ */
+const resolveAction = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { token, decision } = req.body || {};
+    const choice = String(decision || 'CONFIRM').toUpperCase();
+
+    if (!['CONFIRM', 'CANCEL'].includes(choice)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'decision must be CONFIRM or CANCEL.' },
+      });
+    }
+
+    // Chat history is useful but must never change the outcome of a decision
+    // that has already been committed to the database.
+    const persistAssistantMessage = async (content) => {
+      try {
+        await prisma.chatMessage.create({
+          data: { userId, role: 'assistant', content },
+        });
+        return true;
+      } catch (err) {
+        console.warn('[AI-CONFIRM] Could not save assistant message:', err.message);
+        return false;
+      }
+    };
+
+    if (choice === 'CANCEL') {
+      const cancelled = await aiConfirmation.cancelProposal(userId, token);
+      if (!cancelled.ok) {
+        return res.status(cancelled.status).json({ success: false, error: cancelled.error });
+      }
+      const message = 'Cancelled. Nothing was changed.';
+      await persistAssistantMessage(message);
+      return res.status(200).json({
+        success: true,
+        data: {
+          response: message,
+          cancelled: true,
+          executed: false,
+          executionState: 'CANCELLED',
+          retryable: false,
+        },
+      });
+    }
+
+    // Claim the token before doing any work. A failure here means the mutation
+    // never started, even if the confirmation row was already moved to
+    // EXECUTING by a dropped connection: a retry will fail closed rather than
+    // run the action twice.
+    let started;
+    try {
+      started = await aiConfirmation.beginExecution(userId, token);
+    } catch (err) {
+      console.error('[AI-CONFIRM] could not start action:', err.message);
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'ACTION_START_UNAVAILABLE',
+          message: 'The action could not be started. No change was applied; retrying cannot run it twice.',
+          executionState: 'PENDING',
+          retryable: true,
+        },
+      });
+    }
+    if (!started.ok) {
+      return res.status(started.status).json({ success: false, error: started.error });
+    }
+
+    const proposal = started.proposal;
+    let result;
+    try {
+      if (String(proposal.toolName).startsWith('legacy:')) {
+        const originalMessage = proposal.args?.message;
+        if (!originalMessage) throw new Error('The original request is missing.');
+        result = await aiActionService.tryExecuteAction(userId, String(originalMessage));
+      } else {
+        const tool = TOOL_MAP[proposal.toolName];
+        if (!tool) throw new Error('This action is no longer available.');
+        const args = proposal.args && typeof proposal.args === 'object' ? proposal.args : {};
+        result = await tool.execute(userId, args);
+      }
+    } catch (err) {
+      console.error('[AI-CONFIRM] action failed:', err.message);
+      let markedFailed = false;
+      try {
+        markedFailed = await aiConfirmation.failProposal(proposal.id, `FAILED: ${err.message}`);
+      } catch (stateErr) {
+        console.error('[AI-CONFIRM] could not record failure:', stateErr.message);
+      }
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: 'ACTION_OUTCOME_UNKNOWN',
+          message: 'The action did not complete cleanly. Check your records before preparing a new request; this confirmation cannot be retried.',
+          executionState: markedFailed ? 'FAILED' : 'EXECUTING',
+          retryable: false,
+        },
+      });
+    }
+
+    if (result && result.ok === false) {
+      const message = result.error || 'The action could not be completed.';
+      try {
+        await aiConfirmation.failProposal(proposal.id, `REJECTED: ${message}`);
+      } catch (stateErr) {
+        console.error('[AI-CONFIRM] could not record rejection:', stateErr.message);
+      }
+      return res.status(422).json({
+        success: false,
+        error: {
+          code: 'ACTION_REJECTED',
+          message: `${message} This confirmation cannot be retried.`,
+          executionState: 'FAILED',
+          retryable: false,
+        },
+      });
+    }
+
+    const response = result?.response || result?.summary || 'Action applied successfully.';
+    let stateRecorded = true;
+    try {
+      stateRecorded = await aiConfirmation.completeProposal(proposal.id, response);
+    } catch (stateErr) {
+      stateRecorded = false;
+      console.error('[AI-CONFIRM] could not record success:', stateErr.message);
+    }
+    await persistAssistantMessage(response);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        response,
+        source: 'ai_confirmation_gate',
+        pendingConfirmation: false,
+        confirmation: null,
+        executed: true,
+        executionState: 'COMPLETED',
+        retryable: false,
+        auditRecorded: stateRecorded,
+        action: {
+          executed: true,
+          type: proposal.toolName,
+          data: result?.data || null,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/v1/ai/actions/status
+ * Body: { token }
+ *
+ * Read-only. Reports the current state of a proposal so a client that lost
+ * the response to a confirmation request can find out what actually happened
+ * instead of guessing. It never changes the proposal.
+ */
+const getActionStatus = async (req, res, next) => {
+  try {
+    const { token } = req.body || {};
+    const status = await aiConfirmation.getProposalStatus(req.user.id, token);
+    if (!status.ok) {
+      return res.status(status.status).json({ success: false, error: status.error });
+    }
+    return res.status(200).json({ success: true, data: status.status });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   chat,
+  resolveAction,
+  getActionStatus,
   getChatHistory,
   clearChatHistory,
   getFinancialSnapshot,

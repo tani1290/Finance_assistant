@@ -3,11 +3,14 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/api_error.dart';
 import '../../core/models/budget_model.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
+import '../../shared/widgets/error_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/skeleton_loader.dart';
+import 'add_budget_sheet.dart';
 
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
@@ -18,7 +21,10 @@ class BudgetsScreen extends StatefulWidget {
 
 class _BudgetsScreenState extends State<BudgetsScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   List<BudgetModel> _budgets = [];
+  double _totalLimit = 0;
+  double _totalSpent = 0;
 
   @override
   void initState() {
@@ -27,22 +33,116 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<void> _fetchBudgets() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final res = await apiClient.get(ApiEndpoints.budgets);
       if (res.statusCode == 200 && res.data['success'] == true) {
-        final list = (res.data['data'] as List)
-            .map((json) => BudgetModel.fromJson(json))
+        // GET /budgets wraps the rows in `data.budgets` alongside period
+        // summary totals; older payloads returned a bare list.
+        final data = res.data['data'];
+        final raw = data is Map ? data['budgets'] : data;
+        if (raw is! List) {
+          throw const FormatException('Budgets response missing list');
+        }
+        final list = raw
+            .whereType<Map>()
+            .map((json) => BudgetModel.fromJson(Map<String, dynamic>.from(json)))
             .toList();
+        final summary = data is Map ? data['summary'] : null;
+        final totalLimit =
+            double.tryParse(
+              (summary is Map ? summary['totalBudgeted'] : null)?.toString() ??
+                  '',
+            ) ??
+            list.fold<double>(0, (sum, budget) => sum + budget.monthlyLimit);
+        final totalSpent =
+            double.tryParse(
+              (summary is Map ? summary['totalSpent'] : null)?.toString() ??
+                  '',
+            ) ??
+            list.fold<double>(0, (sum, budget) => sum + budget.spent);
+        if (!mounted) return;
         setState(() {
           _budgets = list;
+          _totalLimit = totalLimit;
+          _totalSpent = totalSpent;
           _isLoading = false;
         });
       } else {
-        setState(() => _isLoading = false);
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'The server returned an unexpected response.';
+          _isLoading = false;
+        });
       }
     } catch (_) {
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _errorMessage =
+            'Your budgets could not be loaded. Check your connection and try again.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _openAddBudget() async {
+    await AddBudgetSheet.show(
+      context,
+      onCreated: (message) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+        _fetchBudgets();
+      },
+    );
+  }
+
+  /// Budget delete is destructive and irreversible, so it always requires an
+  /// explicit confirmation before the request is sent.
+  Future<void> _deleteBudget(BudgetModel budget) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete budget?'),
+        content: Text(
+          'Remove the monthly limit for ${budget.categoryName}? '
+          'Past transactions are not affected.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await apiClient.delete(ApiEndpoints.budget(budget.id));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Budget deleted.')),
+      );
+      _fetchBudgets();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            apiErrorMessage(error) ??
+                'Budget could not be deleted. Check your connection.',
+          ),
+        ),
+      );
     }
   }
 
@@ -60,8 +160,15 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openAddBudget,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add'),
+      ),
       body: _isLoading
           ? _buildSkeletonList()
+          : _errorMessage != null
+          ? ErrorStateView(message: _errorMessage!, onRetry: _fetchBudgets)
           : _budgets.isEmpty
           ? EmptyStateView(
               icon: Icons.pie_chart_outline_rounded,
@@ -71,13 +178,25 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             )
           : RefreshIndicator(
               onRefresh: _fetchBudgets,
-              child: ListView.builder(
+              child: ListView(
                 padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
-                itemCount: _budgets.length,
-                itemBuilder: (context, index) => Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: _BudgetCard(budget: _budgets[index], isDark: isDark),
-                ),
+                children: [
+                  _BudgetSummary(
+                    totalLimit: _totalLimit,
+                    totalSpent: _totalSpent,
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 14),
+                  for (final budget in _budgets)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: _BudgetCard(
+                        budget: budget,
+                        isDark: isDark,
+                        onDelete: () => _deleteBudget(budget),
+                      ),
+                    ),
+                ],
               ),
             ),
     );
@@ -119,11 +238,70 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 }
 
+class _BudgetSummary extends StatelessWidget {
+  final double totalLimit;
+  final double totalSpent;
+  final bool isDark;
+
+  const _BudgetSummary({
+    required this.totalLimit,
+    required this.totalSpent,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = totalLimit - totalSpent;
+    final isOver = remaining < 0;
+
+    return FinancialCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'This month',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary(isDark),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            CurrencyFormatter.format(totalSpent),
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary(isDark),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'spent of ${CurrencyFormatter.format(totalLimit)} '
+            '(${isOver ? 'over' : 'remaining'} '
+            '${CurrencyFormatter.format(remaining.abs())})',
+            style: TextStyle(
+              fontSize: 13,
+              color: isOver ? AppColors.expense : AppColors.textSecondary(isDark),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BudgetCard extends StatelessWidget {
   final BudgetModel budget;
   final bool isDark;
+  final VoidCallback onDelete;
 
-  const _BudgetCard({required this.budget, required this.isDark});
+  const _BudgetCard({
+    required this.budget,
+    required this.isDark,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -142,16 +320,19 @@ class _BudgetCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                budget.categoryName,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary(isDark),
+              Expanded(
+                child: Text(
+                  budget.categoryName,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary(isDark),
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -166,6 +347,19 @@ class _BudgetCard extends StatelessWidget {
                     color: barColor,
                   ),
                 ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Budget options',
+                padding: EdgeInsets.zero,
+                onSelected: (value) {
+                  if (value == 'delete') onDelete();
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Text('Delete budget'),
+                  ),
+                ],
               ),
             ],
           ),

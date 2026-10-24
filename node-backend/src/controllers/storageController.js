@@ -14,6 +14,69 @@ const { v4: uuidv4 } = require('uuid');
 const OWNER_SCOPED_PREFIXES = ['users/', 'exports/'];
 const requiresOwnershipCheck = (key) => OWNER_SCOPED_PREFIXES.some((prefix) => key.startsWith(prefix));
 
+// Uploads are receipts, statements and exported reports. SVG, HTML and XML are
+// deliberately absent: they execute active content when opened inline from the
+// API origin. The extension is derived from the approved MIME type, never from
+// the client-supplied file name.
+const ALLOWED_UPLOADS = new Map([
+  ['image/jpeg', '.jpg'],
+  ['image/png', '.png'],
+  ['image/webp', '.webp'],
+  ['application/pdf', '.pdf'],
+  ['text/csv', '.csv'],
+  ['text/plain', '.txt'],
+]);
+
+const MIME_ALIASES = new Map([
+  ['image/jpg', 'image/jpeg'],
+  ['image/pjpeg', 'image/jpeg'],
+  ['application/x-pdf', 'application/pdf'],
+  ['text/x-csv', 'text/csv'],
+]);
+
+const EXTENSION_MIME = new Map([
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.png', 'image/png'],
+  ['.webp', 'image/webp'],
+  ['.pdf', 'application/pdf'],
+  ['.csv', 'text/csv'],
+  ['.txt', 'text/plain'],
+]);
+
+const normaliseMime = (value) => {
+  const raw = String(value || '').split(';')[0].trim().toLowerCase();
+  return MIME_ALIASES.get(raw) || raw;
+};
+
+const looksLike = (buffer, mime) => {
+  if (mime === 'application/pdf') {
+    return buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+  }
+  if (mime === 'image/png') {
+    return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  }
+  if (mime === 'image/jpeg') {
+    return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (mime === 'image/webp') {
+    return buffer.length >= 12 &&
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+  }
+  if (mime === 'text/csv' || mime === 'text/plain') {
+    // Text formats have no magic number. Reject binary/NUL payloads so a
+    // renamed executable is not stored and served as a "text" document.
+    return !buffer.includes(0);
+  }
+  return false;
+};
+
+const safeDownloadName = (key) => {
+  const base = path.basename(String(key || 'download')).replace(/[^a-zA-Z0-9._-]/g, '_');
+  return base.slice(0, 120) || 'download';
+};
+
 /**
  * POST /api/v1/storage/upload
  * Accepts base64 encoded document/image or raw payload and stores via storageService
@@ -31,16 +94,18 @@ const uploadDocument = async (req, res, next) => {
     }
 
     let buffer = null;
-    let detectedMime = contentType || 'application/octet-stream';
+    let detectedMime = normaliseMime(contentType);
 
     if (typeof fileData === 'string' && fileData.startsWith('data:')) {
       const match = fileData.match(/^data:([^;]+);base64,(.+)$/);
-      if (match) {
-        detectedMime = match[1];
-        buffer = Buffer.from(match[2], 'base64');
-      } else {
-        buffer = Buffer.from(fileData, 'base64');
+      if (!match) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_FILE', message: 'Malformed data URL. Expected data:<mime>;base64,<payload>.' },
+        });
       }
+      detectedMime = normaliseMime(match[1]);
+      buffer = Buffer.from(match[2], 'base64');
     } else if (typeof fileData === 'string') {
       buffer = Buffer.from(fileData, 'base64');
     } else if (Buffer.isBuffer(fileData)) {
@@ -62,9 +127,35 @@ const uploadDocument = async (req, res, next) => {
       });
     }
 
+    // If the client omitted the MIME type, infer it only from an approved
+    // extension. Anything else is rejected rather than stored as octet-stream.
+    if (!detectedMime && fileName) {
+      detectedMime = EXTENSION_MIME.get(path.extname(fileName).toLowerCase()) || '';
+    }
+
+    if (!ALLOWED_UPLOADS.has(detectedMime)) {
+      return res.status(415).json({
+        success: false,
+        error: {
+          code: 'UNSUPPORTED_MEDIA_TYPE',
+          message: 'Only JPEG, PNG, WebP, PDF, CSV and plain-text uploads are accepted.',
+        },
+      });
+    }
+
+    if (!looksLike(buffer, detectedMime)) {
+      return res.status(415).json({
+        success: false,
+        error: {
+          code: 'CONTENT_TYPE_MISMATCH',
+          message: 'File content does not match the declared content type.',
+        },
+      });
+    }
+
     const folder = (documentType === 'receipt' ? 'receipts' : documentType === 'export' ? 'exports' : documentType === 'report' ? 'reports' : 'documents');
-    const cleanExt = fileName ? path.extname(fileName) : (detectedMime.includes('png') ? '.png' : detectedMime.includes('pdf') ? '.pdf' : '.jpg');
-    const safeBaseName = fileName ? path.basename(fileName, cleanExt).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30) : `${folder}_${Date.now()}`;
+    const cleanExt = ALLOWED_UPLOADS.get(detectedMime);
+    const safeBaseName = fileName ? path.basename(fileName, path.extname(fileName)).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30) : `${folder}_${Date.now()}`;
     const storageKey = `users/${userId}/${folder}/${safeBaseName}_${uuidv4().slice(0, 8)}${cleanExt}`;
 
     const uploadResult = await storageService.upload({
@@ -114,9 +205,23 @@ const getFile = async (req, res, next) => {
 
     const downloaded = await storageService.download(decodedKey);
 
-    res.setHeader('Content-Type', downloaded.contentType || 'application/octet-stream');
+    // Never echo a provider/client-supplied active content type. Legacy objects
+    // (or a malicious S3 metadata write) could otherwise execute as HTML on the
+    // API origin. Unknown types are forced to a download.
+    const responseMime = ALLOWED_UPLOADS.has(normaliseMime(downloaded.contentType))
+      ? normaliseMime(downloaded.contentType)
+      : 'application/octet-stream';
+    const inline = responseMime.startsWith('image/');
+
+    res.setHeader('Content-Type', responseMime);
     res.setHeader('Content-Length', downloaded.size);
     res.setHeader('Cache-Control', 'private, no-cache');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.setHeader(
+      'Content-Disposition',
+      `${inline ? 'inline' : 'attachment'}; filename="${safeDownloadName(decodedKey)}"`
+    );
     return res.send(downloaded.buffer);
   } catch (err) {
     if (err.statusCode === 404 || (err.message && (err.message.toLowerCase().includes('not found') || err.message.includes('404')))) {

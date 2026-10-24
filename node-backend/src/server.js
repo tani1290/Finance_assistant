@@ -8,17 +8,44 @@ const app = require('./app');
 const prisma = require('./config/database');
 const marketService = require('./services/marketService');
 const storageService = require('./services/storageService');
+const cacheService = require('./services/cacheService');
+const { shutdownPushQueue } = require('./services/pushQueue');
 
 const PORT = parseInt(process.env.PORT) || 5001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Graceful shutdown handler
+let httpServer = null;
+let shuttingDown = false;
+
+// Graceful shutdown handler. Stops accepting new connections, lets in-flight
+// requests finish for up to 10 s, closes the shared cache and the database.
 const shutdown = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`\n[Server] ${signal} received. Shutting down gracefully...`);
-  // Stop the background market refresh worker (clears its timers) before exit.
+
   marketService.stopMarketBackgroundWorker();
+
+  if (httpServer) {
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 10_000);
+      if (timer.unref) timer.unref();
+      httpServer.close(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+      if (typeof httpServer.closeIdleConnections === 'function') {
+        httpServer.closeIdleConnections();
+      }
+    });
+  }
+
+  // Push delivery is best-effort, but give queued/in-flight notifications a
+  // bounded chance to finish before the process exits.
+  await shutdownPushQueue(5_000);
+  await cacheService.shutdown();
   await prisma.$disconnect();
-  console.log('[Server] Database disconnected. Server stopped.');
+  console.log('[Server] Push queue, cache and database disconnected. Server stopped.');
   process.exit(0);
 };
 
@@ -49,7 +76,15 @@ const startServer = async () => {
       }
     }
 
+    // Optional shared cache. A missing or unreachable Redis never blocks boot:
+    // init() has a bounded connect timeout and falls back to memory.
+    const cacheStatus = await cacheService.init();
+    if (cacheStatus.configured) {
+      console.log(`[Cache] Shared cache: ${cacheStatus.status}${cacheStatus.available ? '' : ' (memory fallback active)'}`);
+    }
+
     const server = app.listen(PORT, '0.0.0.0', () => {
+      httpServer = server;
       // Surface the storage durability posture at boot: production must never
       // silently serve uploads from an ephemeral local disk. Non-blocking — it
       // only logs, and never requires credentials.
@@ -61,8 +96,8 @@ const startServer = async () => {
       console.log(`\n🚀 Server running at http://127.0.0.1:${PORT}`);
       console.log(`📋 Environment: ${NODE_ENV}`);
       console.log(`🔒 Auth: JWT (email + password)`);
-      console.log(`🤖 AI: ${process.env.GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY' ? 'Gemini (configured)' : 'Rule-based (configure GEMINI_API_KEY)'}`);
-      console.log(`📈 Market: ${process.env.FINNHUB_API_KEY !== 'YOUR_FINNHUB_API_KEY' ? 'Finnhub (live)' : 'Reference prices (configure FINNHUB_API_KEY)'}`);
+      console.log(`🤖 AI: ${process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY' ? 'Gemini (configured)' : 'Rule-based (configure GEMINI_API_KEY)'}`);
+      console.log(`📈 Market: ${process.env.FINNHUB_API_KEY && process.env.FINNHUB_API_KEY !== 'YOUR_FINNHUB_API_KEY' ? 'Finnhub (live)' : 'Reference prices (configure FINNHUB_API_KEY)'}`);
       console.log(`\n📡 API Endpoints:`);
       console.log(`   Health:    GET  http://127.0.0.1:${PORT}/api/v1/health`);
       console.log(`   Auth:      POST http://127.0.0.1:${PORT}/api/v1/auth/register`);

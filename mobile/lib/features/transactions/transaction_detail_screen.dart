@@ -3,10 +3,12 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/api_error.dart';
 import '../../core/models/transaction_model.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
+import '../../shared/widgets/error_state_view.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/status_badge.dart';
@@ -23,6 +25,7 @@ class TransactionDetailScreen extends StatefulWidget {
 
 class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   TransactionModel? _transaction;
 
   @override
@@ -32,20 +35,43 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 
   Future<void> _fetchDetail() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final res = await apiClient.get(
         '${ApiEndpoints.transactions}/${widget.transactionId}',
       );
       if (res.statusCode == 200 && res.data['success'] == true) {
+        final data = res.data['data'];
+        if (data is! Map) {
+          throw const FormatException('Transaction detail missing data');
+        }
+        if (!mounted) return;
         setState(() {
-          _transaction = TransactionModel.fromJson(res.data['data']);
+          _transaction = TransactionModel.fromJson(
+            Map<String, dynamic>.from(data),
+          );
           _isLoading = false;
         });
-      } else {
+      } else if (res.statusCode == 404) {
+        if (!mounted) return;
         setState(() => _isLoading = false);
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'The server returned an unexpected response.';
+          _isLoading = false;
+        });
       }
     } catch (_) {
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _errorMessage =
+            'This transaction could not be loaded. Check your connection and try again.';
+        _isLoading = false;
+      });
     }
   }
 
@@ -76,10 +102,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         await apiClient.delete(
           '${ApiEndpoints.transactions}/${widget.transactionId}',
         );
-        if (mounted) {
-          context.pop();
-        }
-      } catch (_) {}
+        if (!mounted) return;
+        context.pop();
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              apiErrorMessage(error) ??
+                  'Transaction could not be deleted. Check your connection and try again.',
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -113,6 +148,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
 
     final tx = _transaction;
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Transaction Details')),
+        body: ErrorStateView(
+          message: _errorMessage!,
+          onRetry: _fetchDetail,
+        ),
+      );
+    }
+
     if (tx == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Transaction Details')),

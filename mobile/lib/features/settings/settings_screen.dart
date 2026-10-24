@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/auth/auth_notifier.dart';
+import '../../core/config/theme_preference.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/pressable.dart';
 
@@ -14,6 +15,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = ref.watch(authProvider).user;
+    final themePreference = ref.watch(themePreferenceProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profile & Settings')),
@@ -24,6 +26,7 @@ class SettingsScreen extends ConsumerWidget {
             // ── Identity card ────────────────────────────────────────
             FinancialCard(
               padding: const EdgeInsets.all(20),
+              onTap: () => context.push('/profile'),
               child: Row(
                 children: [
                   Container(
@@ -36,13 +39,16 @@ class SettingsScreen extends ConsumerWidget {
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(18),
-                      boxShadow: AppColors.glow(AppColors.primary, strength: 0.5),
+                      boxShadow: AppColors.glow(
+                        AppColors.primary,
+                        strength: 0.5,
+                      ),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       user?.firstName.isNotEmpty == true
                           ? user!.firstName[0].toUpperCase()
-                          : 'R',
+                          : 'F',
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
@@ -56,7 +62,7 @@ class SettingsScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          user?.fullName ?? 'Rahul Sharma',
+                          user?.fullName ?? 'Your account',
                           style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w700,
@@ -65,7 +71,7 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          user?.email ?? 'rahul@example.com',
+                          user?.email ?? 'Email unavailable',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -76,10 +82,76 @@ class SettingsScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: AppColors.textMuted(isDark),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
+
+            _SectionLabel('Account', isDark: isDark),
+            FinancialCard(
+              padding: EdgeInsets.zero,
+              child: _SettingTile(
+                icon: Icons.person_outline_rounded,
+                title: 'View & Edit Profile',
+                subtitle: 'Name, city, occupation and financial profile',
+                isDark: isDark,
+                onTap: () => context.push('/profile'),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            _SectionLabel('Appearance', isDark: isDark),
+            FinancialCard(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Theme',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: AppColors.textPrimary(isDark),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Dark matches the web app. System follows your device.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary(isDark),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<AppThemePreference>(
+                      segments: [
+                        for (final preference in AppThemePreference.values)
+                          ButtonSegment(
+                            value: preference,
+                            label: Text(preference.label),
+                          ),
+                      ],
+                      selected: {themePreference},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (selection) {
+                        HapticFeedback.selectionClick();
+                        ref
+                            .read(themePreferenceProvider.notifier)
+                            .select(selection.first);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
 
             _SectionLabel('Preferences', isDark: isDark),
             FinancialCard(
@@ -141,6 +213,30 @@ class SettingsScreen extends ConsumerWidget {
                     subtitle: 'Review your portfolio and SIPs',
                     isDark: isDark,
                     onTap: () => context.push('/investments'),
+                  ),
+                  Divider(height: 1, color: AppColors.border(isDark)),
+                  _SettingTile(
+                    icon: Icons.event_note_outlined,
+                    title: 'Financial Calendar',
+                    subtitle: 'EMIs, renewals and custom reminders',
+                    isDark: isDark,
+                    onTap: () => context.push('/calendar'),
+                  ),
+                  Divider(height: 1, color: AppColors.border(isDark)),
+                  _SettingTile(
+                    icon: Icons.shield_outlined,
+                    title: 'Insurance & Subscriptions',
+                    subtitle: 'Cover, premiums and recurring bills',
+                    isDark: isDark,
+                    onTap: () => context.push('/insurance'),
+                  ),
+                  Divider(height: 1, color: AppColors.border(isDark)),
+                  _SettingTile(
+                    icon: Icons.science_outlined,
+                    title: 'Payment Simulator',
+                    subtitle: 'Synthetic demo payments — no real money moves',
+                    isDark: isDark,
+                    onTap: () => context.push('/simulator'),
                   ),
                 ],
               ),

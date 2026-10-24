@@ -60,8 +60,15 @@ dump.rdb
 backup.json
 backup.sql
 finance.sql
-backup-db.js
 node-backend/test-db.js
+
+# Backup archives and manifests contain personal financial data. Never commit
+# plaintext dumps, encrypted dumps or their checksum manifests.
+backups/
+*.dump
+*.dump.enc
+*.dump.json
+*.dump.enc.json
 
 # Temporary files
 *.tmp
@@ -70,6 +77,7 @@ node-backend/test-db.js
 *.swp
 
 # Local/private data
+.artifacts/
 data/raw/
 data/private/api_key.txt
 api_key.txt
