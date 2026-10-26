@@ -199,12 +199,19 @@ npm run dev
 | Branch | `main` |
 | URL | `https://finpro-finance-ai.onrender.com` |
 | Health check path | `/api/v1/health` |
-| Deployed release | `020a49d` — `574337d` (storage 404 passthrough) plus the Phase 8 docs commit; deployed 2026-10-26 as `dep-dbfk7joae00c738dcctg` |
+| Deployed release | `f6cdf9f` — health probes exempted from the general rate limiter (Phase 9 P0 fix), on top of `020a49d` (`574337d` storage 404 passthrough + Phase 8 docs); deployed 2026-10-26 as `dep-dbfl1oq9lscs73ahr2hg` |
 | Database | `finpro-db`, free plan — **expires 2026-11-11** ([BACKUP_DR.md](BACKUP_DR.md) §13.2) |
 | Storage | local provider, **ephemeral** ([OPERATIONS.md](OPERATIONS.md) §7) |
 
-**Deploy commands.** Render's `autoDeploy` did **not** fire for a push to `main` in
-Phase 8, so treat deployment as an explicit step rather than assuming a push ships:
+**Branch note.** The Render service tracks `main`, but `origin/main` is behind the
+release branch. Deploys are made for an exact SHA from
+`finpro/pre-deployment-checkpoint` with `--commit`, so the deployed code is
+newer than `origin/main`. Do not assume that pushing `main` ships the current
+tree; check `render deploys list` for the live SHA.
+
+**Deploy commands.** Render's `autoDeploy` did **not** fire for a push in
+Phase 8 or Phase 9, so treat deployment as an explicit step rather than assuming
+a push ships:
 
 ```bash
 # 1. Fast-forward main (never force-push).
@@ -326,7 +333,7 @@ curl -f "$HOST/api/v1/health/storage"
 curl -fsS -H "Authorization: Bearer $METRICS_TOKEN" "$HOST/metrics" | head
 ```
 
-**Results on 2026-10-26** (deployed `020a49d`, re-probed after the storage-fix deploy):
+**Results on 2026-10-26** (deployed `f6cdf9f`, re-probed after the health-probe fix):
 
 | Probe | Status | Key fields |
 |---|---|---|
@@ -338,6 +345,7 @@ curl -fsS -H "Authorization: Bearer $METRICS_TOKEN" "$HOST/metrics" | head
 | `/api/v1/health/storage` | 200 | `cloudAvailable:true`, `durable:false`, `ephemeral:true` |
 | `/metrics` | 404 | expected — `METRICS_TOKEN` is not configured |
 | `GET /api/v1/storage/file/users/<id>/documents/<missing>` (authenticated, disposable account) | 404 | `File not found in storage` — provider 404 is passed through, not masked as a 503 outage (`574337d`). Synthetic account deleted afterwards. |
+| 24 consecutive `/api/v1/health` probes over 4+ minutes | 200 × 24 | No `429`, no `REQ-ERROR` in the logs. Probes are exempt from the general limiter (`f6cdf9f`). |
 
 Read the storage fields, not just the status code. `ready:true` with
 `durable:false` means uploads work **and will be lost on the next deploy**
@@ -352,7 +360,7 @@ check: both fail when storage is unavailable. See
 ## 7. Pre-Deploy Gate
 
 Run these **in order** and do not deploy on a failure. Expected counts are the ones
-verified on 2026-10-26 against `020a49d`; a lower count means tests were skipped or a
+verified on 2026-10-26 against `f6cdf9f`; a lower count means tests were skipped or a
 suite silently aborted. A higher count is fine only if you know which test was added.
 
 ```bash
@@ -413,6 +421,11 @@ There is no automated gate for `frontend/public` (static files, no build step). 
 - `NODE_ENV=production` so error details are not returned to clients.
 - Render health check is a **liveness** path: `/api/v1/health` on the live Docker
   service, `/api/v1/health/live` on a blueprint service. Never `/api/v1/health/ready`.
+- Health probes are exempt from the general API limiter, and the interactive budget
+  is `1000`/15 min. The auth limiter is separate at `100`/15 min. Do not re-add
+  health to the general limiter: platform probes run every few seconds and will
+  exhaust a small budget, producing `429` → unhealthy → restart
+  ([OPERATIONS.md](OPERATIONS.md) §2.1).
 - `METRICS_TOKEN` is set if metrics are scraped; otherwise `/metrics` returns `404`
   in production.
 - `REDIS_URL` is unset or reachable. A Redis outage degrades to memory; it is not a

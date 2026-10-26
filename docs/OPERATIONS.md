@@ -42,6 +42,36 @@ on deploy or restart. Do not treat container-local files as durable storage.
 
 No health endpoint returns credentials, connection strings, tokens or user data.
 
+### 2.1 Rate limiting
+
+Implementation: `node-backend/src/app.js`; store: `src/services/rateLimitStore.js`
+(shared via Redis when configured, per-instance memory otherwise).
+
+| Scope | Limit | Notes |
+|---|---|---|
+| General API (`/api/`) | **1000** requests / 15 min | Interactive traffic only. `/api/v1/health*` and `/api/v1/realtime*` are **skipped**. |
+| Auth (`/api/v1/auth/`) | **100** requests / 15 min | Separate namespace, so auth attempts do not consume the general budget. |
+| Account deletion | **5** / hour | Deliberate friction on a destructive action. |
+| Health probes | **unlimited** | Infrastructure traffic. Must never be rejected by the user-facing budget. |
+| Realtime (SSE / polling) | **unlimited** | Long-lived or high-frequency by design. |
+
+**Why health is exempt.** Render probes the health path every few seconds —
+roughly 180 probes per 15-minute window. When health shared the general limiter,
+the budget was exhausted by the platform itself, probes received `429`, the
+instance was marked unhealthy, and Render restarted it. The restart produced a
+cold start, which immediately burned the same budget again: a self-reinforcing
+`502` loop with no user traffic involved. This was reproduced locally
+(210 probes → 199 × `200`, then 11 × `429`) and observed in production logs, then
+fixed in `f6cdf9f`.
+
+**Verification after the fix:** 1100/1100 local health probes returned `200`
+while `/api/v1/accounts` still capped at 1000 and then returned `429`; production
+returned 24/24 `200` over 4+ minutes with no `429` and no `REQ-ERROR`.
+
+Do **not** re-add health to the general limiter, and do not lower the general
+budget below what the platform's own probes plus normal interactive traffic
+require.
+
 ### What to check during an incident
 
 1. `GET /api/v1/health/live` — is the process alive? If this fails, the platform

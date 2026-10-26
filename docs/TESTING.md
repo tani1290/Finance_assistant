@@ -256,6 +256,78 @@ row counts returned to baseline and no test residue remains.
 The MinIO harness proves the application's S3 code path, **not** a production bucket:
 no durable object storage is configured on Render. See §5.
 
+### 2.11 Phase 9 verification (2026-10-26)
+
+Phase 9 re-ran the whole suite **after** the dependency remediation, then added a
+production smoke pass, a storage/receipt/FCM pass, a simulator-semantics pass and a
+rate-limiter regression. All real-database work ran against an isolated
+`finpro_phase9_verify` database — never `finance_jinay` and never production.
+
+| Suite | Level | Result |
+|---|---|---|
+| Jest (`npm run test:unit`) | L1 | **35/35 suites, 572/572 tests PASS** |
+| `scripts/run-all-tests.js` | L3 | **166/166 PASS** |
+| `scripts/test-sms-mobile-suite.js` | L3 | **41/41 PASS** |
+| `scripts/test-cloud-verification.js` | L3 | **29/29 PASS** |
+| `scripts/test-cloud-failure.js` | L3 | **17/17 PASS** |
+| `scripts/verify-transfer-idempotency.js` | L2 | **62/62 PASS** |
+| `scripts/verify-deposit-idempotency.js` | L2 | **32/32 PASS** |
+| `scripts/verify-ai-confirmation.js` | L2 | **31/31 PASS** |
+| Simulator semantics harness (isolated DB, simulator enabled) | L3 | **19/19 PASS** |
+| Storage / receipt / FCM harness | L3 | **23/23 PASS** |
+| Production API smoke | L4 | **31 PASS**, 1 PARTIAL, 1 harness-assertion artefact (corrected) |
+| Production storage / receipt / FCM smoke | L4 | **23 PASS** |
+| Flutter widget tests (`flutter test --no-pub`) | L1 | **239/239 PASS** |
+| JavaScript syntax lint (`scripts/lint.js`) | L1 | **115/115 files clean** |
+| Tracked-secret scan (`scripts/scan-secrets.js`) | L1 | **367 files, 0 secrets** |
+| Production build verification (`npm run build`) | L1 | **PASS** |
+| Flutter static analysis (`flutter analyze --no-pub`) | L1 | **No issues found** |
+
+**Total executed assertions: 1,285.**
+
+#### Rate-limiter regression (P0 fix, `f6cdf9f`)
+
+The health-probe defect is the one production failure this phase found. Health
+probes shared the 200/15 min general limiter; Render probes every ~5 s (≈180 per
+window), so the budget was consumed by the platform, probes received `429`, the
+instance was marked unhealthy and restarted — a self-reinforcing `502` loop with no
+user traffic.
+
+| Check | Method | Result |
+|---|---|---|
+| Defect reproduced | 210 sequential probes against the old policy | 199 × `200`, then 11 × `429` |
+| Fix — health exempt | 1100 sequential `/api/v1/health` probes | **1100/1100 `200`** |
+| Fix — general cap intact | 1001+ requests to `/api/v1/accounts` | 1000 × non-`429`, then `429` |
+| Auth limiter separate | auth namespace budget | still 100/15 min, unaffected by health traffic |
+| Production stability | 24 consecutive `/api/v1/health` probes over 4+ minutes on `f6cdf9f` | **24/24 `200`**, no `429`, no `REQ-ERROR` in logs |
+
+Run the limiter regression locally with the backend on a loopback port and a
+throwaway database; it needs no production access.
+
+#### Phase 9 production smoke (L4)
+
+Two synthetic accounts, all traffic over HTTPS against `f6cdf9f`, everything
+deleted through the account-deletion API afterwards. Baseline was restored
+(9 users, 30 transactions, 11 accounts, 5 budgets, 0 idempotency rows,
+29 audit logs).
+
+Covered: register/login/me/refresh/delete, cross-tenant `404` on accounts,
+transactions, storage and receipts, account/transaction/budget CRUD, transfer
+replay and `409 IDEMPOTENCY_CONFLICT`, deposit replay `200`, AI
+`source=gemini-tools`, live market quote, simulator `403 SIMULATOR_DISABLED`,
+PNG/PDF/CSV upload and byte-identical download, SVG `415`, MIME mismatch `415`,
+4 MB `201`, 8 MB `413`, receipt text and image OCR plus confirm/replay, FCM
+register/remove/test-push, and deletion with a stored file (token `401`
+afterwards).
+
+#### What this does **not** prove
+
+Unchanged from Phase 8 and still true after Phase 9: no Android device run, no
+FCM delivery to a device, no production load/soak, no durable production object
+storage, no scheduled off-host backup, no live Redis, no AI answer-quality
+evaluation, and no independent security assessment. The per-item statuses are in
+[`FINPRO_EVALUATION_TEST_MATRIX.md`](FINPRO_EVALUATION_TEST_MATRIX.md).
+
 ---
 
 ## 3. Negative Testing Matrix

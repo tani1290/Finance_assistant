@@ -50,11 +50,11 @@ FinPro is a full-stack, enterprise-grade personal finance management and advisor
 - **Security Middleware:**
   - `helmet`: Enforces HTTP security headers (CSP, HSTS, X-Frame-Options).
   - `cors`: Strict origin validation with credential support.
-  - `express-rate-limit`: Tiered throttling (200 req/15min general, 20 req/15min auth endpoints).
+  - `express-rate-limit`: Tiered throttling (1000 req/15min general, 100 req/15min auth, 5/hour account deletion). Health and realtime paths are exempt so platform probes can never exhaust a user-facing budget — see [OPERATIONS.md](OPERATIONS.md) §2.1.
   - `compression`: Gzip response compression for optimized low-latency payloads.
 
 ### 2.2 Database & Data Access Layer
-- **Database Engine:** PostgreSQL 17 — Strict ACID guarantees, foreign key cascade rules, and compound index performance.
+- **Database Engine:** PostgreSQL 17+ (production runs 18.6) — Strict ACID guarantees, foreign key cascade rules, and compound index performance.
 - **ORM:** Prisma 5.22 — Type-safe query builder, declarative schema modeling (`schema.prisma`), and versioned schema migrations.
 - **Tenant Isolation:** Enforced on every database read/write query through required `{ userId: req.user.id }` constraints.
 
