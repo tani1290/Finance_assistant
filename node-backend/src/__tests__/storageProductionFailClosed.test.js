@@ -56,6 +56,23 @@ describe('storage fail-closed policy', () => {
     });
   });
 
+  it('passes a missing object through as 404 instead of masking it as an outage', async () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.STORAGE_ALLOW_EPHEMERAL_FALLBACK;
+
+    const missing = Object.assign(new Error('File not found in storage (users/u1/x.png)'), { statusCode: 404 });
+    const cloudDownloadSpy = jest.spyOn(storageService.cloudProvider, 'download').mockRejectedValue(missing);
+    const localDownloadSpy = jest.spyOn(storageService.localProvider, 'download')
+      .mockResolvedValue({ buffer: Buffer.from('x'), size: 1, provider: 'local' });
+
+    await expect(storageService.download('users/u1/x.png'))
+      .rejects.toMatchObject({ statusCode: 404 });
+
+    expect(localDownloadSpy).not.toHaveBeenCalled();
+    cloudDownloadSpy.mockRestore();
+    localDownloadSpy.mockRestore();
+  });
+
   it('allows the fallback in production only with the explicit opt-in', async () => {
     process.env.NODE_ENV = 'production';
     process.env.STORAGE_ALLOW_EPHEMERAL_FALLBACK = 'true';

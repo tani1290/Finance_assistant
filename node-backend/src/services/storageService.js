@@ -648,6 +648,13 @@ class StorageService {
     try {
       return await this.activeProvider.download(key);
     } catch (err) {
+      // A missing object is a client-visible 404, not a storage outage. Treating
+      // it as an outage would turn "file does not exist" into a 503/500 in
+      // production, and would send the caller hunting for a local copy that
+      // cannot exist.
+      if (err && (err.statusCode === 404 || err.code === 'NoSuchKey' || err.code === 'NotFound')) {
+        throw err;
+      }
       if (this.providerName === 's3') {
         this._recordFallback('download', err);
         if (!this._fallbackAllowed()) {
