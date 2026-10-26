@@ -199,7 +199,7 @@ npm run dev
 | Branch | `main` |
 | URL | `https://finpro-finance-ai.onrender.com` |
 | Health check path | `/api/v1/health` |
-| Deployed release | `97d5ae8` (Phase 7) at the time of writing; `574337d` (storage 404 passthrough) is committed and pending an explicit deploy |
+| Deployed release | `020a49d` — `574337d` (storage 404 passthrough) plus the Phase 8 docs commit; deployed 2026-10-26 as `dep-dbfk7joae00c738dcctg` |
 | Database | `finpro-db`, free plan — **expires 2026-11-11** ([BACKUP_DR.md](BACKUP_DR.md) §13.2) |
 | Storage | local provider, **ephemeral** ([OPERATIONS.md](OPERATIONS.md) §7) |
 
@@ -326,7 +326,7 @@ curl -f "$HOST/api/v1/health/storage"
 curl -fsS -H "Authorization: Bearer $METRICS_TOKEN" "$HOST/metrics" | head
 ```
 
-**Results on 2026-10-26** (deployed `97d5ae8`, before the storage-fix deploy):
+**Results on 2026-10-26** (deployed `020a49d`, re-probed after the storage-fix deploy):
 
 | Probe | Status | Key fields |
 |---|---|---|
@@ -337,6 +337,7 @@ curl -fsS -H "Authorization: Bearer $METRICS_TOKEN" "$HOST/metrics" | head
 | `/api/v1/health/database` | 200 | `provider:"PostgreSQL"`, `isCloud:true`, `final_year_project_nwmc` |
 | `/api/v1/health/storage` | 200 | `cloudAvailable:true`, `durable:false`, `ephemeral:true` |
 | `/metrics` | 404 | expected — `METRICS_TOKEN` is not configured |
+| `GET /api/v1/storage/file/users/<id>/documents/<missing>` (authenticated, disposable account) | 404 | `File not found in storage` — provider 404 is passed through, not masked as a 503 outage (`574337d`). Synthetic account deleted afterwards. |
 
 Read the storage fields, not just the status code. `ready:true` with
 `durable:false` means uploads work **and will be lost on the next deploy**
@@ -351,7 +352,7 @@ check: both fail when storage is unavailable. See
 ## 7. Pre-Deploy Gate
 
 Run these **in order** and do not deploy on a failure. Expected counts are the ones
-verified on 2026-10-26 against `574337d`; a lower count means tests were skipped or a
+verified on 2026-10-26 against `020a49d`; a lower count means tests were skipped or a
 suite silently aborted. A higher count is fine only if you know which test was added.
 
 ```bash

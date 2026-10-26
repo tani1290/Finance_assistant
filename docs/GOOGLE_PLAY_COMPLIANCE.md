@@ -4,7 +4,7 @@
 **Repository:** `tani1290/Finance_assistant`
 **Branch:** `finpro/pre-deployment-checkpoint`
 **Baseline HEAD:** `97d5ae8560670f0857d3c746f242510eb1106da9` (Phase 7)
-**Deployed backend:** `97d5ae8`, with `574337d` (storage 404 passthrough) pending redeploy
+**Deployed backend:** `020a49d` — includes `574337d` (storage 404 passthrough), deployed 2026-10-26
 **Deployed frontend:** `https://fin-pro-wheat.vercel.app`
 **Android application ID:** `com.finpro.app.finpro_mobile`
 **Status:** code-level work implemented, unit-tested and **deployed to production**.
@@ -394,7 +394,7 @@ Recorded results:
 | `accountDeletion.test.js` | 9 passed, 0 failed |
 | `storageProductionFailClosed.test.js` | 6 passed, 0 failed |
 | Existing storage/health suites | 44 passed, 0 failed |
-| Full backend Jest (Phase 8 tree, `574337d`) | 35 suites, 572 tests passed |
+| Full backend Jest (Phase 8 tree, `020a49d`) | 35 suites, 572 tests passed |
 | Acceptance suite | 166 passed, 0 failed |
 | SMS/mobile suite | 41 passed, 0 failed |
 | Cloud verification / failure suites | 29 / 17 passed, 0 failed |
@@ -405,9 +405,9 @@ Recorded results:
 | Rebuilt AAB | `jar verified`; SHA-256 `7b796a91...60753` |
 | Rebuilt APK | v2 signature valid; no debug; targetSdk 36; SHA-256 `16b5516a...52187` |
 
-Live checks against the **Phase 8 production deploy** (`97d5ae8`; `574337d` pending
-redeploy). Read-only probes are marked; the lifecycle, simulator and idempotency
-checks used a disposable synthetic account and left no residue.
+Live checks against the **Phase 8 production deploy** (`020a49d`). Read-only probes are
+marked; the lifecycle, simulator, storage-404 and idempotency checks used a disposable
+synthetic account and left no residue.
 
 | Check | Result |
 |---|---|
@@ -423,6 +423,7 @@ checks used a disposable synthetic account and left no residue.
 | `POST /simulator/seed` authenticated | 403 `SIMULATOR_DISABLED` |
 | Transfer and deposit idempotency replays | Same transaction id, no double ledger effect |
 | CORS preflight from both deployed origins | 204 with `access-control-allow-origin` |
+| `GET /storage/file/.../<missing>` authenticated (disposable account) | 404 `File not found in storage` — provider 404 passed through, not a 503 |
 | Production DB after cleanup | Baseline row counts restored; 0 test residue |
 
 Note: bare `/health` and `/ready` return the SPA `index.html` (200), not health
