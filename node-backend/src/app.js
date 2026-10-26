@@ -110,14 +110,22 @@ app.use(cors({
 if (process.env.NODE_ENV !== 'test') {
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 200,
+    // 200 was low enough that the platform health checker alone (one probe every
+    // few seconds) could exhaust the budget, after which probes received 429 and
+    // the instance was marked unhealthy and restarted. The general budget now
+    // covers interactive traffic only; probes are skipped below.
+    max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
     // Shared when Redis is configured; per-instance memory when it is not.
     store: new HybridRateLimitStore({ name: 'api' }),
     // Realtime traffic is long-lived / high-frequency by design (SSE keep-alive
-    // + the polling fallback). It must never consume the general API budget.
-    skip: (req) => req.originalUrl.startsWith('/api/v1/realtime'),
+    // + the polling fallback). Health probes are infrastructure traffic: they
+    // must never consume (or be rejected by) the user-facing API budget, or a
+    // busy period turns into a platform-level restart loop.
+    skip: (req) =>
+      req.originalUrl.startsWith('/api/v1/realtime') ||
+      req.originalUrl.startsWith('/api/v1/health'),
     message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests. Please try again later.' } },
   });
 
