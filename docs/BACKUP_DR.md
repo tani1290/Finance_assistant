@@ -3,9 +3,15 @@
 **Status:** Backup, encryption, off-host publishing and isolated restore tooling are
 implemented. The local recovery drill passes for plaintext and encrypted archives,
 including refusal to restore over a non-empty database and rejection of a wrong
-encryption key. **No production backup has been scheduled or uploaded yet, and no
-live object-storage round trip has been executed.** The Render free-tier web service
-has an ephemeral filesystem, so a dump written inside the container is not a backup.
+encryption key. **A verified, encrypted backup of the production database was taken
+on 2026-10-26 and restored successfully into an isolated PostgreSQL 18 container
+(§13).** No off-host copy and no scheduled job exist yet, so the backup currently
+lives only on the operator host. The Render free-tier web service has an ephemeral
+filesystem, so a dump written inside the container is not a backup.
+
+The Render PostgreSQL instance is on the **free plan and expires 2026-11-11**. It is
+deleted, with all data, 14 days after expiry. The only extension path is a paid plan
+change; see the runbook in §13.2.
 
 **Owner:** Jinay Golecha (`jinay_golecha`)
 
@@ -190,9 +196,11 @@ Guarantees:
 - If a later step fails, objects uploaded by this invocation are deleted.
 - Credentials and connection strings are never printed.
 
-**Unverified:** no live S3-compatible upload/download has been executed from this
-repository. Only local validation and dry-run behaviour are proven. Run one manual
-`--execute` against a scratch bucket before relying on it.
+**Unverified:** no live S3-compatible upload/download has been executed **for backup
+publishing**. Only local validation and dry-run behaviour are proven. Run one manual
+`--execute` against a scratch bucket before relying on it. (The application's own
+object-storage path is a different code path; it was proven against a local MinIO
+server in Phase 8 — see §13.3 — but it is not configured in production.)
 
 ### Schedule
 
@@ -263,8 +271,10 @@ service container.
 checksum verification, encryption/decryption, wrong-key rejection, the empty-target
 guard, and row survival.
 
-**What it does not prove:** that production data is backed up, that the off-host copy
-exists, that an S3 upload is readable, or that either RPO/RTO target is met.
+**What it does not prove:** that the off-host copy exists, that an S3 upload of a
+backup is readable, or that either RPO/RTO target is met. A production dump and
+isolated restore were executed once on 2026-10-26 (§13); that is a point-in-time
+proof, not a schedule, and the archive is still on one host.
 
 ---
 
@@ -344,9 +354,17 @@ on the storage provider:
 
 - **Render free web service:** filesystem is ephemeral. A dump written there is lost on
   the next deploy or restart.
-- **Render PostgreSQL free plan:** do not assume automated backups or point-in-time
-  recovery. Confirm the current plan's behaviour in the Render dashboard. If it is not
-  included, the off-host job is the only backup.
+- **Render PostgreSQL free plan — confirmed policy (2026-10-26):**
+  - Created **2026-10-12T11:24:01Z**, expires **2026-11-11T11:24:01Z** (30 days).
+  - After expiry the database is inaccessible. A **14-day grace period** follows, then
+    Render **deletes the database and all of its data**. There is no recovery.
+  - Free Postgres has **no automated backups and no point-in-time recovery**.
+  - The free plan cannot be extended. The only path is a paid compute-plan change
+    (`render pg update finpro-db --plan …`), which requires owner billing
+    authorisation and causes a few minutes of database unavailability.
+  - Cheapest paid plan: `0.1c-256mb` at **$6/month** (256 MB RAM, 100 connections,
+    1 GB SSD). Next: `0.5c-1g` at $19/month. Storage expansion is $0.30/GB.
+  - See §13.2 for the exact cutover runbook and rollback.
 - **One web instance:** a backup triggered from the app would run on every instance if
   scaled. Keep backups in an external scheduler or dedicated job.
 - **No persistent disk is configured in `render.yaml`.** Adding one changes the
@@ -394,3 +412,145 @@ GitHub Actions reports a failed scheduled workflow to the repository's notificat
 settings and uploads a non-secret failure artifact. There is no built-in paging
 integration; connect workflow failure notifications to the same channel used for API
 incidents, and add a "last successful backup" age check.
+
+---
+
+## 13. Phase 8 production backup, restore proof and expiry runbook
+
+### 13.1 Production backup and isolated restore — PASS (2026-10-26)
+
+Executed against the live Render PostgreSQL instance `finpro-db`
+(`dpg-db6c6kad0e5s73a6lbf0-a`, PostgreSQL 18.6, `final_year_project_nwmc`). Connection
+details were read from the Render CLI into a private file and never printed.
+
+Procedure and evidence:
+
+1. **Dump.** `pg_dump --format=custom --compress=9 --no-owner --no-privileges` run in
+   `docker run --rm postgres:18` (local 14.x clients refuse a PostgreSQL 18 server).
+   Plaintext SHA-256 `7f03aa1d7063da7f2e0fb24541eef12e80c6e1019f0e19da01faeb15623f4ae9`.
+   `pg_restore --list` reported **44 `TABLE DATA` entries / 271 total entries**.
+2. **Encrypt.** The repo's `scripts/lib/backupCrypto.js` produced
+   `finpro-prod-20261026T113351Z.dump.enc` (`FPE1`, AES-256-GCM), SHA-256
+   `7acbe802718af2bead640c824ae00aaa0551dd68f2f7ae24916909d0687db975`. The 32-byte key
+   was stored separately with `0600` permissions; the plaintext dump was deleted.
+3. **Decrypt round trip.** Recovered plaintext SHA-256 matched the original exactly.
+4. **Isolated restore.** Restored into a throwaway `postgres:18` container with
+   `--network none`, using a disposable database. Result: **44 tables, 11 applied
+   migrations, 0 unfinished migrations** — identical to production.
+5. **Content verification.** Row counts matched for all baseline tables
+   (9 users, 30 transactions, 11 financial_accounts, 5 budgets, 19 refresh_tokens,
+   29 audit_logs; zero rows in receipt_scans, export_jobs, simulated_payments,
+   pending_sms_transactions, idempotency_records). MD5 content hashes matched for
+   users, transactions, budgets, financial_accounts, refresh_tokens, audit_logs,
+   categories and goals. **115 indexes and 50 foreign keys** matched.
+6. **Invariant checks on both sides.** Orphan transactions (user/account), null or zero
+   amounts, duplicate idempotency keys, orphan accounts/budgets (user), and orphan
+   budgets (category) were all **0**.
+7. **Cleanup.** The restore container and plaintext dump were removed. Only the
+   encrypted archive, its key and the SHA-256 manifests remain.
+
+Artifact location (operator host, **outside the repository**):
+
+```
+/Volumes/Projects/Minor/FINpro/phase8-backups/
+  finpro-prod-20261026T113351Z.dump.enc
+  finpro-prod-20261026T113351Z.dump.enc.json
+  backup-key.txt          # 0600 — store in a secret manager, never in git
+  pg.env                  # 0600 — contains production credentials
+  restore-list.txt
+```
+
+**What this proves:** a byte-verified, encrypted backup of production data exists and
+restores into an empty PostgreSQL 18 database with identical schema, row counts,
+content hashes, indexes and foreign keys.
+
+**What it does not prove:** that the archive survives loss of the operator host (it is
+not off-host yet), that the backup schedule runs, or that RPO/RTO targets are met.
+
+**Required next actions (owner):**
+
+- [ ] Copy the encrypted archive and manifest to an off-host bucket with versioning and
+      a lifecycle rule; run one download-back SHA-256 check.
+- [ ] Store `backup-key.txt` in a secret manager separate from the archive.
+- [ ] Schedule the daily job (`.github/workflows/backup.yml`) with the required secrets
+      and `BACKUP_ENABLED=true`, and confirm one successful run.
+- [ ] Run one restore **from the off-host copy**, not only from the local file.
+
+### 13.2 Render PostgreSQL expiry and cutover runbook
+
+**Timeline (confirmed from Render's free-tier documentation):**
+
+| Event | Date/time (UTC) |
+|---|---|
+| Database created | 2026-10-12T11:24:01Z |
+| **Expiry — database becomes inaccessible** | **2026-11-11T11:24:01Z** |
+| Grace period ends — **database and all data deleted** | 2026-11-25T11:24:01Z |
+
+There is no extension on the free plan. Upgrading the existing database's compute plan
+is the only way to keep it; Render does not provide free-plan backups, so the §13.1
+archive is the recovery source if the deadline is missed.
+
+**Option A — upgrade in place (recommended; keeps data, URL and credentials).**
+
+1. Take a fresh verified backup immediately before the change:
+   `cd node-backend && BACKUP_ENCRYPTION_KEY=... npm run backup:db` and confirm the
+   manifest SHA-256. The §13.1 archive is a second copy.
+2. Choose the plan. Cheapest is `0.1c-256mb` (**$6/month**). Confirm the current price
+   in the Render Dashboard before accepting a charge.
+3. Apply the change — Dashboard: **`finpro-db` → Settings/Plan → Compute → Edit**,
+   select the plan, confirm; or CLI:
+   ```bash
+   render pg update finpro-db --plan 0.1c-256mb --confirm
+   ```
+   This is a **billing change** and requires owner authorisation. Expect **a few
+   minutes of database unavailability**; there is no HA on this plan.
+4. Verify: `render pg get finpro-db` shows `plan` no longer `free` and `expiresAt`
+   cleared/absent; `GET /api/v1/health/database` returns 200; run a read-only query
+   (`render psql finpro-db -c 'select count(*) from users;'`).
+5. Confirm `expiresAt` is gone. If the plan change fails, do **not** retry blindly —
+   capture the error and fall back to Option B.
+
+**Option B — migrate to a new paid database (keeps the free instance intact).**
+
+1. Create a new paid Postgres in the same region (`oregon`) and note its internal URL.
+2. Restore the §13.1 encrypted archive into the new instance with
+   `npm run restore:db` from an operator host (the script is local-only, so use a
+   temporary local database and Render's import, or `pg_restore` directly against the
+   new internal URL after verifying the checksum).
+3. Verify schema (11 migrations), row counts and the §13.1 invariants.
+4. Update `DATABASE_URL` on the Render web service, redeploy, and re-check
+   `/api/v1/health/database`.
+5. Keep the old database until the new one serves traffic successfully, then remove it.
+
+**Rollback.** Option A has no code rollback: a plan change is a Render billing
+operation. If it fails, the database remains on its current plan and the original
+deadline applies. Option B rolls back by restoring the previous `DATABASE_URL` and
+redeploying; the old database must not be deleted until the new one is accepted.
+
+**Do not** wait until the expiry date. A failed plan change or a missed restore needs
+days of margin, and deletion at 2026-11-25T11:24:01Z is irreversible.
+
+### 13.3 Production uploads are still ephemeral
+
+The production service reports `storageProvider: "local"`, `storageDurable: false`,
+`ephemeral: true`. Uploaded receipts and exports do not survive a redeploy. The
+S3-compatible code path is implemented and was proven end-to-end against a local MinIO
+server (22/22 checks: upload, download, byte equality, cross-tenant denial, prefix
+deletion, restart persistence, outage fail-closed, explicit fallback). Production
+adoption needs only credentials and environment variables — no code change:
+
+```
+STORAGE_PROVIDER=s3
+S3_ENDPOINT=…
+S3_REGION=…
+S3_BUCKET=…
+S3_ACCESS_KEY_ID=…
+S3_SECRET_ACCESS_KEY=…
+S3_FORCE_PATH_STYLE=true|false
+S3_PUBLIC_URL=…            # optional
+S3_TIMEOUT_MS=…
+STORAGE_ALLOW_EPHEMERAL_FALLBACK=false
+```
+
+Until those are set, treat all uploaded files as temporary. Database backups do not
+contain them (§9, object-storage recovery).

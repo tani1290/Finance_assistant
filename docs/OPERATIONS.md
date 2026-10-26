@@ -17,7 +17,7 @@ what must be configured before scaling past one instance.
 | Node.js / Express API | Yes | Render web service (free tier, **one instance**) | Serves `/api/v1/*` and the static web app. |
 | PostgreSQL | Yes | Render PostgreSQL | The only dependency that can make the API unavailable. |
 | Redis | **No** | Not provisioned | Optional shared cache and rate-limit store. The app runs without it. |
-| Object storage (S3-compatible) | **No** | Local-disk fallback unless configured | Local files do **not** survive a redeploy; see §7. |
+| Object storage (S3-compatible) | **No** | **Local disk** (`STORAGE_PROVIDER` unset) | Files do **not** survive a redeploy; see §7. |
 | Firebase Cloud Messaging | **No** | Configured via `FIREBASE_SERVICE_ACCOUNT_JSON` | Push is best-effort. Absence or failure never blocks an API response. |
 | Prometheus / Grafana | **No** | Not provisioned | `/metrics` exists; scraping is optional. |
 
@@ -31,7 +31,7 @@ on deploy or restart. Do not treat container-local files as durable storage.
 
 | Endpoint | Touches dependencies? | HTTP status | Intended use |
 |---|---|---|---|
-| `GET /api/v1/health/live` | No | Always `200` while the process can answer | **Platform liveness check** (`render.yaml` uses this). A database, Redis or storage outage must not restart the process. |
+| `GET /api/v1/health/live` | No | Always `200` while the process can answer | **Platform liveness check.** `render.yaml` declares this path, but the live Render Docker service actually probes `/api/v1/health` (see §11). A database, Redis or storage outage must not restart the process. |
 | `GET /api/v1/health/dependencies` | Database (required), storage and cache (reported only) | `200` when the database is healthy, `503` otherwise | **Dependency gate.** Optional dependencies never make the whole app unavailable. |
 | `GET /api/v1/health/ready` | Database **and** storage | `200` only when both are healthy | Strict full-feature readiness. Kept for backward compatibility and existing failure tests. Do **not** use it as a platform liveness probe. |
 | `GET /api/v1/health` | Database **and** storage | `200` only when both are healthy | Legacy status page with storage durability flag. |
@@ -179,12 +179,26 @@ does not leave a half-written balance.
   detected MIME, not the client filename.
 - Downloads are served with `X-Content-Type-Options: nosniff` and a sandbox CSP;
   only images render inline, everything else is an attachment.
+- A missing object returns **404**, not a storage-outage error. The provider's
+  404/`NoSuchKey`/`NotFound` is passed through unchanged; it is never masked as
+  `STORAGE_UNAVAILABLE`.
 - Local-disk storage is a development fallback. It is **not durable** in a Render
   container. Production receipt/document retention needs an S3-compatible bucket
   and a lifecycle policy.
-- In production, uploads fail closed (503 `PROVIDER_UNAVAILABLE`) instead of
-  silently falling back to local disk. Set `STORAGE_ALLOW_EPHEMERAL_FALLBACK=true`
-  only to opt back into the non-durable fallback deliberately.
+- **Fail-closed applies only when `STORAGE_PROVIDER=s3`.** In that mode a production
+  upload returns 503 `PROVIDER_UNAVAILABLE` instead of silently falling back to local
+  disk. `STORAGE_ALLOW_EPHEMERAL_FALLBACK=true` opts back into the non-durable
+  fallback deliberately.
+- **Current production status (2026-10-26):** `STORAGE_PROVIDER` is unset, so the
+  service runs the **local** provider. `/api/v1/health` reports
+  `storageProvider: "local"`, `storageDurable: false`; `/api/v1/health/storage`
+  reports `available: true`, `cloudAvailable: true`, `durable: false`,
+  `ephemeral: true`. Uploads **succeed** but are lost on the next deploy or restart.
+  This is a durability risk, not a functional outage.
+- The S3 code path is implemented and was proven against a local MinIO server
+  (22/22 checks). Enabling it in production requires only credentials and the
+  `STORAGE_PROVIDER=s3` / `S3_*` environment variables — no code change. See
+  [BACKUP_DR.md](BACKUP_DR.md) §13.3.
 - Account deletion removes files under `users/<userId>/` and `exports/<userId>/`
   before deleting the user row. If storage deletion fails, the API returns 503
   and the account row remains, but files already removed cannot be restored.
@@ -212,9 +226,24 @@ summary:
 - Proposed targets are **24-hour RPO** and **4-hour RTO**; both are unmeasured
   until a scheduled off-host backup and a timed restore have been executed.
 
-**Current status:** the local drill passes, but no production schedule or off-host
-upload exists. Do not report backups as operational until the workflow has run
-successfully and a restore from the off-host copy has been tested.
+**Current status (2026-10-26):** a verified, encrypted production backup was taken
+and restored into an isolated PostgreSQL 18 container — schema, row counts, content
+hashes, indexes and foreign keys all matched (evidence in
+[BACKUP_DR.md](BACKUP_DR.md) §13.1). The archive is **not yet off-host** and there is
+**no schedule**, so do not report backups as operational. The recovery drill passes
+locally.
+
+### 7.2 Render PostgreSQL expiry (BLOCKED on owner authorisation)
+
+`finpro-db` is on the **free plan** and expires **2026-11-11T11:24:01Z**. After
+expiry it is inaccessible; a 14-day grace period ends at **2026-11-25T11:24:01Z**,
+after which Render **deletes the database and all data**. Free Postgres has no
+backups. The only extension path is a paid compute-plan change (from **$6/month**,
+`0.1c-256mb`), which requires owner billing authorisation and causes a few minutes of
+database unavailability.
+
+Runbook, exact commands, verification and rollback: [BACKUP_DR.md](BACKUP_DR.md)
+§13.2. Do not wait until the expiry date.
 
 ---
 
@@ -289,12 +318,17 @@ See `node-backend/.env.example` and the root `.env.example` for the full list.
 
 ## 11. Operational checklist
 
-- [ ] Render health check is `/api/v1/health/live`, not `/api/v1/health`.
+- [ ] Render's live health check path is `/api/v1/health` (the deployed Docker
+      service). `render.yaml` still declares `runtime: node` and
+      `/api/v1/health/live`; the blueprint is stale and does not describe the live
+      service. Either is safe for liveness — neither should be `/api/v1/health/ready`.
 - [ ] `METRICS_TOKEN` is set if metrics are scraped in production.
 - [ ] `REDIS_URL` is either unset or points at a reachable instance; verify with
       `/api/v1/health/dependencies`.
 - [ ] Object storage is configured for durable uploads, or retention limits are
-      documented for the local fallback.
+      documented for the local fallback. Current production is local/ephemeral (§7).
+- [ ] The Render Postgres plan does not expire before the next review
+      (§7.2; deadline 2026-11-11).
 - [ ] `BACKUP_ENCRYPTION_KEY` is set on the backup host and stored separately from
       the archives. Losing it makes encrypted backups unrecoverable.
 - [ ] The daily backup workflow has run successfully at least once and the

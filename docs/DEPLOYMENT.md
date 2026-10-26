@@ -189,8 +189,44 @@ npm run dev
 ## 4. Cloud Production Deployment
 
 ### 4.1 Backend Deployment on Render (PaaS)
+
+**Current production state (verified 2026-10-26):**
+
+| Item | Value |
+|---|---|
+| Service | `finpro-finance-ai` (`srv-db5sb1vavr4c739td7d0`) |
+| Runtime | **Docker** (repository Dockerfile), free plan, Oregon, **1 instance** |
+| Branch | `main` |
+| URL | `https://finpro-finance-ai.onrender.com` |
+| Health check path | `/api/v1/health` |
+| Deployed release | `97d5ae8` (Phase 7) at the time of writing; `574337d` (storage 404 passthrough) is committed and pending an explicit deploy |
+| Database | `finpro-db`, free plan — **expires 2026-11-11** ([BACKUP_DR.md](BACKUP_DR.md) §13.2) |
+| Storage | local provider, **ephemeral** ([OPERATIONS.md](OPERATIONS.md) §7) |
+
+**Deploy commands.** Render's `autoDeploy` did **not** fire for a push to `main` in
+Phase 8, so treat deployment as an explicit step rather than assuming a push ships:
+
+```bash
+# 1. Fast-forward main (never force-push).
+git push origin <sha>:refs/heads/main
+
+# 2. Trigger the deploy for that exact commit and wait.
+render deploys create srv-db5sb1vavr4c739td7d0 --commit <sha> --wait --confirm
+```
+
+Then confirm the deploy record reports the same SHA and probe the live host (§6).
+A successful `git push` is not evidence that new code is serving traffic.
+
+**Blueprint drift (known, not fixed).** `render.yaml` declares `runtime: node` and
+`healthCheckPath: /api/v1/health/live`. The live service is Docker with
+`healthCheckPath: /api/v1/health`. Do not re-apply the blueprint to "correct" it
+without a planned migration: re-applying can recreate or reconfigure the service.
+Both paths are safe liveness probes; `/api/v1/health/ready` is not.
+
+For a first-time setup:
+
 1. In [Render Dashboard](https://render.com), create a **New Blueprint Instance**.
-2. Connect this repository. Render automatically reads [`render.yaml`](../render.yaml) and configures the web service.
+2. Connect this repository. Render reads [`render.yaml`](../render.yaml) and configures the web service.
 3. Supply required production environment variables:
    - `DATABASE_URL`: Render PostgreSQL connection URL (use the service's internal
      connection string when the app runs in the same Render region).
@@ -204,17 +240,36 @@ npm run dev
      returns `404`.
    - `PUSH_QUEUE_MAX` / `PUSH_CONCURRENCY` / `PUSH_MAX_ATTEMPTS`: bounds for the
      best-effort push queue. Defaults are `200` / `2` / `3`.
-5. Confirm `render.yaml` uses `healthCheckPath: /api/v1/health/live`. The strict
-   `/api/v1/health` path also checks object storage, so using it as the platform
-   health check would restart a healthy process during a storage outage.
+   - `STORAGE_PROVIDER` and `S3_*`: durable object storage. Unset means local,
+     ephemeral disk ([OPERATIONS.md](OPERATIONS.md) §7).
+5. Set the platform health check to a **liveness** path. On the live Docker service
+   that is `/api/v1/health`; on a blueprint service it is `/api/v1/health/live`. The
+   strict `/api/v1/health/ready` checks object storage, so using it would restart a
+   healthy process during a storage outage.
 
 ### 4.2 Frontend Deployment on Vercel (Edge CDN)
-[`vercel.json`](../vercel.json) proxies all `/api/*` traffic automatically to the Render backend:
+
+**Current production state:** project `fin-pro`, production URL
+`https://fin-pro-wheat.vercel.app`. Deploys are **manual CLI**, not Git-integrated:
+a push to `main` does not publish the frontend.
+
 ```bash
-# Deploy via Vercel CLI
-vercel --prod
+cd "tanishq version"
+vercel --prod --yes
 ```
-Or import the repository directly in the [Vercel Dashboard](https://vercel.com).
+
+[`vercel.json`](../vercel.json) proxies `/api/*` to the Render backend and serves
+`frontend/public` statically. After deploying, verify the live host directly:
+
+```bash
+for p in / /privacy.html /terms.html /delete-account.html /simulator.html; do
+  curl -s -o /dev/null -w "$p %{http_code} %{size_download}\n" "https://fin-pro-wheat.vercel.app$p"
+done
+```
+
+Note that `/privacy-policy`, `/account-deleted` and similar are **Flutter in-app
+routes**, not web URLs; they return 404 on Vercel by design. The public web URLs are
+the `.html` files above.
 
 ### 4.3 Containerized Deployment (Docker Compose)
 ```bash
@@ -244,30 +299,51 @@ console actions that code cannot perform.
 
 ## 6. Production Verification Probes
 
-Verify the deployed system using the right probe for the right question:
+Verify the deployed system using the right probe for the right question. The host
+below is the live Render service; replace it only if the service is recreated.
 
 ```bash
-# 1. Liveness — no dependencies. This is the Render health check.
-curl -f https://your-backend.onrender.com/api/v1/health/live
+HOST=https://finpro-finance-ai.onrender.com
 
-# 2. Dependency gate — database is required; cache/storage are reported, not fatal.
-curl -f https://your-backend.onrender.com/api/v1/health/dependencies
+# 1. Liveness — no dependencies, always 200 while the process answers.
+curl -f "$HOST/api/v1/health/live"
 
-# 3. Strict full-feature readiness — database AND storage must be healthy.
-#    A storage outage legitimately returns 503 here.
-curl -f https://your-backend.onrender.com/api/v1/health/ready
+# 2. Summary health — the Render platform health check on the live Docker service.
+curl -f "$HOST/api/v1/health"
 
-# 4. Database-only / storage-only probes
-curl -f https://your-backend.onrender.com/api/v1/health/database
-curl -f https://your-backend.onrender.com/api/v1/health/storage
+# 3. Dependency gate — database is required; cache/storage are reported, not fatal.
+curl -f "$HOST/api/v1/health/dependencies"
 
-# 5. Metrics — only if METRICS_TOKEN is configured.
-curl -fsS -H "Authorization: Bearer $METRICS_TOKEN" \
-  https://your-backend.onrender.com/metrics | head
+# 4. Readiness — database and storage must both be available.
+#    Availability only: a non-durable local provider still reports ready.
+curl -f "$HOST/api/v1/health/ready"
+
+# 5. Database-only / storage-only probes
+curl -f "$HOST/api/v1/health/database"
+curl -f "$HOST/api/v1/health/storage"
+
+# 6. Metrics — only if METRICS_TOKEN is configured; otherwise 404.
+curl -fsS -H "Authorization: Bearer $METRICS_TOKEN" "$HOST/metrics" | head
 ```
 
+**Results on 2026-10-26** (deployed `97d5ae8`, before the storage-fix deploy):
+
+| Probe | Status | Key fields |
+|---|---|---|
+| `/api/v1/health/live` | 200 | `live:true` |
+| `/api/v1/health` | 200 | `database:"connected"`, `storageProvider:"local"`, `storageDurable:false`, `version:"1.1.0"` |
+| `/api/v1/health/dependencies` | 200 | database healthy; cache `disabled` (optional); storage `available`, `durable:false` |
+| `/api/v1/health/ready` | 200 | database healthy; storage `available` via local provider |
+| `/api/v1/health/database` | 200 | `provider:"PostgreSQL"`, `isCloud:true`, `final_year_project_nwmc` |
+| `/api/v1/health/storage` | 200 | `cloudAvailable:true`, `durable:false`, `ephemeral:true` |
+| `/metrics` | 404 | expected — `METRICS_TOKEN` is not configured |
+
+Read the storage fields, not just the status code. `ready:true` with
+`durable:false` means uploads work **and will be lost on the next deploy**
+([OPERATIONS.md](OPERATIONS.md) §7).
+
 Do not use `/api/v1/health` or `/api/v1/health/ready` as the platform liveness
-check: both fail when optional storage is unavailable. See
+check: both fail when storage is unavailable. See
 [OPERATIONS.md](OPERATIONS.md) §2 for the full endpoint contract.
 
 ---
@@ -275,8 +351,8 @@ check: both fail when optional storage is unavailable. See
 ## 7. Pre-Deploy Gate
 
 Run these **in order** and do not deploy on a failure. Expected counts are the ones
-verified on 2026-10-21; a lower count means tests were skipped or a suite silently
-aborted.
+verified on 2026-10-26 against `574337d`; a lower count means tests were skipped or a
+suite silently aborted. A higher count is fine only if you know which test was added.
 
 ```bash
 # 1. Whitespace / conflict-marker sanity
@@ -294,7 +370,12 @@ node test-sms-mobile-suite.js
 node test-cloud-verification.js
 node test-cloud-failure.js
 
-# 4. Jest unit/security/failure suites → expect 353 passing, 24 suites
+# 3b. Idempotency verifiers (need a local database)
+node scripts/verify-transfer-idempotency.js   # expect 62 / 62
+node scripts/verify-deposit-idempotency.js    # expect 32 / 32
+node scripts/verify-ai-confirmation.js
+
+# 4. Jest unit/security/failure suites → expect 572 passing, 35 suites
 npm run test:unit
 
 # 5. Backup/restore drill (local throwaway databases only). Covers plaintext,
@@ -305,17 +386,20 @@ npm run backup:verify
 npm run backup:publish -- --file /secure/finpro-backups/finpro-....dump.enc
 #     No network call is made without --execute.
 
-# 6. Mobile static analysis + widget tests → expect "No issues found" and 181 passing
+# 6. Mobile static analysis + widget tests → expect "No issues found" and 239 passing
 cd ../mobile
 flutter analyze --no-pub
 flutter test --no-pub
 
 # 7. Release build
 flutter build apk --release
+flutter build appbundle --release
 ```
 
 The backup drill is not a production recovery. It proves the tooling, not that an
-off-host production backup exists — see [BACKUP_DR.md](BACKUP_DR.md).
+off-host production backup exists — see [BACKUP_DR.md](BACKUP_DR.md). A production
+dump and isolated restore were executed once on 2026-10-26 (§13.1); that is
+point-in-time evidence, not a schedule.
 
 There is no automated gate for `frontend/public` (static files, no build step). Before shipping a web change, open the affected page, exercise the create/update/delete it touches, and confirm the request shape against `API.md` — in particular that date-only fields are `YYYY-MM-DD` and that money is never posted as a computed balance.
 
@@ -326,13 +410,15 @@ There is no automated gate for `frontend/public` (static files, no build step). 
 - `GEMINI_API_KEY` is set **or** the deployment accepts degraded assistant behaviour (deterministic engine + RAG still work; see `AI.md` §5). Never treat a missing key as a startup failure — the backend is designed to fall back.
 - CORS origins list the deployed web origin.
 - `NODE_ENV=production` so error details are not returned to clients.
-- Render health check is `/api/v1/health/live`, not `/api/v1/health`.
+- Render health check is a **liveness** path: `/api/v1/health` on the live Docker
+  service, `/api/v1/health/live` on a blueprint service. Never `/api/v1/health/ready`.
 - `METRICS_TOKEN` is set if metrics are scraped; otherwise `/metrics` returns `404`
   in production.
 - `REDIS_URL` is unset or reachable. A Redis outage degrades to memory; it is not a
   reason to roll back.
 - Object storage is configured for durable uploads, or the local fallback and its
-  non-durability are accepted.
+  non-durability are accepted. Current production is local/ephemeral — uploads are
+  lost on redeploy ([OPERATIONS.md](OPERATIONS.md) §7).
 - `BACKUP_ENCRYPTION_KEY` is set on the backup host and stored separately from the
   archives.
 - A backup runs **outside** the web container and copies archives off-host. The
@@ -344,10 +430,16 @@ There is no automated gate for `frontend/public` (static files, no build step). 
 ### Smoke checks after deploy
 
 ```bash
-curl -f https://<host>/api/v1/health/live
-curl -f https://<host>/api/v1/health/dependencies
-curl -f https://<host>/api/v1/health/database
+HOST=https://finpro-finance-ai.onrender.com
+curl -f "$HOST/api/v1/health/live"
+curl -f "$HOST/api/v1/health"
+curl -f "$HOST/api/v1/health/dependencies"
+curl -f "$HOST/api/v1/health/database"
 ```
+
+Also confirm the deploy record's commit SHA matches the SHA you pushed, and check
+`storageDurable` in `/api/v1/health`. A 200 from a previous build is not proof that
+the new build is serving.
 
 Then sign in on the web and on the APK and verify, in this order: dashboard totals → create a transaction → balance changed → budget/goal totals reflect it → calendar shows the EMI/renewal → assistant answers a read-only question and states a real number. A wrong number here means the contract changed; stop and compare against `API.md` §10.
 

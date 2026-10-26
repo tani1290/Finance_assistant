@@ -9,10 +9,10 @@ One canonical set, one question per document. Start here.
 | [DATABASE.md](DATABASE.md) | Prisma schema, relations, constraints and indexing notes. |
 | [AI.md](AI.md) | How the assistant pipeline works, the tool registry, context/retrieval bounds, failure handling, security posture, and what is **not** solved. |
 | [PARITY.md](PARITY.md) | Web ⇄ mobile capability matrix, conflicts fixed, known defects, deferred work, and the verification record. |
-| [TESTING.md](TESTING.md) | How to run every suite, what each covers, the AI stubbing strategy, and the known verification gaps. |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Deployment runbook and the pre-deploy gate. |
-| [OPERATIONS.md](OPERATIONS.md) | Health/readiness semantics, optional Redis cache, upstream resilience, the non-durable push queue, metrics, and scaling rules. |
-| [BACKUP_DR.md](BACKUP_DR.md) | PostgreSQL backup/restore safety model, AES-256-GCM encryption, off-host publishing, scheduling, retention, recovery drill, and the production recovery checklist. |
+| [TESTING.md](TESTING.md) | How to run every suite, what each covers, the AI stubbing strategy, Phase 8 production evidence, and the known verification gaps. |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Deployment runbook, current production state, live probes and the pre-deploy gate. |
+| [OPERATIONS.md](OPERATIONS.md) | Health/readiness semantics, optional Redis cache, upstream resilience, storage durability, the Render database expiry, metrics, and scaling rules. |
+| [BACKUP_DR.md](BACKUP_DR.md) | PostgreSQL backup/restore safety model, AES-256-GCM encryption, off-host publishing, scheduling, retention, the verified production restore, the database-expiry runbook, and the recovery checklist. |
 | [CLOUD_AUDIT.md](CLOUD_AUDIT.md) | Evidence-based cloud capability audit: initial state and post-implementation status. |
 | [PHASE3_RELEASE_READINESS.md](PHASE3_RELEASE_READINESS.md) | Phase 3 defects, fixes, test evidence, compatibility, residual risks and the deployment gate. |
 | [PHASE4_RELEASE_READINESS.md](PHASE4_RELEASE_READINESS.md) | Phase 4: migration validation in an isolated database, the AI confirmation state machine, web/mobile verification, financial & date regressions, backup readiness, tests executed, blockers and the deployment assessment. |
@@ -21,7 +21,7 @@ One canonical set, one question per document. Start here.
 | [PHASE5_STAGING_CHECKLIST.md](PHASE5_STAGING_CHECKLIST.md) | The Phase 5 staging operator checklist: pre-flight, variables, backup-then-migrate, deploy, AI/deposit/financial smoke tests, off-site recovery and rollback. |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Design tokens, typography, spacing and component rules for the web UI. |
 | [MOBILE.md](MOBILE.md) | Flutter architecture, navigation and the Android SMS engine. |
-| [GOOGLE_PLAY_COMPLIANCE.md](GOOGLE_PLAY_COMPLIANCE.md) | Phase 7 Google Play code-level compliance: privacy policy, account deletion, SMS disclosure/consent, Data Safety inputs, artifact evidence, and the manual actions that remain. |
+| [GOOGLE_PLAY_COMPLIANCE.md](GOOGLE_PLAY_COMPLIANCE.md) | Phase 8 Google Play code-level compliance: privacy policy, account deletion, SMS disclosure/consent, Data Safety inputs, live production evidence, remaining blockers, and the manual actions that remain. |
 
 ## Reading order for a new contributor
 

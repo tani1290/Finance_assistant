@@ -1,13 +1,16 @@
-# Google Play Code-Level Compliance — Phase 7
+# Google Play Code-Level Compliance — Phase 8
 
 **Date:** 2026-10-26
 **Repository:** `tani1290/Finance_assistant`
 **Branch:** `finpro/pre-deployment-checkpoint`
-**Baseline HEAD:** `d87b7ab52d7873edc5fa942a9ee3bbb5414edfb7`
-**Artifact:** Phase 7 working tree (uncommitted at the time of writing)
+**Baseline HEAD:** `97d5ae8560670f0857d3c746f242510eb1106da9` (Phase 7)
+**Deployed backend:** `97d5ae8`, with `574337d` (storage 404 passthrough) pending redeploy
+**Deployed frontend:** `https://fin-pro-wheat.vercel.app`
 **Android application ID:** `com.finpro.app.finpro_mobile`
-**Status:** code-level work implemented and unit-tested; **not Play-ready**.
-Console declarations, a deployed build, and production durability remain open.
+**Status:** code-level work implemented, unit-tested and **deployed to production**.
+The public legal pages and the deletion endpoint are live. **Still not Play-ready:**
+production storage is non-durable, the database expires 2026-11-11, and no
+physical-device run exists. Console declarations remain manual.
 
 This document maps every Google Play requirement that has a code component to
 the exact implementation and evidence. It does not claim Play approval. It does
@@ -67,14 +70,14 @@ Rules applied while producing this report:
 
 | ID | Requirement | Status | Type | Evidence | Remaining action | Owner | Official doc |
 |---|---|---|---|---|---|---|---|
-| PP-1 | A privacy policy is publicly reachable without sign-in | **NOT TESTED** | Live | `frontend/public/privacy.html` exists; `vercel.json` serves `frontend/public` statically; route is not auth-gated. Current production deploy predates the file. | Deploy the frontend, then fetch the URL signed out and confirm HTTP 200 with the policy body. | Repo owner | [Privacy policy](https://support.google.com/googleplay/android-developer/answer/9859455) |
+| PP-1 | A privacy policy is publicly reachable without sign-in | **PASS** | Live | `frontend/public/privacy.html` is deployed. `GET https://fin-pro-wheat.vercel.app/privacy.html` returns **200** signed out, with a viewport meta tag and effective date 2026-10-24. | None for the web URL; keep it in sync with the app. | Repo owner | [Privacy policy](https://support.google.com/googleplay/android-developer/answer/9859455) |
 | PP-2 | Policy is linked in-app and on the store listing | **PASS** | Code | `mobile/lib/shared/widgets/legal_footer.dart` on login/register/onboarding; Settings → Legal & data → Privacy Policy; `mobile/lib/core/legal/legal_links.dart` holds the HTTPS URL. | Paste the same URL into the Play listing. | Repo owner | [Privacy policy](https://support.google.com/googleplay/android-developer/answer/9859455) |
 | PP-3 | Policy states what is collected, why, how it is shared, retention, deletion, and contact | **PASS** | Code | `frontend/public/privacy.html` sections 2–10. Collection claims cross-checked against backend models and AI service. | Keep in sync with any future data change. | Repo owner | [User data](https://support.google.com/googleplay/android-developer/answer/10144311) |
 | PP-4 | Policy discloses third-party AI processing | **PASS** | Code | `privacy.html` §4 names Google Gemini and the categories sent (name, email, message, conversation, financial snapshot, tool results). Backend uses `GEMINI_API_KEY`. | None. | Repo owner | [User data](https://support.google.com/googleplay/android-developer/answer/10144311) |
 | PP-5 | Policy discloses that payments are simulated | **PASS** | Code | `privacy.html` §7; `docs/` payment simulator docs; server gates `PAYMENT_SIMULATOR_ENABLED` and `PAYMENT_SIMULATOR_ALLOW_PRODUCTION` are absent from `render.yaml`. | Declare "financial features" accurately in Console. | Repo owner | [Financial features](https://support.google.com/googleplay/android-developer/answer/13849271) |
 | PP-6 | Policy is responsive and readable on mobile | **PASS** | Code | `frontend/public/assets/css/legal.css` defines a responsive single-column layout and viewport meta tag. | Spot-check on a phone after deploy. | Repo owner | [Privacy policy](https://support.google.com/googleplay/android-developer/answer/9859455) |
 | AD-1 | Users can delete their account in the app | **PASS** | Code | Settings → Delete account → `mobile/lib/features/legal/delete_account_screen.dart` → `AuthNotifier.deleteAccount` → `DELETE /api/v1/auth/account`. | Verify on a device against the deployed API. | Repo owner | [Account deletion](https://support.google.com/googleplay/android-developer/answer/13327111) |
-| AD-2 | A public web resource lets users request deletion | **NOT TESTED** | Live | `frontend/public/delete-account.html` explains both paths, signs the user in, and calls the same authenticated endpoint. | Deploy, then confirm the page loads signed out and the signed-in flow works. | Repo owner | [Account deletion](https://support.google.com/googleplay/android-developer/answer/13327111) |
+| AD-2 | A public web resource lets users request deletion | **PASS** | Live | `https://fin-pro-wheat.vercel.app/delete-account.html` returns **200** signed out and explains both the in-app and web paths. The same authenticated endpoint was exercised against the live backend with a synthetic account: delete → `200 {deleted:true}`, old token → 401, login after delete → 401. The browser UI itself was not click-driven; the API contract it calls was verified live. | Optionally click through the page once in a browser before submission. | Repo owner | [Account deletion](https://support.google.com/googleplay/android-developer/answer/13327111) |
 | AD-3 | Deletion is genuine, not deactivation | **PASS** | Code | `authService.deleteAccount` issues `prisma.user.delete`; every user-owned relation is `onDelete: Cascade`; no soft-delete flag exists. | None. | Repo owner | [Account deletion](https://support.google.com/googleplay/android-developer/answer/13327111) |
 | AD-4 | Deletion removes uploaded files, not just database rows | **PASS** | Code | `storageService.deletePrefix('users/<id>/')` and `exports/<id>/` run before the row delete; prefixes are allowlisted. `storageProductionFailClosed.test.js` 6/6. | None. | Repo owner | [Account deletion](https://support.google.com/googleplay/android-developer/answer/13327111) |
 | AD-5 | Deletion is authenticated and scoped to the caller | **PASS** | Code | Route uses `authenticate`; user ID comes only from the token; no client-supplied user ID is accepted. `accountDeletion.test.js` 9/9. | None. | Repo owner | [Account deletion](https://support.google.com/googleplay/android-developer/answer/13327111) |
@@ -99,16 +102,16 @@ Rules applied while producing this report:
 | CR-2 | Target audience and children declaration | **MANUAL ACTION REQUIRED** | Manual | Policy states the app is not directed to under-18s. | Select the target age group and "not designed for children" in Console. | Repo owner | [Content rating](https://support.google.com/googleplay/android-developer/answer/9859655) |
 | API-1 | Target API level meets the current requirement | **PASS** | Code | Rebuilt APK reports `targetSdkVersion='36'`, `compileSdkVersion='36'`, `minSdkVersion='24'`. | None. | Repo owner | [Target API](https://support.google.com/googleplay/android-developer/answer/11926878) |
 | API-2 | Permissions are declared, not inferred | **PASS** | Code | Source manifest lists `INTERNET`, `ACCESS_NETWORK_STATE`, `POST_NOTIFICATIONS`, `RECEIVE_SMS`. The rebuilt APK's merged manifest adds `WAKE_LOCK`, `com.google.android.c2dm.permission.RECEIVE`, `com.google.android.gms.permission.AD_ID`, `ACCESS_ADSERVICES_ATTRIBUTION`, `ACCESS_ADSERVICES_AD_ID`, `BIND_GET_INSTALL_REFERRER_SERVICE`, `READ_GSERVICES`, and the app's own `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` from Firebase. No `READ_SMS`. | Declare the advertising ID / analytics collection in Data Safety and the Advertising ID section. | Repo owner | [Permissions declaration](https://support.google.com/googleplay/android-developer/answer/9888170) |
-| PKG-1 | Release is signed with the release key, not debug | **PASS** | Code | Rebuilt APK v2 signature valid; signer `CN=FinPro, OU=FinPro Mobile, O=FinPro, L=Pune, ST=Maharashtra, C=IN`; certificate SHA-256 `5302c89b5c214d169d2affa1650103039f3d7ec1e5bc0aceb50b2f092c4e3d7a`; AAB `jar verified`. Artifact SHA-256: APK `4c74cb1c967087b16b851aff9ddfee90832a92918073cdcc43452f6a1aeffa51`, AAB `cd8b17cfbc3850327cb1372f18d41b22372b470fac9827806dd4c8c429e58272`. | Re-verify before upload; enroll in Play App Signing. | Repo owner | [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756) |
+| PKG-1 | Release is signed with the release key, not debug | **PASS** | Code | Rebuilt APK v2 signature valid; signer `CN=FinPro, OU=FinPro Mobile, O=FinPro, L=Pune, ST=Maharashtra, C=IN`; certificate SHA-256 `5302c89b5c214d169d2affa1650103039f3d7ec1e5bc0aceb50b2f092c4e3d7a`; AAB `jar verified`. Phase 8 artifact SHA-256: APK `16b5516a0d225f506141bf5eac67e83ccc854448e9448b3c32c50e8282352187`, AAB `7b796a91ef0cadd73658be8957e4a97af9d05bf621fb7402dab4478108260753`. | Re-verify before upload; enroll in Play App Signing. | Repo owner | [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756) |
 | PKG-2 | Play App Signing is enrolled | **MANUAL ACTION REQUIRED** | Manual | No Console access in this environment. | Enroll the app in Play App Signing and upload the AAB. | Repo owner | [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756) |
 | PKG-3 | Backups do not exfiltrate financial data | **PASS** | Code | `android:allowBackup="false"` and `android:fullBackupContent="false"`. | Re-confirm on the rebuilt artifact. | Repo owner | [User data](https://support.google.com/googleplay/android-developer/answer/10144311) |
 | PKG-4 | No debuggable release and no cleartext traffic | **PASS** | Code | Rebuilt APK manifest has no `debuggable` flag and no `usesCleartextTraffic` opt-in. | Re-confirm before upload. | Repo owner | [Target API](https://support.google.com/googleplay/android-developer/answer/11926878) |
 | SEC-1 | No signing material, service-account key, or secret is tracked | **PASS** | Code | `mobile/android/key.properties` and `finpro-release.jks` are ignored; `google-services.json` is a client config, not a service-account key; no `.env` with values is tracked. | Re-scan the release tree before upload. | Repo owner | [User data](https://support.google.com/googleplay/android-developer/answer/10144311) |
-| SEC-2 | Production storage is durable and private | **BLOCKED** | Live | Production health reports `storage.provider="local"`; the fail-closed change prevents silent ephemeral fallback but no S3 credentials or off-host backup target are verified. | Provision durable private object storage, set credentials, migrate, and re-check health. | Repo owner | — |
-| SEC-3 | Database does not expire before review | **BLOCKED** | Live | Render Postgres `finpro-db` expires **2026-11-11**; no billing/migration authorization. | Upgrade or migrate the database with owner authorization before the expiry date. | Repo owner | — |
+| SEC-2 | Production storage is durable and private | **BLOCKED** | Live | Production health reports `storageProvider:"local"`, `durable:false`, `ephemeral:true`; uploads are lost on redeploy. The S3 code path is implemented and passed a 22-check harness against a local MinIO server (upload/download byte equality, cross-tenant denial, prefix isolation, restart persistence, outage fail-closed, fallback policy). No production bucket or credentials exist. | Provision durable private object storage, set `STORAGE_PROVIDER=s3` + `S3_*`, migrate existing files, re-check `/api/v1/health/storage` for `durable:true`. No code change required. | Repo owner | — |
+| SEC-3 | Database does not expire before review | **BLOCKED** | Live | Render Postgres `finpro-db` is on the **free plan** and expires **2026-11-11T11:24:01Z**; Render deletes it and all data after a 14-day grace period (2026-11-25T11:24:01Z). Free Postgres has no backups. A verified encrypted backup + isolated restore exists (`BACKUP_DR.md` §13.1). The cheapest paid plan is `0.1c-256mb` at **$6/month**. | Owner must authorise the paid plan change (`render pg update finpro-db --plan 0.1c-256mb --confirm`) or a migration before 2026-11-11. Billing change. | Repo owner | — |
 | TEST-1 | Device smoke test of the Phase 7 flows | **NOT TESTED** | Device | No device or emulator attached during this phase. | Install the signed APK and exercise privacy links, SMS consent, and deletion on a test account. | Repo owner | — |
 | TEST-2 | Staging end-to-end deletion | **NOT TESTED** | Live | No staging environment exists. | Create a disposable staging account, delete it, and confirm cascade and storage cleanup. | Repo owner | — |
-| TEST-3 | Read-only production smoke after deploy | **NOT TESTED** | Live | The current deploy predates Phase 7. | After deploy, check `/health`, `/ready`, the legal pages, and that the deletion endpoint rejects unauthenticated calls. | Repo owner | — |
+| TEST-3 | Read-only production smoke after deploy | **PASS** | Live | Phase 8 deploy verified: `/api/v1/health`, `/health/live`, `/health/dependencies`, `/health/ready`, `/health/database`, `/health/storage` all 200; legal pages 200; unauthenticated `DELETE /api/v1/auth/account` → 401; authenticated lifecycle, simulator gating, and idempotency smoke all passed with a synthetic account that was deleted afterwards. | Re-run after any redeploy; see §11. | Repo owner | — |
 
 ---
 
@@ -391,32 +394,42 @@ Recorded results:
 | `accountDeletion.test.js` | 9 passed, 0 failed |
 | `storageProductionFailClosed.test.js` | 6 passed, 0 failed |
 | Existing storage/health suites | 44 passed, 0 failed |
-| Full backend Jest (Phase 7 tree) | 35 suites, 571 tests passed |
-| Acceptance suite (Phase 7 tree) | 166 passed, 0 failed (one transient first run; clean re-run) |
-| SMS/mobile suite (Phase 7 tree) | 41 passed, 0 failed |
-| Transfer verifier (Phase 7 tree) | 62 passed, 0 failed |
-| Deposit verifier (Phase 7 tree) | 32 passed, 0 failed |
+| Full backend Jest (Phase 8 tree, `574337d`) | 35 suites, 572 tests passed |
+| Acceptance suite | 166 passed, 0 failed |
+| SMS/mobile suite | 41 passed, 0 failed |
+| Cloud verification / failure suites | 29 / 17 passed, 0 failed |
+| Transfer verifier | 62 passed, 0 failed |
+| Deposit verifier | 32 passed, 0 failed |
+| Storage/health suites after the 404 fix | 6 suites, 68 tests passed |
 | Prisma migrations on disposable DB | 11 applied, schema up to date, no drift |
-| Rebuilt AAB | `jar verified`; SHA-256 `cd8b17cf...e58272` |
-| Rebuilt APK | v2 signature valid; no debug; targetSdk 36; SHA-256 `4c74cb1c...ffa51` |
+| Rebuilt AAB | `jar verified`; SHA-256 `7b796a91...60753` |
+| Rebuilt APK | v2 signature valid; no debug; targetSdk 36; SHA-256 `16b5516a...52187` |
 
-Live checks against the **pre-Phase-7** production deploy (read-only):
+Live checks against the **Phase 8 production deploy** (`97d5ae8`; `574337d` pending
+redeploy). Read-only probes are marked; the lifecycle, simulator and idempotency
+checks used a disposable synthetic account and left no residue.
 
 | Check | Result |
 |---|---|
 | `GET https://fin-pro-wheat.vercel.app/` | 200 |
-| `GET /api/v1/health`, `/api/v1/health/live`, `/api/v1/health/ready` | 200; DB healthy; `storage.provider="local"`, `storageDurable=false` |
-| `GET /api/v1/health/dependencies`, `/storage`, `/database` | 200 |
+| `GET /privacy.html`, `/terms.html`, `/delete-account.html` | 200; viewport meta; effective date 2026-10-24; internal links work |
 | `GET /simulator.html` | 200 |
+| `GET /api/v1/health`, `/health/live`, `/health/dependencies`, `/health/ready`, `/health/database`, `/health/storage` | 200; DB connected; `storageProvider:"local"`, `durable:false`, `ephemeral:true` |
 | Unauthenticated simulator API | 401 |
-| `GET /privacy.html`, `/delete-account.html`, `/terms.html` | 404 — Phase 7 pages not deployed |
-| `DELETE /api/v1/auth/account` unauthenticated | 401, but this is the global API auth gate; it is **not** evidence the new route is live |
+| Unauthenticated `DELETE /api/v1/auth/account` | 401 (route exists; no longer 404) |
+| Registration → `/auth/me` → delete (wrong confirmation 400, wrong password 401, correct 200) | PASS |
+| Old token after deletion / login after deletion | 401 / 401 |
+| Authenticated `/simulator/status` | `enabled:false`, `production:true`, `synthetic:true`, disabled reason present |
+| `POST /simulator/seed` authenticated | 403 `SIMULATOR_DISABLED` |
+| Transfer and deposit idempotency replays | Same transaction id, no double ledger effect |
+| CORS preflight from both deployed origins | 204 with `access-control-allow-origin` |
+| Production DB after cleanup | Baseline row counts restored; 0 test residue |
 
 Note: bare `/health` and `/ready` return the SPA `index.html` (200), not health
 JSON. The real probes are the `/api/v1/health/*` paths above.
 
-The live checks are read-only and did not create, modify, or delete any
-production data.
+The read-only probes did not create, modify, or delete production data. The
+lifecycle/simulator/idempotency checks used synthetic accounts and were cleaned up.
 
 ---
 
@@ -426,10 +439,10 @@ production data.
 
 | Blocker | Impact | Needed decision |
 |---|---|---|
-| Render Postgres expires **2026-11-11** | The backend stops working after expiry; review could fail. | Owner must authorize an upgrade or a migration before that date. |
-| Production storage is `local` | Uploaded files are not durable and may be lost on redeploy. | Owner must provide durable private object storage credentials and approve the migration. |
-| No deployed Phase 7 build | The legal pages and deletion flow are not live yet. | Owner must approve a frontend/backend deploy. |
-| No device or staging evidence | The flows are unit-tested but not exercised end to end. | Owner must provide a test device or staging environment. |
+| Render Postgres expires **2026-11-11** | The backend stops working after expiry; review could fail. | Owner must authorise a paid plan change or migration before that date. |
+| Production storage is `local` | Uploaded files are not durable and are lost on redeploy. | Owner must provide durable private object storage credentials and approve the migration. No code change needed. |
+| No physical-device evidence | SMS permission flow, external links and deletion UI are widget-tested only. | Owner must provide a test device or emulator, or accept the residual risk explicitly. |
+| Manual frontend deploy | `vercel --prod` is not Git-integrated, so a push does not update the web app. | Owner must run the CLI deploy after frontend changes and verify the live host. |
 
 ### 12.2 Manual Play Console actions
 
@@ -458,10 +471,12 @@ production data.
 
 ## 13. Sign-off statement
 
-The Phase 7 code changes satisfy the **code-level** parts of the Play
-requirements listed above, with automated coverage for the privacy links, SMS
-consent sequence, fail-closed channel behaviour, external-link safety, and
-deletion validation.
+The Phase 8 code and deploy satisfy the **code-level** and **live-reachability**
+parts of the Play requirements listed above, with automated coverage for the privacy
+links, SMS consent sequence, fail-closed channel behaviour, external-link safety, and
+deletion validation, plus a live synthetic-account lifecycle check against the
+deployed backend.
 
-The app is **not** Play-ready while the blockers in §12.1 remain. No statement
-of Play approval, policy acceptance, or production readiness is made here.
+The app is **not** Play-ready while the blockers in §12.1 remain — durable storage,
+the database expiry, and hardware verification. No statement of Play approval, policy
+acceptance, or production readiness is made here.

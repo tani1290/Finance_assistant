@@ -17,13 +17,13 @@ The repository ships **four custom backend suites**, a **Jest suite** and a **Fl
 │ test-cloud-verification.js     │ 29 assertions           │ Cloud Persistence            │
 │ test-cloud-failure.js          │ 17 assertions           │ Failure & Resiliency         │
 ├────────────────────────────────┼─────────────────────────┼------------------------------┤
-│ src/__tests__/*.test.js        │ 493 Jest tests / 32 suites │ Unit, security, failure   │
-│ mobile/test/**                 │ 197 widget tests        │ Flutter client contracts     │
+│ src/__tests__/*.test.js        │ 572 Jest tests / 35 suites │ Unit, security, failure   │
+│ mobile/test/**                 │ 239 widget tests        │ Flutter client contracts     │
 └────────────────────────────────┴─────────────────────────┴──────────────────────────────┘
 ```
 
 The four custom suites total **253 passing assertion checks** with 0 failures. Jest adds
-**493 passing tests across 32 suites**, and Flutter adds **197 passing widget tests**.
+**572 passing tests across 35 suites**, and Flutter adds **239 passing widget tests**.
 CI runs `npm test`, Jest and the cloud persistence suite in the main job, plus a
 separate `backup-recovery-drill` job against a PostgreSQL 17 service. The failure suite
 is run manually as part of the pre-deploy gate. Flutter analysis/tests run separately
@@ -107,7 +107,7 @@ cd mobile
 flutter analyze --no-pub
 flutter test --no-pub
 ```
-**Coverage (197 tests):**
+**Coverage (239 tests):**
 - API client: error-envelope mapping, 4xx vs 5xx messaging, auth/refresh paths
 - Dashboard, accounts, transactions (including pagination and end-of-list), budgets, category drill-down
 - Goals, loans, investments, analytics, profile and deposit flows
@@ -124,7 +124,7 @@ Widget tests run against a fake `HttpClientAdapter`, so they assert the **contra
 cd node-backend
 npm run test:unit      # jest --runInBand
 ```
-**493 tests in 32 suites**, including the cloud-hardening, backup-integrity, Phase 3 finance/confirmation and transfer-ledger suites:
+**572 tests in 35 suites**, including the cloud-hardening, backup-integrity, Phase 3 finance/confirmation, storage-fail-closed and transfer-ledger suites:
 
 | Area | Suites | What is proven |
 |---|---|---|
@@ -132,6 +132,7 @@ npm run test:unit      # jest --runInBand
 | Upstream HTTP | `httpClient.test.js` | Timeouts, idempotent retry only, exponential backoff + jitter, `Retry-After` cap, 404 does not open the circuit, concurrency queue, sanitised errors. |
 | Metrics | `metrics.test.js`, `observability.test.js` | Bounded series, label escaping, cumulative histogram buckets, reset, `/metrics` auth/404 behaviour, health endpoint semantics. |
 | Upload/download | `storageHardening.test.js` | MIME allowlist, magic-byte verification, extension from detected MIME, active-content rejection, malformed base64, inline sandbox, cross-tenant denial. |
+| Storage provider policy | `storageProductionFailClosed.test.js` | `STORAGE_PROVIDER=s3` fails closed (503) instead of writing to ephemeral disk; explicit fallback opt-in; dev auto-fallback; **a provider 404/`NoSuchKey`/`NotFound` is passed through unchanged and never masked as `STORAGE_UNAVAILABLE`**. |
 | Rate limiting | `rateLimitStore.test.js` | Shared Redis counters when healthy, memory fallback during outage, separate `api`/`auth` namespaces, no response contamination. |
 | Backup safety | `dbSafety.test.js` | Local-only restore, remote backup double opt-in, reserved-database rejection, `PG*` env construction, output sanitisation, retention selection for plaintext and encrypted archives. |
 | Backup encryption | `backupCrypto.test.js` | Key parsing (base64/hex, wrong length, passphrase rejection), AES-256-GCM round trip, authenticated header, tamper and wrong-key failure, plaintext cleanup semantics. |
@@ -165,7 +166,7 @@ Creates throwaway local databases, seeds the source, runs the **real** backup an
 
 It refuses non-local hosts, only creates/drops `finpro_bk_verify_*` databases, and removes its temporary directory. The same drill runs in CI (`backup-recovery-drill`) against a PostgreSQL 17 service.
 
-`publish-backup.js` defaults to a dry run and was exercised locally against a real encrypted archive: it validated the manifest and printed the deterministic object key without making a network call. No live S3 upload/download has been executed, so the download-back verification path is covered by unit tests and code review only.
+`publish-backup.js` defaults to a dry run and was exercised locally against a real encrypted archive: it validated the manifest and printed the deterministic object key without making a network call. No live S3 upload/download has been executed **for backup publishing**, so the download-back verification path is covered by unit tests and code review only. (The application's own object-storage path is a different code path; it was proven against a local MinIO server in Phase 8 — see §2.10.)
 
 This is a destructive test **only** of throwaway local databases. It must not be pointed at a shared or production database.
 
@@ -230,6 +231,31 @@ write through a proxy around `prisma.$transaction`, and checks **62 assertions**
 The test target must be disposable. Do not point this script at
 `finance_jinay`, staging or production. Drop the database after the run.
 
+### 2.10 Phase 8 verification (2026-10-26)
+
+Most checks below were run against the **deployed** services, not a local stack; the
+load run is explicitly local and is labelled as such. Every production account,
+transaction and file used was synthetic and was deleted afterwards; the production
+row counts returned to baseline and no test residue remains.
+
+| Area | Method | Result |
+|---|---|---|
+| Frontend | `curl` against `https://fin-pro-wheat.vercel.app` for `/`, `/privacy.html`, `/terms.html`, `/delete-account.html`, `/simulator.html` | **PASS** — all 200; legal pages carry a viewport meta and effective date 2026-10-24 |
+| Backend liveness/health | `/api/v1/health/live`, `/health`, `/health/dependencies`, `/health/ready`, `/health/database`, `/health/storage` | **PASS** — all 200; database connected, storage local/non-durable (see §5) |
+| Account lifecycle | register → `/auth/me` → delete with wrong confirmation → delete with wrong password → delete with correct password → old token → login after delete | **PASS** — 201/200/400/401/200/401/401; `deleted:true`, `alreadyDeleted:false` |
+| Simulator gating | authenticated `/simulator/status`, `POST /simulator/seed`, unauthenticated status | **PASS** — `enabled:false`, `production:true`, `synthetic:true`; seed → `403 SIMULATOR_DISABLED`; unauthenticated → 401 |
+| Transfer idempotency (live) | create, retry the same key, compare transaction id and balances | **PASS** — same id, one debit/credit pair |
+| Deposit idempotency (live) | replay the same key | **PASS** — `replayed:true`, same id, no double credit |
+| CORS | `OPTIONS /api/v1/health/live` from both deployed origins | **PASS** — 204 with `access-control-allow-origin` |
+| Bounded local load | 900 mixed requests (health, dashboard, transactions, accounts, budgets, analytics) at concurrency 12 against a loopback backend and local PostgreSQL | **PASS** — 900/900 HTTP 200, p50 8.4 ms, p95 15.8 ms, p99 22.5 ms, max 36.2 ms, ~1,366 req/s. Not a production capacity claim: local only, no Redis, rate limiter disabled under `NODE_ENV=test`, no soak. Synthetic user and 25 seeded transactions deleted afterwards (0 residue). |
+| Storage S3 path | 22-check harness against a local MinIO server | **PASS** — upload/list/download byte equality, cross-tenant denial, unsafe-prefix rejection, prefix-delete isolation, restart persistence, wrong credentials 403, production outage fail-closed 503, explicit and dev fallback |
+| Storage 404 regression | `storageProductionFailClosed.test.js` | **PASS** — a missing cloud object returns 404, not 503, and never touches the local fallback |
+| Production backup | `pg_dump` → encrypt → decrypt → isolated PostgreSQL 18 restore | **PASS** — 44 tables, 11 migrations, matching row counts/content hashes, 115 indexes, 50 FKs; see `BACKUP_DR.md` §13.1 |
+| Android runtime | `flutter devices`, `adb devices`, `flutter emulators` | **NOT TESTED** — no physical device and no emulator/AVD on the build host |
+
+The MinIO harness proves the application's S3 code path, **not** a production bucket:
+no durable object storage is configured on Render. See §5.
+
 ---
 
 ## 3. Negative Testing Matrix
@@ -289,12 +315,14 @@ Be explicit about these before claiming a release is "fully tested":
 |---|---|
 | Redis is not provisioned in the current deployment | Shared-cache and shared-rate-limit paths are tested with mocks/local semantics, not against a live managed Redis. Cross-instance behaviour is unverified in production. |
 | No live staging backend was exercised in this pass | Contracts are verified statically and against the local test database. **Phase 4:** a real local backend + frontend + isolated database were exercised end-to-end (including a browser session), but a *staging* deployment was not — schema drift on the target platform is still unverified. |
-| No automated Android device/emulator run | Layout, permissions, SMS ingestion and accessibility on real hardware are covered only by widget tests and a manual APK smoke pass, not by an automated UI suite. **Phase 7:** the new privacy/consent/deletion flows have widget coverage only; no device run has been recorded, so the runtime permission dialog, the `MethodChannel` calls and the external-link handoff are unverified on hardware. See `GOOGLE_PLAY_COMPLIANCE.md`. |
+| No automated Android device/emulator run | Layout, permissions, SMS ingestion and accessibility on real hardware are covered only by widget tests and a manual APK smoke pass, not by an automated UI suite. **Phase 7:** the new privacy/consent/deletion flows have widget coverage only; no device run has been recorded, so the runtime permission dialog, the `MethodChannel` calls and the external-link handoff are unverified on hardware. **Phase 8:** the build host has no physical device, no emulator and no AVD (`adb devices` empty, `flutter emulators` → none), so this is **NOT TESTED**, not "passed". See `GOOGLE_PLAY_COMPLIANCE.md`. |
 | No browser automation for `frontend/public` | The web app has no build or test harness. **Phase 4:** the propose → confirm → cancel journey *was* executed in a real browser against the local stack and an isolated database (expiry, replay, network failure and five concurrent confirms), but it is a **manual** procedure, not an automated CI gate. **Phase 6:** the homepage ripple, pointer pass-through, cleanup and `prefers-reduced-motion` behaviour were likewise verified manually in real Chrome, including with `--force-prefers-reduced-motion`; no CI browser test exists. |
 | Live Gemini responses not exercised by default | Model behaviour/wording is unverified; only the plumbing is. |
-| No load/performance suite | Throughput and latency characteristics are unknown. The push queue and cache bounds are tested functionally, not under sustained load. |
-| No scheduled production backup / off-host copy | The restore drill proves the tooling, not that a recoverable production backup exists. The workflow exists but has not run. See `BACKUP_DR.md`. |
-| No live S3-compatible publish/restore | Upload, SSE and download-back verification are unit-tested and dry-run only; a live bucket round trip (including a restore from the downloaded object) is unverified. |
+| No sustained load/performance suite | **Phase 8** ran a bounded local run: 900 requests at concurrency 12 against a loopback backend + local PostgreSQL, 900/900 succeeded, p50 8.4 ms / p95 15.8 ms / p99 22.5 ms, ~1,366 req/s, synthetic user deleted afterwards (0 residue). That measures the app+DB path on one laptop, **not** production capacity: no Redis, the API rate limiter is disabled under `NODE_ENV=test`, no multi-instance behaviour, no cold start, and no sustained soak. The push queue and cache bounds remain functionally tested only. |
+| No scheduled production backup / off-host copy | A verified encrypted production backup **was** taken and restored in isolation on 2026-10-26 (`BACKUP_DR.md` §13.1), so a recoverable archive exists. But it is not off-host, the workflow has never run on a schedule, and no restore has been performed from an off-host copy. Treat backups as **not operational**. |
+| Production uploads are non-durable | Production runs the local storage provider (`durable:false`, `ephemeral:true`). Uploads succeed but are lost on redeploy. The S3 code path is proven against local MinIO, but no production bucket is configured. |
+| Render PostgreSQL expires 2026-11-11 | The free plan cannot be extended; after a 14-day grace period Render deletes the database and all data. Requires owner-authorised paid plan change. See `BACKUP_DR.md` §13.2. |
+| No live S3-compatible publish/restore for **backups** | `backup:publish` upload, SSE and download-back verification are unit-tested and dry-run only; a live bucket round trip (including a restore from the downloaded object) is unverified. This is separate from the application storage path, which was proven against local MinIO. |
 | RPO/RTO unmeasured | The 24-hour/4-hour targets have not been timed against a production-sized database. |
 | `/ai/chat` has no total wall-clock deadline | Per-call timeout is bounded, but the worst-case chain is still long. |
 | Generic creation and loan payments lack idempotency | Deposits and transfers are idempotent (optional `idempotencyKey`, enforced by the `idempotency_records` primary key; verified by `verify-deposit-idempotency.js` and `verify-transfer-idempotency.js`). Generic income/expense creation and loan payments still have no key, so a retry of those can apply twice. |
