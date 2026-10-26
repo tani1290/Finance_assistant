@@ -25,6 +25,14 @@ The Render web filesystem is **ephemeral**. Anything written inside the containe
 (including `backups/`, local uploads and logs not shipped to the platform) is lost
 on deploy or restart. Do not treat container-local files as durable storage.
 
+**Deploy latency is not an outage.** On the free plan, container provisioning can
+take several minutes and is variable: on 2026-10-26 one deploy produced no output
+for ~14 minutes and then failed Render's 15-minute port scan, while a retry of the
+same commit went Live after 14m23s. The old instance serves traffic for the whole
+window. If a deploy fails on a port-scan timeout, retry the same commit once
+before investigating the application — the schema step itself runs in seconds.
+Full timeline and retry guidance: [DEPLOYMENT.md](DEPLOYMENT.md) §4.1.
+
 ---
 
 ## 2. Health and readiness

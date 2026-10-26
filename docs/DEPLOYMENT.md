@@ -199,7 +199,7 @@ npm run dev
 | Branch | `main` |
 | URL | `https://finpro-finance-ai.onrender.com` |
 | Health check path | `/api/v1/health` |
-| Deployed release | `f6cdf9f` — health probes exempted from the general rate limiter (Phase 9 P0 fix), on top of `020a49d` (`574337d` storage 404 passthrough + Phase 8 docs); deployed 2026-10-26 as `dep-dbfl1oq9lscs73ahr2hg` |
+| Deployed release | `b9c054c` — Phase 9 docs plus the semver-only `npm audit fix` lockfile change, on top of `f6cdf9f` (health probes exempted from the general rate limiter); deployed 2026-10-26 14:21:56Z as `dep-dbflt99srm7s73ff9bp0` |
 | Database | `finpro-db`, free plan — **expires 2026-11-11** ([BACKUP_DR.md](BACKUP_DR.md) §13.2) |
 | Storage | local provider, **ephemeral** ([OPERATIONS.md](OPERATIONS.md) §7) |
 
@@ -207,7 +207,9 @@ npm run dev
 release branch. Deploys are made for an exact SHA from
 `finpro/pre-deployment-checkpoint` with `--commit`, so the deployed code is
 newer than `origin/main`. Do not assume that pushing `main` ships the current
-tree; check `render deploys list` for the live SHA.
+tree; check `render deploys list` for the live SHA. A documentation-only commit
+after a deploy does not change the live SHA, so compare against the deploy record
+rather than against `HEAD`.
 
 **Deploy commands.** Render's `autoDeploy` did **not** fire for a push in
 Phase 8 or Phase 9, so treat deployment as an explicit step rather than assuming
@@ -223,6 +225,26 @@ render deploys create srv-db5sb1vavr4c739td7d0 --commit <sha> --wait --confirm
 
 Then confirm the deploy record reports the same SHA and probe the live host (§6).
 A successful `git push` is not evidence that new code is serving traffic.
+
+**Deploy timing on the free plan (observed 2026-10-26).** Container start is
+highly variable. Two deploys of the same commit behaved differently:
+
+- One deploy printed `Deploying...` and then produced no further output for
+  ~14 minutes; Render's 15-minute port scan timed out and the deploy failed.
+  A retry of the same commit started the schema step within seconds and went
+  Live.
+- The successful retry also took 14m23s end-to-end: `Deploying...` at 14:07:45,
+  first schema log line at 14:21:35, `migrate deploy OK (6908ms)` at 14:21:42,
+  server up at 14:21:49, Live at 14:21:56.
+
+The delay is before or around container provisioning, **not** in the migration
+itself: the migration ran in ~7 s once the process was scheduled, the
+`_prisma_migrations` table was already clean (11/11 applied, none unfinished),
+`pg_locks` showed no advisory lock, and the same `prisma migrate deploy` takes
+under a second locally. The old instance keeps serving traffic for the whole
+window, so a failed deploy is a failed *deploy*, not an outage. If a deploy
+fails on a port-scan timeout, retry the same commit once before investigating
+the code.
 
 **Blueprint drift (known, not fixed).** `render.yaml` declares `runtime: node` and
 `healthCheckPath: /api/v1/health/live`. The live service is Docker with
@@ -333,7 +355,8 @@ curl -f "$HOST/api/v1/health/storage"
 curl -fsS -H "Authorization: Bearer $METRICS_TOKEN" "$HOST/metrics" | head
 ```
 
-**Results on 2026-10-26** (deployed `f6cdf9f`, re-probed after the health-probe fix):
+**Results on 2026-10-26** (deployed `b9c054c`; the health-probe rows were first
+verified on `f6cdf9f` and re-confirmed after the `b9c054c` deploy):
 
 | Probe | Status | Key fields |
 |---|---|---|
@@ -345,7 +368,7 @@ curl -fsS -H "Authorization: Bearer $METRICS_TOKEN" "$HOST/metrics" | head
 | `/api/v1/health/storage` | 200 | `cloudAvailable:true`, `durable:false`, `ephemeral:true` |
 | `/metrics` | 404 | expected — `METRICS_TOKEN` is not configured |
 | `GET /api/v1/storage/file/users/<id>/documents/<missing>` (authenticated, disposable account) | 404 | `File not found in storage` — provider 404 is passed through, not masked as a 503 outage (`574337d`). Synthetic account deleted afterwards. |
-| 24 consecutive `/api/v1/health` probes over 4+ minutes | 200 × 24 | No `429`, no `REQ-ERROR` in the logs. Probes are exempt from the general limiter (`f6cdf9f`). |
+| 24 consecutive `/api/v1/health` probes over 4+ minutes | 200 × 24 | No `429`, no `REQ-ERROR` in the logs. Probes are exempt from the general limiter (`f6cdf9f`). Re-run after the `b9c054c` deploy: 24/24 `200` again. |
 
 Read the storage fields, not just the status code. `ready:true` with
 `durable:false` means uploads work **and will be lost on the next deploy**
@@ -360,7 +383,7 @@ check: both fail when storage is unavailable. See
 ## 7. Pre-Deploy Gate
 
 Run these **in order** and do not deploy on a failure. Expected counts are the ones
-verified on 2026-10-26 against `f6cdf9f`; a lower count means tests were skipped or a
+verified on 2026-10-26 against `b9c054c` (and on `f6cdf9f` before it); a lower count means tests were skipped or a
 suite silently aborted. A higher count is fine only if you know which test was added.
 
 ```bash

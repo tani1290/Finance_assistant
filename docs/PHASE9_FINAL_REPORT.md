@@ -3,6 +3,7 @@
 **Date:** 2026-10-26
 **Branch:** `finpro/pre-deployment-checkpoint`
 **Audited baseline:** `f6cdf9f4c3e2eb65c1012eb9c7e883d9fa686ebc`
+**Live release at sign-off:** `b9c054c` via `dep-dbflt99srm7s73ff9bp0` (commits after it on this branch are documentation-only)
 **Target evaluation date:** on or before **2026-11-05**
 **Report scope:** evaluation readiness, not a production certification
 
@@ -24,19 +25,24 @@ Two real defects were found and fixed:
    Fixed, deployed, and verified in production.
 2. **P1 — a critical `proxy-addr` IP-spoofing advisory** (plus eight other
    production advisories) in the lockfile. Fixed with a semver-only
-   `npm audit fix`; no `package.json` change.
+   `npm audit fix` (no `package.json` change), deployed in `b9c054c`, and
+   verified in production.
 
 Everything else that remains open is **blocked on an owner decision, a
 credential, hardware, or an external console** — not on missing code.
 
-| Verdict | Count |
+| Status | Areas |
 |---|---|
-| Verified (executed, observed) | 18 areas |
-| Implemented but unverified in production | 4 areas |
-| Failed | 0 product failures (1 harness assertion error, corrected) |
-| Blocked (external dependency) | 6 items |
-| Owner action required | 5 items |
-| Not tested (no evidence) | 9 items |
+| **PASS** | 22 |
+| **PARTIAL** | 3 |
+| **FAIL** | 0 product failures (1 harness assertion error, corrected) |
+| **BLOCKED** | 5 |
+| **NOT TESTED** | 4 |
+
+The 22/3/0/5/4 counts are the status column of §2. §6 separately enumerates six
+external blockers and §7 five owner actions; some of those items are the same
+areas counted above (for example, the Android device run is **NOT TESTED** in §2
+and **BLOCKED** in §6 because both labels are true).
 
 ---
 
@@ -118,7 +124,7 @@ gates. These ran after the lockfile update, not before it.
 |---|---|
 | Backend health | `200`, `status:"healthy"`, `database:"connected"` |
 | Health stability | 24/24 probes over 4+ minutes, no `429`, no `REQ-ERROR` |
-| Live commit | `f6cdf9f` via `dep-dbfl1oq9lscs73ahr2hg` |
+| Live commit | `b9c054c` via `dep-dbflt99srm7s73ff9bp0` |
 | Auth lifecycle | register 201, login 200, `/auth/me` 200, delete 200, old token 401 |
 | Isolation | cross-user account/transaction/storage/receipt → `404` / `403` |
 | Transfer replay | same key → same transaction id |
@@ -267,7 +273,7 @@ No execution evidence exists. Do not present these as working.
 | Change | File | Type | Verified by |
 |---|---|---|---|
 | Health probes exempt from the general limiter; general limit 200 → 1000 | `node-backend/src/app.js` | Code (P0 fix) | Local 1100/1100; production 24/24 |
-| Semver-only dependency remediation | `node-backend/package-lock.json` | Lockfile (P1 fix) | Full suite + build + `npm audit` |
+| Semver-only dependency remediation | `node-backend/package-lock.json` | Lockfile (P1 fix) | Full suite + build + `npm audit`; deployed in `b9c054c` and re-smoked |
 | Phase 9 documentation set | `docs/PHASE9_*.md`, `docs/FINPRO_*.md` | Docs | Diff review |
 | Documentation corrections | `docs/README.md`, `DEPLOYMENT.md`, `TESTING.md`, `OPERATIONS.md`, `ARCHITECTURE.md`, `GOOGLE_PLAY_COMPLIANCE.md` | Docs | Diff review |
 
@@ -288,7 +294,7 @@ How to check that this report is not aspirational:
 |---|---|
 | Automated suites | Re-runnable: `npm run test:unit`, `node scripts/run-all-tests.js`, the three `verify-*.js` scripts |
 | Real-database invariants | Require `DATABASE_URL` pointing at `finpro_phase9_verify`, never at `finance_jinay` |
-| Production smoke | Live HTTPS responses against `f6cdf9f`; synthetic accounts deleted via API |
+| Production smoke | Live HTTPS responses against `f6cdf9f`, re-verified against `b9c054c`; synthetic accounts deleted via API |
 | Deployment identity | `render deploys list srv-db5sb1vavr4c739td7d0`; live `/api/v1/health` |
 | Database structure | Read-only SQL via `render psql` |
 | Android artifacts | SHA-256 and signature checks on the built files |

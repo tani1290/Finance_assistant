@@ -299,7 +299,7 @@ user traffic.
 | Fix — health exempt | 1100 sequential `/api/v1/health` probes | **1100/1100 `200`** |
 | Fix — general cap intact | 1001+ requests to `/api/v1/accounts` | 1000 × non-`429`, then `429` |
 | Auth limiter separate | auth namespace budget | still 100/15 min, unaffected by health traffic |
-| Production stability | 24 consecutive `/api/v1/health` probes over 4+ minutes on `f6cdf9f` | **24/24 `200`**, no `429`, no `REQ-ERROR` in logs |
+| Production stability | 24 consecutive `/api/v1/health` probes over 4+ minutes on `f6cdf9f`, re-run on `b9c054c` | **24/24 `200`** on both, no `429`, no `REQ-ERROR` in logs |
 
 Run the limiter regression locally with the backend on a loopback port and a
 throwaway database; it needs no production access.
@@ -319,6 +319,27 @@ PNG/PDF/CSV upload and byte-identical download, SVG `415`, MIME mismatch `415`,
 4 MB `201`, 8 MB `413`, receipt text and image OCR plus confirm/replay, FCM
 register/remove/test-push, and deletion with a stored file (token `401`
 afterwards).
+
+#### Post-deploy verification of the live release (L4)
+
+`b9c054c` — the Phase 9 documentation commit plus the semver-only lockfile fix —
+was deployed as `dep-dbflt99srm7s73ff9bp0` (Live 2026-10-26 14:21:56Z) and
+re-verified, so the production evidence above is not tied to a superseded build.
+
+| Check | Result |
+|---|---|
+| Deploy record | `dep-dbflt99srm7s73ff9bp0` Live at `b9c054c` |
+| `/api/v1/health` | `200`, `database:"connected"`, `storageProvider:"local"`, `storageDurable:false`, `version:"1.1.0"` |
+| Health stability | 24/24 probes `200` over ~2 minutes, zero non-`200` |
+| API smoke (synthetic accounts) | register 201, create account 201, list contains it, create transaction 201, list contains it, dashboard 200, register second user 201, cross-tenant read 404, delete 200, old token 401 |
+| `/auth/me` shape | `200`, `data` is the user object (id/email match); 401 after deletion |
+| Log scan | no `REQ-ERROR`, `SIGTERM`, restart or unhandled-error lines; only expected cross-tenant 404 and post-delete 401 warnings |
+| Database baseline | restored: 9 users, 30 transactions, 11 accounts, 5 budgets, 0 idempotency rows, 29 audit logs |
+
+One deploy of the same commit failed first on Render's 15-minute port scan; the
+retry succeeded. The schema step ran in ~7 s once scheduled, so the failure was
+container-start latency, not a migration problem — see
+[DEPLOYMENT.md](DEPLOYMENT.md) §4.1.
 
 #### What this does **not** prove
 

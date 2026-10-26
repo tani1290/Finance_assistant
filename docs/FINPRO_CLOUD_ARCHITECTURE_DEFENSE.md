@@ -4,7 +4,7 @@
 what runs where, why, what happens when a dependency fails, and which claims are
 supported by evidence.
 
-**Verified against:** backend `f6cdf9f` (live `dep-dbfl1oq9lscs73ahr2hg`),
+**Verified against:** backend `b9c054c` (live `dep-dbflt99srm7s73ff9bp0`),
 frontend `https://fin-pro-wheat.vercel.app`, database `finpro-db`
 (PostgreSQL 18.6), 2026-10-26.
 
@@ -224,7 +224,7 @@ Defense in depth, from the edge inward:
 | Upload | MIME sniffing, extension allowlist, size limit, tenant prefix | 23-check storage smoke |
 | Download | `nosniff`, sandbox CSP, no inline rendering | Production headers |
 | Secrets | `.env` untracked; tracked-secret scan | 367 files, 0 secrets |
-| Dependencies | `npm audit --omit=dev`; critical advisory fixed | 0 critical, 3 remaining majors |
+| Dependencies | `npm audit --omit=dev`; critical advisory fixed and deployed in `b9c054c` | 0 critical, 3 remaining majors |
 | Deletion | Password + literal `DELETE`; token invalidated | Production lifecycle smoke |
 
 ### 6.1 What is **not** claimed
@@ -434,6 +434,6 @@ Ordered by risk reduction per unit of effort:
 - [ ] I can distinguish L1/L2/L3/L4/L5 evidence.
 - [ ] I do not claim "production-ready", "secure", "pen-tested", or "device-tested".
 - [ ] I know the database expiry date: **2026-11-11**.
-- [ ] I know the live commit: **`f6cdf9f`**.
+- [ ] I know the live commit: **`b9c054c`**.
 - [ ] I have the fallback screenshots ready.
 - [ ] I have warmed the backend.

@@ -4,7 +4,7 @@
 **Repository:** `tani1290/Finance_assistant`
 **Branch:** `finpro/pre-deployment-checkpoint`
 **Baseline HEAD:** `97d5ae8560670f0857d3c746f242510eb1106da9` (Phase 7)
-**Deployed backend:** `f6cdf9f` — health probes exempted from the general rate limiter (Phase 9 P0 fix), on top of `020a49d`/`574337d` (storage 404 passthrough); deployed 2026-10-26
+**Deployed backend:** `b9c054c` — Phase 9 docs plus the semver-only `npm audit fix` lockfile change, on top of `f6cdf9f` (health probes exempted from the general rate limiter) and `020a49d`/`574337d` (storage 404 passthrough); deployed 2026-10-26 as `dep-dbflt99srm7s73ff9bp0`
 **Deployed frontend:** `https://fin-pro-wheat.vercel.app`
 **Android application ID:** `com.finpro.app.finpro_mobile`
 **Status:** code-level work implemented, unit-tested and **deployed to production**.

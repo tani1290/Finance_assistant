@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-26
 **Branch:** `finpro/pre-deployment-checkpoint`
-**Backend under test:** `f6cdf9f` (live `dep-dbfl1oq9lscs73ahr2hg`)
+**Backend under test:** `b9c054c` (live `dep-dbflt99srm7s73ff9bp0`)
 **Frontend under test:** `https://fin-pro-wheat.vercel.app`
 **Isolated verification database:** `finpro_phase9_verify` (11/11 migrations)
 
@@ -309,7 +309,7 @@ state machine was therefore proven locally against the isolated database with
 | OPS-6 | `/api/v1/health/storage` → 200 | Live probe | L4 | **PASS** |
 | OPS-7 | No health endpoint leaks credentials | Payload inspection | L4 | **PASS** |
 | OPS-8 | Health probes stable over 4+ minutes | 24/24 `200`, no `429` | L4 | **PASS** |
-| OPS-9 | Deploy record matches the live commit | `dep-dbfl1oq9lscs73ahr2hg` at `f6cdf9f` | L4 | **PASS** |
+| OPS-9 | Deploy record matches the live commit | `dep-dbflt99srm7s73ff9bp0` at `b9c054c` | L4 | **PASS** |
 | OPS-10 | Frontend production pages load | `/`, `/privacy.html`, `/terms.html`, `/delete-account.html`, `/simulator.html` → 200 | L4 | **PASS** |
 | OPS-11 | Vercel → Render proxy works | `/api/v1/health` through the Vercel origin | L4 | **PASS** |
 | OPS-12 | `render.yaml` matches the live service | Drift: node vs Docker, `/health/live` vs `/health` | — | **PARTIAL** (documented) |

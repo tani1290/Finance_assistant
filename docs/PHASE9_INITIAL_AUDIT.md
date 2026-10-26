@@ -248,6 +248,11 @@ weaken per-IP limits and pollute audit records.
 existing semver ranges. `package.json` was not changed. The update resolved the
 critical advisory and eight other production advisories.
 
+The lockfile change is **deployed and verified**: it shipped in `b9c054c`
+(`dep-dbflt99srm7s73ff9bp0`, Live 2026-10-26 14:21:56Z), and a post-deploy smoke
+pass (register, account, transaction, dashboard, cross-tenant 404, deletion,
+health) confirmed the rebuilt image serves traffic with the updated tree.
+
 **Residual**
 
 Three production advisories remain, all requiring a **major** upgrade:
@@ -269,7 +274,7 @@ actions after the evaluation.
 - `npm run build`: passed.
 - `npm audit --omit=dev`: 3 vulnerabilities (2 moderate, 1 high), 0 critical.
 
-**Status: PASS for the critical advisory; PARTIAL for the remaining majors.**
+**Status: PASS for the critical advisory (deployed in `b9c054c`); PARTIAL for the remaining majors.**
 
 ### 4.3 P1 — confirmed, blocked by external dependency
 

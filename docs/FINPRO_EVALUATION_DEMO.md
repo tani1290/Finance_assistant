@@ -23,7 +23,7 @@ start talking.
 
 ### T-24 hours
 
-- [ ] Confirm the backend is live at `f6cdf9f` or newer:
+- [ ] Confirm the backend is live at `b9c054c` or newer:
       `render deploys list srv-db5sb1vavr4c739td7d0 -o text`
 - [ ] Confirm `/api/v1/health` returns `status:"healthy"`,
       `database:"connected"`.
