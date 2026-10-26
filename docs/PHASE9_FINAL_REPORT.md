@@ -116,7 +116,8 @@ These are the claims that can be made in front of an examiner without hedging.
 | Flutter static analysis | L1 | **No issues found** |
 
 **Total executed assertions this pass: 1,285**, plus lint, secret, and build
-gates. These ran after the lockfile update, not before it.
+gates. These ran after the lockfile update, not before it. The post-deploy smoke
+on `b9c054c` (§3.2) is additional L4 evidence and is not included in that count.
 
 ### 3.2 Production (L4)
 
