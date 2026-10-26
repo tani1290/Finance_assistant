@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const prisma = require('../config/database');
+const storageService = require('./storageService');
 
 const SALT_ROUNDS = 12;
 
@@ -177,6 +178,77 @@ const logout = async (refreshToken) => {
 };
 
 /**
+ * Permanently delete a user account and every user-owned record.
+ *
+ * This is a genuine hard delete, not a deactivation:
+ *   - password accounts must re-enter their password (fresh proof of ownership);
+ *   - passwordless accounts (for example Google-linked) rely on the valid
+ *     access token plus the explicit `DELETE` confirmation, because there is no
+ *     local password to verify;
+ *   - user files are removed from object storage first, so a storage outage
+ *     fails the request instead of deleting the database row while silently
+ *     leaving receipts/exports behind;
+ *   - every user-owned Prisma relation already declares onDelete: Cascade, so
+ *     the single User delete removes financial data atomically.
+ *
+ * The caller must be authenticated; `userId` comes only from the verified JWT.
+ */
+const deleteAccount = async ({ userId, password, confirmation }) => {
+  if (String(confirmation || '').trim().toUpperCase() !== 'DELETE') {
+    throw Object.assign(new Error('Type DELETE to confirm permanent account deletion.'), {
+      statusCode: 400,
+      code: 'CONFIRMATION_REQUIRED',
+    });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, password: true },
+  });
+
+  if (!user) {
+    throw Object.assign(new Error('User not found.'), { statusCode: 401, code: 'USER_NOT_FOUND' });
+  }
+
+  if (user.password) {
+    if (!password) {
+      throw Object.assign(new Error('Password is required to delete this account.'), {
+        statusCode: 400,
+        code: 'PASSWORD_REQUIRED',
+      });
+    }
+    const passwordMatch = await bcrypt.compare(String(password), user.password);
+    if (!passwordMatch) {
+      throw Object.assign(new Error('Incorrect password.'), {
+        statusCode: 401,
+        code: 'INVALID_CREDENTIALS',
+      });
+    }
+  }
+
+  // Remove user-owned objects before deleting the row. Prefixes are validated
+  // by StorageService and scoped to this authenticated user only.
+  await storageService.deletePrefix(`users/${userId}/`);
+  await storageService.deletePrefix(`exports/${userId}/`);
+
+  try {
+    await prisma.$transaction([
+      prisma.refreshToken.deleteMany({ where: { userId } }),
+      prisma.user.delete({ where: { id: userId } }),
+    ]);
+  } catch (error) {
+    // A concurrent request may have already committed the deletion. Treat that
+    // as success so retries are idempotent rather than a 500.
+    if (error && error.code === 'P2025') {
+      return { deleted: true, alreadyDeleted: true };
+    }
+    throw error;
+  }
+
+  return { deleted: true, alreadyDeleted: false };
+};
+
+/**
  * Strip sensitive fields from user object
  */
 const sanitizeUser = (user) => ({
@@ -199,5 +271,6 @@ module.exports = {
   login,
   refreshAccessToken,
   logout,
+  deleteAccount,
   sanitizeUser,
 };

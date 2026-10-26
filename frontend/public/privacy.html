@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — FinPro</title>
+  <meta name="description" content="How FinPro collects, uses, stores, and deletes your personal and financial information across the web and Android apps.">
+  <meta name="robots" content="index, follow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/legal.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="/index.html" aria-label="FinPro home">
+        <span class="brand-mark" aria-hidden="true"><i class="ri-wallet-3-line"></i></span>
+        FinPro
+      </a>
+      <nav class="header-nav" aria-label="Legal and account links">
+        <a href="/privacy.html" aria-current="page">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/delete-account.html">Delete account</a>
+        <a href="/login.html">Sign in</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div class="hero-inner">
+      <span class="eyebrow">Legal</span>
+      <h1>Privacy Policy</h1>
+      <p>This policy explains what information FinPro collects, why we collect it, how it is stored and shared, and how you can access or permanently delete it. It applies to the FinPro web application and the FinPro Android application.</p>
+      <p class="effective">Effective date: October 24, 2026</p>
+    </div>
+  </div>
+
+  <main>
+    <nav class="toc" aria-label="Contents">
+      <strong>Contents</strong>
+      <ol>
+        <li><a href="#scope">Scope and operator</a></li>
+        <li><a href="#collect">Information we collect</a></li>
+        <li><a href="#sms">Optional SMS detection</a></li>
+        <li><a href="#ai">AI features and Google Gemini</a></li>
+        <li><a href="#use">How we use information</a></li>
+        <li><a href="#share">When information is shared</a></li>
+        <li><a href="#payments">Payments are simulated</a></li>
+        <li><a href="#retention">Retention and deletion</a></li>
+        <li><a href="#security">Security</a></li>
+        <li><a href="#choices">Your choices and rights</a></li>
+        <li><a href="#children">Children</a></li>
+        <li><a href="#changes">Changes and contact</a></li>
+      </ol>
+    </nav>
+
+    <section id="scope">
+      <h2>1. Scope and operator</h2>
+      <p>FinPro is a personal finance and investment decision-support application operated by Jinay Golecha (“FinPro”, “we”, “us”). This policy covers the web app served from the FinPro domains and the FinPro Android app published under the application ID <code>com.finpro.app.finpro_mobile</code>.</p>
+      <p>By creating an account or using FinPro, you agree to the collection and use of information described here. If you do not agree, do not use the service.</p>
+    </section>
+
+    <section id="collect">
+      <h2>2. Information we collect</h2>
+      <p>We collect information you provide directly, information created when you use the app, and limited technical information needed to operate it securely.</p>
+
+      <h3>Account information</h3>
+      <ul>
+        <li>Name, username, email address, country, timezone, and currency.</li>
+        <li>Authentication data: a bcrypt password hash. FinPro does not offer Google sign-in and does not store your plain-text password.</li>
+        <li>Account preferences, premium status, and onboarding answers.</li>
+      </ul>
+
+      <h3>Financial information you enter or import</h3>
+      <ul>
+        <li>Financial accounts, balances, transactions, categories, budgets, goals, bills, subscriptions, loans, insurance policies, cards, and investment holdings.</li>
+        <li>Financial profile and planning data, such as income estimates, risk preferences, and retirement assumptions.</li>
+        <li>Receipt images you choose to scan, exported reports you request, and AI-generated plans or recommendations.</li>
+        <li>Calendar events, tasks, notifications, and notes you create inside FinPro.</li>
+      </ul>
+
+      <h3>AI and support content</h3>
+      <ul>
+        <li>Messages you send to the FinPro AI assistant, the assistant's replies, and feedback you give on recommendations.</li>
+      </ul>
+
+      <h3>Device and technical information</h3>
+      <ul>
+        <li>Push-notification tokens, device model, operating-system version, app version, and last-sync time.</li>
+        <li>Security and diagnostic records such as IP address, browser user-agent, timestamps, and audit events for account and data changes.</li>
+        <li>On Android, Firebase Analytics and Firebase Crashlytics may collect app-usage events, crash reports, a Firebase installation identifier, and advertising identifiers permitted by your device settings.</li>
+      </ul>
+
+      <div class="callout">
+        <p><strong>We do not collect your bank login credentials, card numbers, UPI PINs, or passwords for financial institutions.</strong> FinPro does not connect to your bank account. Financial records are entered by you, imported from files you choose, or created from optional SMS parsing described below.</p>
+      </div>
+    </section>
+
+    <section id="sms">
+      <h2>3. Optional SMS detection</h2>
+      <p>On Android, FinPro offers an optional feature that reads bank or payment SMS messages to suggest transactions. This feature is <strong>off by default</strong>. It is enabled only after a prominent in-app explanation and an affirmative action by you, and only after Android grants the SMS permission.</p>
+      <ul>
+        <li>When enabled, FinPro reads incoming SMS from bank-like senders and filters out one-time passwords, promotional messages, payment requests, failed transactions, and balance-only messages.</li>
+        <li>Potentially relevant message text is sent to FinPro servers for parsing. The server stores the resulting proposed transaction, the sender identifier, a one-way message hash used for duplicate detection, and the extracted amount, merchant, and date. The full message text is not stored as a pending transaction record.</li>
+        <li>You review each suggestion before it becomes a transaction. You can confirm or reject it in the app.</li>
+        <li>You can disable SMS detection at any time in the app. Disabling it stops FinPro from processing new SMS. FinPro continues to work normally without SMS access.</li>
+      </ul>
+      <div class="warning">
+        <p><strong>SMS permission is optional.</strong> Declining it does not block account creation, manual transaction entry, budgets, investments, or AI features. If you decline, FinPro will not repeatedly ask you to enable it.</p>
+      </div>
+    </section>
+
+    <section id="ai">
+      <h2>4. AI features and Google Gemini</h2>
+      <p>FinPro uses Google's Gemini API to generate AI responses and recommendations. When you use an AI feature, FinPro sends the content needed to answer your request to Google. This can include:</p>
+      <ul>
+        <li>Your first name and email address, used to identify the account in the assistant's context.</li>
+        <li>Your message and recent conversation history.</li>
+        <li>A financial snapshot, such as net worth, balances, monthly income and expenses, debt, investment value, goals, and budget counts.</li>
+        <li>Tool results the assistant requests, such as account or transaction details needed to answer your question or prepare a proposed action.</li>
+      </ul>
+      <p>Google processes this data under its own terms and privacy policy. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google's Privacy Policy</a> and the <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener noreferrer">Gemini API terms</a>. Do not enter information in AI chat that you do not want processed by a third-party AI provider.</p>
+      <p>FinPro AI can propose changes to your data, but data-changing actions require your explicit confirmation in the app before they are applied. AI output may be inaccurate or incomplete and is not financial, investment, tax, or legal advice.</p>
+    </section>
+
+    <section id="use">
+      <h2>5. How we use information</h2>
+      <ul>
+        <li>To create and secure your account, authenticate sessions, and prevent fraud or abuse.</li>
+        <li>To provide the core service: recording finances, calculating summaries, tracking goals and budgets, and displaying dashboards.</li>
+        <li>To generate AI responses, recommendations, forecasts, and optional transaction suggestions.</li>
+        <li>To send notifications you enable, including push notifications about budgets, bills, or account activity.</li>
+        <li>To create exports or reports you request.</li>
+        <li>To diagnose crashes, monitor reliability, and improve the product.</li>
+        <li>To comply with applicable law and enforce our <a href="/terms.html">Terms of Service</a>.</li>
+      </ul>
+      <p>We do not sell your personal information. We do not use your financial records for third-party advertising.</p>
+    </section>
+
+    <section id="share">
+      <h2>6. When information is shared</h2>
+      <p>We share information only with service providers that help operate FinPro, or when required by law:</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Recipient</th><th>Purpose</th><th>Information</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Google Gemini API</td><td>AI responses and recommendations</td><td>Your message, recent chat history, name, email, and financial snapshot or tool results required for the request.</td></tr>
+            <tr><td>Google Firebase</td><td>Push notifications, analytics, crash reporting</td><td>Push token, device and app information, usage events, crash data, and permitted advertising identifiers.</td></tr>
+            <tr><td>Cloud hosting and storage providers</td><td>Running the web app, API, database, and file storage</td><td>Data stored by FinPro, including account, financial, and uploaded-file data.</td></tr>
+            <tr><td>Law enforcement or regulators</td><td>Legal compliance</td><td>Information required by a valid legal request or to protect rights and safety.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>We do not permit service providers to use your financial records for their own advertising. If FinPro is involved in a merger, acquisition, or transfer of assets, information may be transferred as part of that transaction, subject to this policy.</p>
+    </section>
+
+    <section id="payments">
+      <h2>7. Payments are simulated</h2>
+      <p>FinPro includes a payment simulator for planning and demonstration. It does not connect to banks, UPI, card networks, or real payment processors. Do not enter real card numbers, UPI PINs, bank passwords, or other payment credentials. Simulated payments do not move real money and do not create real financial obligations.</p>
+    </section>
+
+    <section id="retention">
+      <h2>8. Retention and deletion</h2>
+      <p>We retain your account information and the financial records associated with it while your account is active. When you delete your account, FinPro permanently deletes the account record and the user-owned records linked to it, including accounts, transactions, budgets, goals, investments, loans, insurance policies, subscriptions, calendar events, notifications, AI conversations, recommendations, receipts and export files, push tokens, device records, pending SMS suggestions, and security audit records associated with the account.</p>
+      <p>You can delete your account in either of these ways:</p>
+      <ul>
+        <li><strong>In the Android app:</strong> open <em>Profile &amp; Settings</em> → <em>Delete account</em>, confirm, and complete the verification step.</li>
+        <li><strong>On the web:</strong> sign in and use the <a href="/delete-account.html">account deletion page</a>. The same permanent deletion endpoint is used.</li>
+      </ul>
+      <p>Accounts with a FinPro password must re-enter that password. If an account has no FinPro password, an active signed-in session plus an explicit confirmation is required instead. Deletion cannot be undone. Uploaded files are removed before the account record. If file cleanup does not finish, the account record is left intact so you can retry, but files already removed during that attempt cannot be restored.</p>
+      <p>Some information may remain in infrastructure backups or provider logs for a limited period until those systems overwrite it. We do not use that residual data to recreate a deleted account.</p>
+    </section>
+
+    <section id="security">
+      <h2>9. Security</h2>
+      <p>We use HTTPS for data in transit, hash passwords with bcrypt, issue short-lived access tokens with rotating refresh tokens, and scope every financial record and file to the authenticated account. Access to production systems is restricted.</p>
+      <p>No system is completely secure. You are responsible for keeping your password and device secure and for signing out on shared devices. If you believe your account has been compromised, change your password and contact us through the support link below.</p>
+    </section>
+
+    <section id="choices">
+      <h2>10. Your choices and rights</h2>
+      <ul>
+        <li><strong>Access and correction:</strong> view and update your profile and financial records in the app.</li>
+        <li><strong>Notifications:</strong> disable push notifications in the app or in Android settings.</li>
+        <li><strong>SMS detection:</strong> enable or disable it at any time in Privacy &amp; Permissions. The app works without it.</li>
+        <li><strong>Deletion:</strong> permanently delete your account and associated data using the in-app or web flow above.</li>
+        <li><strong>Questions or requests:</strong> contact us through the public issue tracker linked below.</li>
+      </ul>
+      <p>Depending on where you live, you may have additional rights to access, correct, port, or restrict processing of your information. We will respond to reasonable requests through the contact channel below.</p>
+    </section>
+
+    <section id="children">
+      <h2>11. Children</h2>
+      <p>FinPro is not directed to children under 18. We do not knowingly collect personal information from children. If you believe a child has created an account, contact us so we can delete it.</p>
+    </section>
+
+    <section id="changes">
+      <h2>12. Changes and contact</h2>
+      <p>We may update this policy as the service changes. We will post the new effective date on this page. Material changes that affect how we use your information will be communicated in the app or by email before they take effect where required.</p>
+      <p>For privacy questions, data requests, or security reports, use the public issue tracker: <a href="https://github.com/tani1290/Finance_assistant/issues" target="_blank" rel="noopener noreferrer">github.com/tani1290/Finance_assistant/issues</a>. Do not include passwords, financial account numbers, or other sensitive data in a public issue.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span>© 2026 FinPro · Operated by Jinay Golecha</span>
+      <nav class="footer-nav" aria-label="Footer">
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/delete-account.html">Delete account</a>
+        <a href="/index.html">Home</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

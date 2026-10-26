@@ -182,6 +182,14 @@ does not leave a half-written balance.
 - Local-disk storage is a development fallback. It is **not durable** in a Render
   container. Production receipt/document retention needs an S3-compatible bucket
   and a lifecycle policy.
+- In production, uploads fail closed (503 `PROVIDER_UNAVAILABLE`) instead of
+  silently falling back to local disk. Set `STORAGE_ALLOW_EPHEMERAL_FALLBACK=true`
+  only to opt back into the non-durable fallback deliberately.
+- Account deletion removes files under `users/<userId>/` and `exports/<userId>/`
+  before deleting the user row. If storage deletion fails, the API returns 503
+  and the account row remains, but files already removed cannot be restored.
+  See [GOOGLE_PLAY_COMPLIANCE.md](GOOGLE_PLAY_COMPLIANCE.md) for the full deletion
+  contract and the manual Play Console steps.
 
 ### 7.1 Backups and recovery
 
@@ -298,3 +306,6 @@ See `node-backend/.env.example` and the root `.env.example` for the full list.
 - [ ] Alerting exists for non-zero backup exit codes and `/health/dependencies`
       returning `503`.
 - [ ] Instance count is still 1, or the scaling rules in §8 have been applied.
+- [ ] The public privacy policy and account-deletion pages are deployed and
+      reachable without authentication before any Play submission. See
+      [GOOGLE_PLAY_COMPLIANCE.md](GOOGLE_PLAY_COMPLIANCE.md).

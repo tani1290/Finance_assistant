@@ -6,6 +6,7 @@ import '../../core/auth/auth_notifier.dart';
 import '../../core/auth/auth_state.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/gradient_button.dart';
+import '../../shared/widgets/legal_footer.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -209,6 +210,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  const LegalFooter(),
                 ],
               ),
             ),

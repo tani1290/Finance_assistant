@@ -6,6 +6,7 @@ import '../../core/api/api_endpoints.dart';
 import '../../core/api/api_error.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/gradient_button.dart';
+import '../../shared/widgets/legal_footer.dart';
 import '../../shared/widgets/pressable.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -220,6 +221,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: const Text('Skip for now'),
                 ),
               ),
+              const LegalFooter(),
             ],
           ),
         ),

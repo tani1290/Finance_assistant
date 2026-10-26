@@ -56,8 +56,15 @@ class ApiClient {
               path.contains('/auth/login') || path.contains('/auth/register');
           final alreadyRetried =
               error.requestOptions.extra['__retried401'] == true;
+          // Account deletion re-verifies the password itself. A 401 there
+          // means "wrong password" far more often than "expired token", so
+          // the caller opts out of transparent refresh to avoid signing the
+          // user out after a typo. The caller refreshes via `/auth/me` first.
+          final skipRefresh =
+              error.requestOptions.extra['__skip401Refresh'] == true;
 
           if (error.response?.statusCode == 401 &&
+              !skipRefresh &&
               !path.contains('/auth/refresh') &&
               !isCredentialAuth) {
             if (alreadyRetried) {
@@ -190,8 +197,14 @@ class ApiClient {
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
+    Options? options,
   }) {
-    return dio.delete(path, data: data, queryParameters: queryParameters);
+    return dio.delete(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 }
 

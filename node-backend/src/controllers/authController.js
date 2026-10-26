@@ -264,6 +264,38 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
+/**
+ * DELETE /api/v1/auth/account
+ *
+ * Permanently deletes the authenticated user's account and all owned data.
+ * Requires a valid access token, the exact confirmation string `DELETE`, and
+ * the current password for password-based accounts.
+ */
+const deleteAccount = async (req, res, next) => {
+  try {
+    const { password, confirmation } = req.body || {};
+
+    const result = await authService.deleteAccount({
+      userId: req.user.id,
+      password,
+      confirmation,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        deleted: true,
+        alreadyDeleted: Boolean(result.alreadyDeleted),
+        message: result.alreadyDeleted
+          ? 'Account was already deleted.'
+          : 'Your account and all associated data have been permanently deleted.',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -271,4 +303,5 @@ module.exports = {
   logout,
   getMe,
   updateProfile,
+  deleteAccount,
 };

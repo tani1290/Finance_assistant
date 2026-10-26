@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
+import '../api/api_error.dart';
 import '../models/user_model.dart';
 import '../firebase/firebase_service.dart';
 import 'auth_state.dart';
@@ -276,6 +277,105 @@ class AuthNotifier extends Notifier<AuthState> {
   void updateUser(UserModel user) {
     if (state.status != AuthStatus.authenticated) return;
     state = AuthState.authenticated(user);
+  }
+
+  /// Permanently deletes the signed-in account on the server.
+  ///
+  /// Returns `null` on success, or a user-facing error message. This method
+  /// deliberately leaves the local session intact on success: the caller
+  /// navigates to the public success screen first, then calls
+  /// [finalizeAccountDeletion]. Clearing auth state here would make the router
+  /// guard race the success navigation and send the user to `/login`.
+  Future<String?> deleteAccount({String? password}) async {
+    if (state.status != AuthStatus.authenticated) {
+      return 'You are not signed in. Please sign in again.';
+    }
+
+    // Force a token refresh via the normal interceptor before the deletion
+    // call. The deletion request itself opts out of automatic 401 refresh
+    // because a 401 there is usually a wrong password, not an expired token.
+    try {
+      await apiClient.get(ApiEndpoints.me);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return 'Your session expired. Please sign in again.';
+      }
+      return 'Unable to verify your session. Check your connection and try again.';
+    } catch (_) {
+      return 'Unable to verify your session. Check your connection and try again.';
+    }
+
+    try {
+      final response = await apiClient.delete(
+        ApiEndpoints.deleteAccount,
+        data: {
+          'confirmation': 'DELETE',
+          if (password != null && password.isNotEmpty) 'password': password,
+        },
+        options: Options(extra: {'__skip401Refresh': true}),
+      );
+
+      if (response.statusCode != 200 || response.data['success'] != true) {
+        return 'The server did not confirm account deletion. Please try again.';
+      }
+      return null;
+    } on DioException catch (e) {
+      return _deleteAccountErrorMessage(e);
+    } catch (_) {
+      return 'Account deletion failed. Please try again.';
+    }
+  }
+
+  String _deleteAccountErrorMessage(DioException error) {
+    final status = error.response?.statusCode;
+    final body = error.response?.data;
+    String? code;
+    if (body is Map && body['error'] is Map) {
+      final value = body['error']['code'];
+      if (value is String) code = value;
+    }
+
+    if (code == 'PASSWORD_REQUIRED') {
+      return 'Enter your current password to delete this account.';
+    }
+    if (code == 'INVALID_CREDENTIALS') {
+      return 'The password you entered is incorrect.';
+    }
+    if (code == 'CONFIRMATION_REQUIRED') {
+      return 'Type DELETE exactly to confirm.';
+    }
+    if (code == 'USER_NOT_FOUND' || code == 'AUTHENTICATION_ERROR') {
+      return 'You are no longer signed in. Please sign in again.';
+    }
+    if (status == 429) {
+      return 'Too many deletion attempts. Please wait before trying again.';
+    }
+    if (status == 503) {
+      // The backend removes stored files before the database row, so a failed
+      // cleanup can leave the account intact while some uploads are already
+      // gone. Say that plainly instead of claiming nothing changed.
+      return 'Your account was not deleted because file cleanup did not finish. '
+          'Some uploaded files may already have been removed. '
+          'Please try again shortly.';
+    }
+    if (status == 401) {
+      return 'Authentication failed. Please sign in again.';
+    }
+
+    return apiErrorMessage(error) ??
+        'Account deletion failed. Please try again.';
+  }
+
+  /// Clears every local trace of the deleted account. Safe to call more than
+  /// once; the account is already gone, so no server logout call is made.
+  Future<void> finalizeAccountDeletion() async {
+    try {
+      await FirebaseService.instance.signOut();
+    } catch (_) {
+      // Firebase is auxiliary; local credential removal must still succeed.
+    }
+    await TokenStorage.clearAll();
+    state = AuthState.unauthenticated();
   }
 
   Future<void> logout() async {

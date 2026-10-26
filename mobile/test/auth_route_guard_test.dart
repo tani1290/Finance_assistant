@@ -49,6 +49,39 @@ void main() {
       }
     });
 
+    test('legal routes: policy and success are public, deletion is not', () {
+      // Play requires the policy to be reachable without a session, and the
+      // deletion flow lands on the success screen before local credentials
+      // are cleared.
+      expect(publicRoutes, contains('/privacy-policy'));
+      expect(publicRoutes, contains('/account-deleted'));
+      expect(publicRoutes, isNot(contains('/delete-account')));
+
+      for (final location in const ['/privacy-policy', '/account-deleted']) {
+        expect(
+          resolveAuthRedirect(
+            status: AuthStatus.unauthenticated,
+            location: location,
+          ),
+          isNull,
+        );
+      }
+      expect(
+        resolveAuthRedirect(
+          status: AuthStatus.unauthenticated,
+          location: '/delete-account',
+        ),
+        '/login',
+      );
+      expect(
+        resolveAuthRedirect(
+          status: AuthStatus.authenticated,
+          location: '/delete-account',
+        ),
+        isNull,
+      );
+    });
+
     test(
       'an unknown session parks a protected deep link on the splash route',
       () {

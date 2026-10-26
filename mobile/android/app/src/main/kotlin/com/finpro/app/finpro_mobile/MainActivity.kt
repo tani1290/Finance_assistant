@@ -2,10 +2,9 @@ package com.finpro.app.finpro_mobile
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.database.Cursor
 import android.net.Uri
-import android.os.Build
 import androidx.annotation.NonNull
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -17,31 +16,31 @@ import org.json.JSONArray
 class MainActivity : FlutterActivity() {
 
     private val SMS_CHANNEL = "com.finpro.app/sms_channel"
+    private val PLATFORM_CHANNEL = "com.finpro.app/platform"
     private val PERMISSION_REQUEST_CODE = 44101
     private var pendingResult: MethodChannel.Result? = null
-    private var methodChannel: MethodChannel? = null
+    private var smsChannel: MethodChannel? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SMS_CHANNEL)
-        methodChannel?.setMethodCallHandler { call, result ->
+        // Only RECEIVE_SMS is required: the receiver handles incoming messages
+        // as they arrive. FinPro deliberately does not request READ_SMS or scan
+        // the historical inbox.
+        smsChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SMS_CHANNEL)
+        smsChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "checkSmsPermission" -> {
-                    val hasReceive = ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
-                    val hasRead = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-                    result.success(hasReceive && hasRead)
+                    result.success(hasReceiveSmsPermission())
                 }
                 "requestSmsPermission" -> {
-                    val hasReceive = ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
-                    val hasRead = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-                    if (hasReceive && hasRead) {
+                    if (hasReceiveSmsPermission()) {
                         result.success(true)
                     } else {
                         pendingResult = result
                         ActivityCompat.requestPermissions(
                             this,
-                            arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS),
+                            arrayOf(Manifest.permission.RECEIVE_SMS),
                             PERMISSION_REQUEST_CODE
                         )
                     }
@@ -51,14 +50,20 @@ class MainActivity : FlutterActivity() {
                     result.success(prefs.getBoolean(FinProSmsReceiver.ENABLED_KEY, false))
                 }
                 "setSmsDetectionEnabled" -> {
-                    val enabled = call.argument<Boolean>("enabled") ?: true
+                    // Default is false: a malformed call must never turn
+                    // detection on.
+                    val enabled = call.argument<Boolean>("enabled") ?: false
                     val prefs = getSharedPreferences(FinProSmsReceiver.PREFS_NAME, Context.MODE_PRIVATE)
-                    prefs.edit().putBoolean(FinProSmsReceiver.ENABLED_KEY, enabled).apply()
-                    if (!enabled) {
+                    val stored = prefs.edit()
+                        .putBoolean(FinProSmsReceiver.ENABLED_KEY, enabled)
+                        .commit()
+                    if (stored && !enabled) {
                         // Stop buffering immediately; drop anything not yet uploaded.
-                        prefs.edit().putString(FinProSmsReceiver.BUFFER_KEY, "[]").apply()
+                        prefs.edit().putString(FinProSmsReceiver.BUFFER_KEY, "[]").commit()
                     }
-                    result.success(enabled)
+                    // Report the real write outcome so Dart never claims the
+                    // setting changed when it did not.
+                    result.success(stored)
                 }
                 "getBufferedSms" -> {
                     val prefs = getSharedPreferences(FinProSmsReceiver.PREFS_NAME, Context.MODE_PRIVATE)
@@ -84,20 +89,30 @@ class MainActivity : FlutterActivity() {
                     prefs.edit().putString(FinProSmsReceiver.BUFFER_KEY, "[]").apply()
                     result.success(true)
                 }
-                "readRecentInboxSms" -> {
-                    val list = readRecentInboxFinancialMessages()
-                    result.success(list)
-                }
                 else -> {
                     result.notImplemented()
                 }
             }
         }
 
+        // Minimal platform helper used for legal links (privacy policy, terms,
+        // public account-deletion page). Keeping this here avoids adding a
+        // browser/WebView dependency for a handful of static pages.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PLATFORM_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "openUrl" -> {
+                        val url = call.argument<String>("url")
+                        result.success(openExternalUrl(url))
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         // Connect real-time receiver listener
         FinProSmsReceiver.onSmsReceivedListener = { sender, body, timestamp ->
             runOnUiThread {
-                methodChannel?.invokeMethod("onNewSmsReceived", mapOf(
+                smsChannel?.invokeMethod("onNewSmsReceived", mapOf(
                     "sender" to sender,
                     "body" to body,
                     "timestamp" to timestamp
@@ -106,49 +121,44 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun readRecentInboxFinancialMessages(): List<Map<String, Any>> {
-        val list = mutableListOf<Map<String, Any>>()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
-            return list
+    private fun hasReceiveSmsPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECEIVE_SMS
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Opens an absolute http(s) URL in the user's browser.
+     *
+     * Anything else (custom schemes, `file:`, `intent:`, missing host) is
+     * rejected so a malformed constant cannot launch an arbitrary intent.
+     * Returns true only when a browser activity actually handled it.
+     */
+    private fun openExternalUrl(rawUrl: String?): Boolean {
+        if (rawUrl.isNullOrBlank()) return false
+        val uri = try {
+            Uri.parse(rawUrl)
+        } catch (e: Exception) {
+            return false
         }
+        val scheme = uri.scheme?.lowercase()
+        if (scheme != "http" && scheme != "https") return false
+        if (uri.host.isNullOrBlank()) return false
 
-        try {
-            val uri = Uri.parse("content://sms/inbox")
-            val projection = arrayOf("_id", "address", "body", "date")
-            val cursor: Cursor? = contentResolver.query(uri, projection, null, null, "date DESC LIMIT 50")
-
-            cursor?.use {
-                val addressIdx = it.getColumnIndex("address")
-                val bodyIdx = it.getColumnIndex("body")
-                val dateIdx = it.getColumnIndex("date")
-
-                while (it.moveToNext()) {
-                    val address = if (addressIdx != -1) it.getString(addressIdx) ?: "" else ""
-                    val body = if (bodyIdx != -1) it.getString(bodyIdx) ?: "" else ""
-                    val date = if (dateIdx != -1) it.getLong(dateIdx) else System.currentTimeMillis()
-
-                    val lower = body.lowercase()
-                    // Filter out OTPs
-                    if (lower.contains("otp") || lower.contains("verification code")) continue
-
-                    // Check for financial triggers
-                    val isFinancial = lower.contains("debited") || lower.contains("credited") ||
-                                      lower.contains("spent") || lower.contains("withdrawn") ||
-                                      lower.contains("inr") || lower.contains("rs.") || lower.contains("₹")
-
-                    if (isFinancial) {
-                        list.add(mapOf(
-                            "sender" to address,
-                            "body" to body,
-                            "timestamp" to date
-                        ))
-                    }
-                }
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                addCategory(Intent.CATEGORY_BROWSABLE)
+            }
+            if (intent.resolveActivity(packageManager) == null) {
+                false
+            } else {
+                startActivity(intent)
+                true
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            false
         }
-        return list
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

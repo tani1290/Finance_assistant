@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delete Your Account — FinPro</title>
+  <meta name="description" content="Permanently delete your FinPro account and associated financial records from the web or the Android app.">
+  <meta name="robots" content="index, follow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/legal.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="/index.html" aria-label="FinPro home">
+        <span class="brand-mark" aria-hidden="true"><i class="ri-wallet-3-line"></i></span>
+        FinPro
+      </a>
+      <nav class="header-nav" aria-label="Legal and account links">
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/delete-account.html" aria-current="page">Delete account</a>
+        <a href="/login.html">Sign in</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div class="hero-inner">
+      <span class="eyebrow">Account</span>
+      <h1>Delete your FinPro account</h1>
+      <p>You can permanently delete your account and all associated financial records. Deletion cannot be undone.</p>
+    </div>
+  </div>
+
+  <main>
+    <div id="alert" class="alert" role="alert" aria-live="polite"></div>
+
+    <section aria-labelledby="what-deleted">
+      <h2 id="what-deleted">What is deleted</h2>
+      <p>Deleting your account permanently removes your FinPro account and the user-owned records linked to it, including:</p>
+      <ul>
+        <li>Profile and account information, including your email, username, and password hash.</li>
+        <li>Financial accounts, transactions, budgets, goals, investments, loans, insurance policies, subscriptions, cards, calendar events, and tasks.</li>
+        <li>AI conversations, recommendations, receipt scans, and export files.</li>
+        <li>Push tokens, device records, pending SMS suggestions, refresh sessions, and account audit records.</li>
+      </ul>
+      <p>Uploaded files are removed from FinPro storage before the account record is deleted. If storage cleanup cannot complete, the account record is left intact so you can retry. Files already removed during that attempt cannot be restored.</p>
+      <div class="warning">
+        <p><strong>This action is permanent.</strong> Export any records you want to keep before continuing. There is no recovery period and no way to restore a deleted account.</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="in-app">
+      <h2 id="in-app">Delete from the Android app</h2>
+      <ol class="steps">
+        <li>Open FinPro and go to <strong>Profile &amp; Settings</strong>.</li>
+        <li>Scroll to the <strong>Delete account</strong> section.</li>
+        <li>Read the warning, confirm the deletion, and complete the verification step.</li>
+      </ol>
+      <p>Accounts with a FinPro password must re-enter that password. If an account has no FinPro password, the active signed-in session and explicit confirmation are used instead.</p>
+    </section>
+
+    <section class="panel danger-zone" aria-labelledby="web-delete">
+      <h2 id="web-delete">Delete from the web</h2>
+
+      <div id="signedOut">
+        <p>For your security, you must sign in before deleting your account from the web. After signing in, you will return to this page to complete the deletion.</p>
+        <a class="btn btn-primary" href="/login.html?redirect=%2Fdelete-account.html">
+          <i class="ri-login-box-line" aria-hidden="true"></i> Sign in to continue
+        </a>
+        <p style="margin-top:16px;font-size:13.5px;color:#64748b;">If you cannot sign in, use the Android app while signed in, or contact support through the public issue tracker linked in the footer. Never post your password in a public issue.</p>
+      </div>
+
+      <div id="signedIn" class="hidden">
+        <p class="signed-in-as">Signed in as <strong id="signedInEmail">your account</strong></p>
+        <form id="deleteForm" novalidate>
+          <div class="field">
+            <label for="password">Password
+              <span class="hint">Required if your account has a FinPro password. Leave blank only if it does not.</span>
+            </label>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your current password">
+          </div>
+
+          <div class="field">
+            <label for="confirmation">Type DELETE to confirm
+              <span class="hint">This exact word is required. It cannot be undone.</span>
+            </label>
+            <input id="confirmation" name="confirmation" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="DELETE" required>
+          </div>
+
+          <label class="check" for="understand">
+            <input id="understand" type="checkbox" required>
+            <span>I understand that my account and all associated data will be permanently deleted and cannot be recovered.</span>
+          </label>
+
+          <p id="formError" class="alert error" role="alert"></p>
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">
+            <button id="deleteBtn" type="submit" class="btn btn-danger">
+              <i class="ri-delete-bin-6-line" aria-hidden="true"></i>
+              <span id="deleteBtnText">Permanently delete my account</span>
+            </button>
+            <a class="btn btn-secondary" href="/dashboard.html">Cancel</a>
+          </div>
+        </form>
+      </div>
+
+      <div id="deleted" class="hidden">
+        <div class="alert success show" role="status">
+          <strong>Your FinPro account has been deleted.</strong> Your account and associated records have been permanently removed. You can close this page.
+        </div>
+        <a class="btn btn-secondary" href="/index.html">Return to FinPro home</a>
+      </div>
+    </section>
+
+    <section aria-labelledby="questions">
+      <h2 id="questions">Questions</h2>
+      <p>For help with deletion, use the public issue tracker: <a href="https://github.com/tani1290/Finance_assistant/issues" target="_blank" rel="noopener noreferrer">github.com/tani1290/Finance_assistant/issues</a>. Do not include your password, account numbers, or other sensitive financial data in a public issue. See our <a href="/privacy.html#retention">Privacy Policy</a> for details on retention and deletion.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span>© 2026 FinPro · Operated by Jinay Golecha</span>
+      <nav class="footer-nav" aria-label="Footer">
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/delete-account.html">Delete account</a>
+        <a href="/index.html">Home</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const API_BASE = (!isLocal || window.location.origin.includes(':5001')) ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
+
+      const getToken = () => localStorage.getItem('jf_access_token');
+      const getRefreshToken = () => localStorage.getItem('jf_refresh_token');
+      const alertBox = document.getElementById('alert');
+      const signedOut = document.getElementById('signedOut');
+      const signedIn = document.getElementById('signedIn');
+      const deleted = document.getElementById('deleted');
+      const form = document.getElementById('deleteForm');
+      const formError = document.getElementById('formError');
+      const deleteBtn = document.getElementById('deleteBtn');
+      const deleteBtnText = document.getElementById('deleteBtnText');
+
+      function showAlert(type, message) {
+        alertBox.className = 'alert show ' + type;
+        alertBox.textContent = message;
+      }
+
+      function showFormError(message) {
+        formError.textContent = message;
+        formError.className = 'alert error show';
+      }
+
+      function clearFormError() {
+        formError.textContent = '';
+        formError.className = 'alert error';
+      }
+
+      function readUser() {
+        try {
+          return JSON.parse(localStorage.getItem('jf_user') || 'null');
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function showSignedIn() {
+        const user = readUser();
+        const email = user && typeof user.email === 'string' ? user.email : null;
+        document.getElementById('signedInEmail').textContent = email || 'your account';
+        signedOut.classList.add('hidden');
+        signedIn.classList.remove('hidden');
+      }
+
+      function showSignedOut() {
+        signedIn.classList.add('hidden');
+        deleted.classList.add('hidden');
+        signedOut.classList.remove('hidden');
+      }
+
+      function clearSession() {
+        ['jf_access_token', 'jf_refresh_token', 'jf_user'].forEach((key) => localStorage.removeItem(key));
+      }
+
+      async function refreshAccessToken() {
+        const refreshToken = getRefreshToken();
+        if (!refreshToken) return null;
+        try {
+          const response = await fetch(API_BASE + '/auth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.success) return null;
+          const data = payload.data || {};
+          if (data.accessToken) localStorage.setItem('jf_access_token', data.accessToken);
+          if (data.refreshToken) localStorage.setItem('jf_refresh_token', data.refreshToken);
+          if (data.user) localStorage.setItem('jf_user', JSON.stringify(data.user));
+          return data.accessToken || null;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      async function submitDeletion(password, confirmation) {
+        let token = getToken();
+        if (!token) {
+          token = await refreshAccessToken();
+          if (!token) {
+            clearSession();
+            showSignedOut();
+            showAlert('error', 'Your session has ended. Please sign in again to delete your account.');
+            return;
+          }
+        }
+
+        const response = await fetch(API_BASE + '/auth/account', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+          },
+          body: JSON.stringify({ password: password || undefined, confirmation }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (response.status === 401 && !(payload.error && payload.error.code === 'INVALID_CREDENTIALS')) {
+          const refreshed = await refreshAccessToken();
+          if (refreshed) return submitDeletion(password, confirmation);
+          clearSession();
+          showSignedOut();
+          showAlert('error', 'Your session has ended. Please sign in again to delete your account.');
+          return;
+        }
+
+        if (!response.ok || !payload.success) {
+          const code = payload.error && payload.error.code;
+          if (code === 'PASSWORD_REQUIRED') {
+            showFormError('This account uses a password. Enter your current password to continue.');
+          } else if (code === 'INVALID_CREDENTIALS') {
+            showFormError('The password you entered is incorrect.');
+          } else if (code === 'CONFIRMATION_REQUIRED') {
+            showFormError('Type DELETE exactly to confirm permanent deletion.');
+          } else if (response.status === 429 || code === 'ACCOUNT_DELETION_RATE_LIMITED') {
+            showFormError(payload.error?.message || 'Too many deletion attempts. Please wait and try again.');
+          } else if (response.status === 503) {
+            showFormError('Your account is still active because file cleanup could not complete. Some uploaded files may already have been removed. Please try again.');
+          } else {
+            showFormError((payload.error && payload.error.message) || 'Deletion could not be completed. Please try again.');
+          }
+          return;
+        }
+
+        clearSession();
+        signedIn.classList.add('hidden');
+        signedOut.classList.add('hidden');
+        deleted.classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        showAlert('success', payload.data && payload.data.alreadyDeleted
+          ? 'This account was already deleted.'
+          : 'Your account and associated data have been permanently deleted.');
+      }
+
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        clearFormError();
+        alertBox.className = 'alert';
+        alertBox.textContent = '';
+
+        const password = document.getElementById('password').value;
+        const confirmation = document.getElementById('confirmation').value.trim();
+        const understand = document.getElementById('understand').checked;
+
+        if (confirmation.toUpperCase() !== 'DELETE') {
+          showFormError('Type DELETE exactly to confirm permanent deletion.');
+          document.getElementById('confirmation').focus();
+          return;
+        }
+        if (!understand) {
+          showFormError('Check the acknowledgement box to continue.');
+          return;
+        }
+
+        deleteBtn.disabled = true;
+        deleteBtnText.textContent = 'Deleting…';
+
+        try {
+          await submitDeletion(password, 'DELETE');
+        } catch (_) {
+          showFormError('Unable to reach FinPro. Check your connection and try again.');
+        } finally {
+          deleteBtn.disabled = false;
+          deleteBtnText.textContent = 'Permanently delete my account';
+        }
+      });
+
+      if (new URLSearchParams(window.location.search).get('deleted') === '1') {
+        signedOut.classList.add('hidden');
+        signedIn.classList.add('hidden');
+        deleted.classList.remove('hidden');
+        showAlert('success', 'Your FinPro account and associated data have been permanently deleted.');
+      } else if (getToken() || getRefreshToken()) {
+        showSignedIn();
+      } else {
+        showSignedOut();
+      }
+
+      if (new URLSearchParams(window.location.search).get('signed_out') === '1') {
+        showAlert('info', 'You have been signed out. Sign in again to delete your account.');
+      }
+    })();
+  </script>
+</body>
+</html>

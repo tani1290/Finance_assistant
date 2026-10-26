@@ -95,6 +95,27 @@ class LocalDiskProvider {
     return { success: true, key, provider: 'local' };
   }
 
+  /**
+   * Delete every object stored under a validated tenant prefix.
+   *
+   * Used by account deletion, where leaving files behind on disk would mean the
+   * user's receipts/exports survive the account. The caller (StorageService)
+   * is responsible for rejecting unsafe prefixes; this method still refuses to
+   * touch the storage root.
+   */
+  async deletePrefix(prefix) {
+    const normalized = String(prefix || '').replace(/\\/g, '/');
+    if (!normalized || !normalized.endsWith('/') || normalized.includes('..')) {
+      throw new Error('Invalid storage prefix');
+    }
+    const fullPath = this._resolveSafePath(normalized);
+    if (fullPath === this.baseDir || !fullPath.startsWith(this.baseDir + path.sep)) {
+      throw new Error('Refusing to delete storage root');
+    }
+    await fs.promises.rm(fullPath, { recursive: true, force: true });
+    return { success: true, provider: 'local', prefix: normalized };
+  }
+
   async getPublicOrSignedUrl(key) {
     return `/api/v1/storage/file/${encodeURIComponent(key)}`;
   }
@@ -218,6 +239,94 @@ class S3CloudProvider {
       return `${endpointUrl.origin}${basePath}/${this.bucket}/${cleanKey}`;
     }
     return `${endpointUrl.protocol}//${this.bucket}.${endpointUrl.host}/${cleanKey}`;
+  }
+
+  _buildBucketUrl() {
+    const endpointUrl = new URL(this.endpoint);
+    const hasPath = endpointUrl.pathname && endpointUrl.pathname !== '/';
+    if (this.forcePathStyle || hasPath || endpointUrl.host.includes('supabase.co') || endpointUrl.host.includes('cloudflarestorage.com')) {
+      const basePath = endpointUrl.pathname.replace(/\/$/, '');
+      return `${endpointUrl.origin}${basePath}/${this.bucket}`;
+    }
+    return `${endpointUrl.protocol}//${this.bucket}.${endpointUrl.host}`;
+  }
+
+  /**
+   * List object keys under a prefix using ListObjectsV2 with pagination.
+   * Throws on any non-2xx response so callers cannot mistake a failed listing
+   * (and therefore an incomplete deletion) for an empty prefix.
+   */
+  async listPrefix(prefix) {
+    if (!this._isConfigured()) {
+      throw Object.assign(new Error('Cloud S3 Object Storage is not configured'), { code: 'S3_NOT_CONFIGURED' });
+    }
+
+    const keys = [];
+    let continuationToken = null;
+    let pages = 0;
+
+    do {
+      // AWS SigV4 canonical query strings are sorted by parameter name.
+      const queryParts = [];
+      if (continuationToken) {
+        queryParts.push(`continuation-token=${encodeURIComponent(continuationToken)}`);
+      }
+      queryParts.push('list-type=2', `prefix=${encodeURIComponent(prefix)}`);
+      const url = `${this._buildBucketUrl()}?${queryParts.join('&')}`;
+      const signedHeaders = this._signRequest('GET', url, {});
+
+      const body = await new Promise((resolve, reject) => {
+        const parsed = new URL(url);
+        const transport = parsed.protocol === 'http:' ? http : https;
+        const req = transport.request(url, { method: 'GET', headers: signedHeaders, timeout: this.requestTimeoutMs }, (res) => {
+          const chunks = [];
+          res.on('data', (chunk) => chunks.push(chunk));
+          res.on('end', () => {
+            const text = Buffer.concat(chunks).toString('utf8');
+            if (res.statusCode < 200 || res.statusCode >= 300) {
+              return reject(new Error(`S3 List Failed (${res.statusCode})`));
+            }
+            resolve(text);
+          });
+        });
+        req.on('timeout', () => {
+          req.destroy(Object.assign(new Error(`S3 list timed out after ${this.requestTimeoutMs}ms`), { code: 'S3_TIMEOUT' }));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+      const decodeXml = (value) => String(value)
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;/g, '&');
+
+      for (const match of body.matchAll(/<Key>([\s\S]*?)<\/Key>/g)) {
+        keys.push(decodeXml(match[1]));
+      }
+
+      const tokenMatch = body.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/);
+      continuationToken = tokenMatch ? decodeXml(tokenMatch[1]) : null;
+      pages += 1;
+      if (pages > 1000) {
+        throw new Error('S3 List pagination exceeded safety limit');
+      }
+    } while (continuationToken);
+
+    return keys;
+  }
+
+  async deletePrefix(prefix) {
+    const keys = await this.listPrefix(prefix);
+    for (const key of keys) {
+      const result = await this.delete(key);
+      if (!result || result.success !== true) {
+        throw new Error(`S3 delete failed for one or more objects under ${prefix}`);
+      }
+    }
+    return { success: true, provider: 's3', prefix, deleted: keys.length };
   }
 
   async upload({ buffer, key, contentType = 'application/octet-stream', metadata = {} }) {
@@ -480,12 +589,54 @@ class StorageService {
     return this.lastFallback ? { ...this.lastFallback } : null;
   }
 
+  /**
+   * Production must never silently write financial documents to the
+   * container's ephemeral disk because the configured cloud bucket failed.
+   * Tests and local development keep the resilient fallback; production fails
+   * closed unless an operator explicitly opts in with
+   * STORAGE_ALLOW_EPHEMERAL_FALLBACK=true (for example, a documented,
+   * temporary migration window with an off-host backup).
+   */
+  _fallbackAllowed() {
+    const isProduction = (process.env.NODE_ENV || '').toLowerCase() === 'production';
+    if (!isProduction) return true;
+    return String(process.env.STORAGE_ALLOW_EPHEMERAL_FALLBACK || '').toLowerCase() === 'true';
+  }
+
+  _storageUnavailable(operation) {
+    const err = new Error('Object storage is temporarily unavailable. Please retry.');
+    err.code = 'STORAGE_UNAVAILABLE';
+    err.statusCode = 503;
+    err.operation = operation;
+    return err;
+  }
+
+  /**
+   * Only tenant-owned prefixes may be bulk-deleted. This is deliberately
+   * narrow: account deletion needs exactly `users/<id>/` and `exports/<id>/`,
+   * and nothing else should be able to invoke a recursive delete.
+   */
+  _assertSafePrefix(prefix) {
+    const normalized = typeof prefix === 'string' ? prefix : '';
+    if (!/^(users|exports)\/[A-Za-z0-9._-]+\/$/.test(normalized) || normalized.includes('..')) {
+      throw Object.assign(new Error('Invalid storage prefix'), {
+        code: 'INVALID_STORAGE_PREFIX',
+        statusCode: 400,
+      });
+    }
+    return normalized;
+  }
+
   async upload({ buffer, key, contentType, metadata, isPublic }) {
     try {
       return await this.activeProvider.upload({ buffer, key, contentType, metadata, isPublic });
     } catch (err) {
       if (this.providerName === 's3') {
         this._recordFallback('upload', err);
+        if (!this._fallbackAllowed()) {
+          console.error('[Storage] Cloud S3 upload failed and ephemeral fallback is disabled in production.');
+          throw this._storageUnavailable('upload');
+        }
         console.warn(`[Storage] Cloud S3 upload notice (${err.message}). Engaging resilient local fallback...`);
         return await this.localProvider.upload({ buffer, key, contentType, metadata, isPublic });
       }
@@ -499,6 +650,10 @@ class StorageService {
     } catch (err) {
       if (this.providerName === 's3') {
         this._recordFallback('download', err);
+        if (!this._fallbackAllowed()) {
+          console.error('[Storage] Cloud S3 download failed and ephemeral fallback is disabled in production.');
+          throw this._storageUnavailable('download');
+        }
         return await this.localProvider.download(key);
       }
       throw err;
@@ -511,7 +666,30 @@ class StorageService {
     } catch (err) {
       if (this.providerName === 's3') {
         this._recordFallback('delete', err);
+        if (!this._fallbackAllowed()) {
+          throw this._storageUnavailable('delete');
+        }
         return await this.localProvider.delete(key);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Recursively delete every object under a validated tenant prefix.
+   * Returns `{ success, provider, prefix, deleted }` (local `deleted` is null).
+   */
+  async deletePrefix(prefix) {
+    const safePrefix = this._assertSafePrefix(prefix);
+    try {
+      return await this.activeProvider.deletePrefix(safePrefix);
+    } catch (err) {
+      if (this.providerName === 's3') {
+        this._recordFallback('deletePrefix', err);
+        if (!this._fallbackAllowed()) {
+          throw this._storageUnavailable('deletePrefix');
+        }
+        return await this.localProvider.deletePrefix(safePrefix);
       }
       throw err;
     }
@@ -523,6 +701,9 @@ class StorageService {
     } catch (err) {
       if (this.providerName === 's3') {
         this._recordFallback('getPublicOrSignedUrl', err);
+        if (!this._fallbackAllowed()) {
+          throw this._storageUnavailable('getPublicOrSignedUrl');
+        }
         return await this.localProvider.getPublicOrSignedUrl(key, options);
       }
       throw err;
@@ -535,7 +716,7 @@ class StorageService {
     // If cloud S3 is paused or unreachable, check if local storage fallback is operational
     if (this.providerName === 's3' && !health.available) {
       const localHealth = await this.localProvider.checkHealth();
-      if (localHealth.available) {
+      if (localHealth.available && this._fallbackAllowed()) {
         return {
           available: true,
           status: 'available',
@@ -556,10 +737,32 @@ class StorageService {
           note: 'Cloud S3 endpoint unreachable; resilient local disk fallback is active and operational.',
         };
       }
+      if (!this._fallbackAllowed()) {
+        return {
+          available: false,
+          status: 'unavailable',
+          provider: 's3',
+          cloudStatus: 'degraded',
+          cloudAvailable: false,
+          fallbackProvider: null,
+          durable: false,
+          ephemeral: false,
+          latencyMs: health.latencyMs || localHealth.latencyMs,
+          cloudError: health.error || health.status || 'unreachable',
+          lastFallback,
+          note: 'Cloud S3 endpoint unreachable and ephemeral local fallback is disabled in production.',
+        };
+      }
     }
     const durability = this.getDurability();
     const durable = durability.provider === 's3' && health.available === true;
-    return { ...health, cloudAvailable: health.available, durable, ephemeral: !durable, lastFallback };
+    return {
+      ...health,
+      cloudAvailable: health.available,
+      durable,
+      ephemeral: !durable && durability.provider !== 's3',
+      lastFallback,
+    };
   }
 }
 

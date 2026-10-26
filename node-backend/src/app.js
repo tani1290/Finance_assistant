@@ -134,6 +134,17 @@ if (process.env.NODE_ENV !== 'test') {
   app.use('/api/', limiter);
   app.use('/api/v1/auth/login', authLimiter);
   app.use('/api/v1/auth/register', authLimiter);
+
+  // Account deletion re-verifies the password, so it needs its own tight
+  // failure budget instead of relying on the general API limiter.
+  const accountDeletionLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    skipSuccessfulRequests: true,
+    store: new HybridRateLimitStore({ name: 'account-deletion' }),
+    message: { success: false, error: { code: 'ACCOUNT_DELETION_RATE_LIMITED', message: 'Too many deletion attempts. Try again later.' } },
+  });
+  app.use('/api/v1/auth/account', accountDeletionLimiter);
 }
 
 // ==================== REQUEST MIDDLEWARE ====================

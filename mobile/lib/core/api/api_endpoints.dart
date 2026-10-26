@@ -119,4 +119,9 @@ class ApiEndpoints {
 
   // Profile
   static String get profile => '$baseUrl/auth/profile';
+
+  /// Permanent, hard account deletion. Requires the authenticated user's
+  /// access token, the exact confirmation string `DELETE`, and (for accounts
+  /// that have a password) a fresh password check.
+  static String get deleteAccount => '$baseUrl/auth/account';
 }

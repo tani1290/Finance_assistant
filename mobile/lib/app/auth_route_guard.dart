@@ -1,7 +1,13 @@
 import '../core/auth/auth_state.dart';
 
 /// Routes reachable without an authenticated session.
-const Set<String> publicRoutes = <String>{'/', '/login', '/register'};
+const Set<String> publicRoutes = <String>{
+  '/',
+  '/login',
+  '/register',
+  '/privacy-policy',
+  '/account-deleted',
+};
 
 /// Routes an authenticated user should land on when they open a public
 /// auth screen.

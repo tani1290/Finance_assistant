@@ -35,25 +35,46 @@ mobile/
 ## 3. Native Android Bank SMS Detection
 
 ### 3.1 Permissions (`AndroidManifest.xml`)
-The application declares the following permissions required for local financial SMS parsing:
+The application declares only the permissions needed for incoming bank SMS
+detection:
 ```xml
 <uses-permission android:name="android.permission.RECEIVE_SMS" />
-<uses-permission android:name="android.permission.READ_SMS" />
 <uses-permission android:name="android.permission.INTERNET" />
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 ```
 
+`READ_SMS` is deliberately **not** declared and the app never scans the SMS
+inbox. Detection is limited to messages delivered while the receiver is active
+and only after the user has explicitly enabled it (see §3.4). The merged release
+manifest adds Firebase/analytics permissions; the exact list and the Play Data
+Safety mapping are in
+[GOOGLE_PLAY_COMPLIANCE.md](GOOGLE_PLAY_COMPLIANCE.md).
+
 ### 3.2 Broadcast Receiver (`FinProSmsReceiver.kt`)
 - Listens for `android.provider.Telephony.SMS_RECEIVED` broadcasts.
+- Reads the persisted `sms_detection_enabled` flag first. It defaults to `false`,
+  and a disabled user's messages are ignored before parsing, buffering or upload.
 - Evaluates incoming message content against an initial privacy filter: **any message containing OTP, password, or verification codes is immediately discarded**.
 - Banking messages matching financial transactional patterns (e.g., "debited", "credited", "spent", "received", "A/c") are safely buffered in Android `SharedPreferences` as JSON objects for asynchronous processing by the Flutter engine.
 
 ### 3.3 Platform MethodChannel (`MainActivity.kt`)
-The channel `com.finpro.app/sms_channel` supports three primary native invocations:
-1. `checkSmsPermission`: Returns a boolean indicating whether `RECEIVE_SMS` and `READ_SMS` are currently granted.
+The channel `com.finpro.app/sms_channel` supports these native invocations:
+1. `checkSmsPermission`: Returns a boolean indicating whether `RECEIVE_SMS` is currently granted.
 2. `requestSmsPermission`: Prompts the user with the standard Android runtime permission dialog.
 3. `getBufferedSms`: Reads and atomically drains the temporary queue stored in `SharedPreferences`.
-4. `readRecentInboxSms`: Queries `content://sms/inbox` for the most recent messages (up to limit) to backfill candidates when the app is first granted permission.
+4. `isDetectionEnabled`: Returns the persisted toggle. It fails closed (`false`) if the platform call errors.
+5. `setDetectionEnabled`: Persists the user's choice and returns `true` only when the write committed. Turning it off also clears the buffered queue.
+
+The app never requests inbox access, so there is no `readRecentInboxSms` call.
+
+### 3.4 Prominent disclosure and consent
+The Flutter privacy screen shows an inline prominent-disclosure card and an
+affirmative-action dialog **before** the Android runtime permission is requested.
+Consent is default-off, the decline is persisted locally
+(`finpro_sms_consent_status` = `unknown|accepted|declined`), and the app does not
+re-prompt automatically after a decline. Every other feature works without SMS
+detection. See [GOOGLE_PLAY_COMPLIANCE.md](GOOGLE_PLAY_COMPLIANCE.md) for the
+Play policy mapping.
 
 ---
 
@@ -86,6 +107,7 @@ sequenceDiagram
     participant DB as PostgreSQL 17 Database
 
     Bank->>Android: Sends SMS Alert
+    Android->>Android: Check user consent toggle (default off)
     Android->>Android: Verify Non-OTP & Buffer alert
     Flutter->>Android: Drains buffered alerts via MethodChannel
     Flutter->>Flutter: Parse candidate (amount, merchant, type)

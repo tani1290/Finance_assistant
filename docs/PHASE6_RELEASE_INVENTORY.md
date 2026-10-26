@@ -13,6 +13,12 @@ were run, the environment-variable names, the staging migration procedure, the
 limits of rollback, and the post-deploy smoke tests. It does not authorize a
 deployment.
 
+> **Phase 7 additions:** privacy policy, account deletion, SMS disclosure/consent,
+> storage fail-closed behaviour and the rebuilt signed artifacts are documented
+> separately in [GOOGLE_PLAY_COMPLIANCE.md](GOOGLE_PLAY_COMPLIANCE.md). The file
+> counts and test totals below describe the Phase 6 tree and are not updated by
+> that later work.
+
 ---
 
 ## 1. Release identity and counts

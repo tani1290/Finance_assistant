@@ -15,6 +15,9 @@ import '../features/dashboard/dashboard_screen.dart';
 import '../features/goals/goals_screen.dart';
 import '../features/insurance/insurance_screen.dart';
 import '../features/investments/investments_screen.dart';
+import '../features/legal/account_deleted_screen.dart';
+import '../features/legal/delete_account_screen.dart';
+import '../features/legal/privacy_policy_screen.dart';
 import '../features/loans/loans_screen.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
@@ -61,6 +64,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      // Legal routes. `/privacy-policy` and `/account-deleted` are public so
+      // they work without a session (Play requires the policy to be
+      // reachable, and the deletion flow navigates to the success screen
+      // before local credentials are cleared).
+      GoRoute(
+        path: '/privacy-policy',
+        builder: (context, state) => const PrivacyPolicyScreen(),
+      ),
+      GoRoute(
+        path: '/account-deleted',
+        builder: (context, state) => const AccountDeletedScreen(),
+      ),
+      GoRoute(
+        path: '/delete-account',
+        builder: (context, state) => const DeleteAccountScreen(),
       ),
 
       // Stateful Nested Shell for Bottom Navigation

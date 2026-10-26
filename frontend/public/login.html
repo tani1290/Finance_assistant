@@ -359,15 +359,37 @@
     <div class="auth-footer">
       Don't have an account? <a href="/signup.html">Create one</a>
     </div>
+
+    <div class="auth-footer" style="margin-top:12px;">
+      <a href="/privacy.html">Privacy Policy</a> ·
+      <a href="/terms.html">Terms of Service</a> ·
+      <a href="/delete-account.html">Delete account</a>
+    </div>
   </div>
 
   <script>
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const API_BASE = (!isLocal || window.location.origin.includes(':5001')) ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
 
+    // Only allow same-origin absolute paths as post-login destinations.
+    function safeRedirect(value) {
+      if (typeof value !== 'string' || !value) return null;
+      if (!value.startsWith('/') || value.startsWith('//')) return null;
+      if (value.includes('\\')) return null;
+      try {
+        const url = new URL(value, window.location.origin);
+        if (url.origin !== window.location.origin) return null;
+        return url.pathname + url.search + url.hash;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    const requestedRedirect = safeRedirect(new URLSearchParams(window.location.search).get('redirect'));
+
     // Redirect if already logged in
     if (localStorage.getItem('jf_access_token')) {
-      window.location.href = '/dashboard.html';
+      window.location.href = requestedRedirect || '/dashboard.html';
     }
 
     // Show session expired message
@@ -434,8 +456,8 @@
           localStorage.setItem('jf_refresh_token', data.data.refreshToken);
           localStorage.setItem('jf_user', JSON.stringify(data.data.user));
 
-          // Redirect based on onboarding status
-          window.location.href = '/dashboard.html';
+          // Redirect to the requested same-origin page, otherwise the dashboard
+          window.location.href = requestedRedirect || '/dashboard.html';
         } else {
           showAlert('error', data.error?.message || 'Login failed. Please check your credentials.');
         }

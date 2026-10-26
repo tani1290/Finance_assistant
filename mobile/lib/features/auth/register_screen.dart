@@ -6,6 +6,7 @@ import '../../core/auth/auth_notifier.dart';
 import '../../core/auth/auth_state.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/gradient_button.dart';
+import '../../shared/widgets/legal_footer.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -252,6 +253,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  const LegalFooter(),
                 ],
               ),
             ),

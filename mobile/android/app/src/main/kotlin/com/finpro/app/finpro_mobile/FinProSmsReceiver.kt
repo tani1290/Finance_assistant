@@ -70,7 +70,7 @@ class FinProSmsReceiver : BroadcastReceiver() {
                     return
                 }
 
-                Log.d(TAG, "Detected financial SMS candidate from $sender: $body")
+                Log.d(TAG, "Detected financial SMS candidate from $sender")
 
                 // 1. Notify active listener if MainActivity is foreground
                 onSmsReceivedListener?.invoke(sender, body, timestamp)

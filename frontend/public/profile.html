@@ -393,6 +393,37 @@
         </form>
       </div>
 
+      <!-- Account Deletion (separate from removing a financial account) -->
+      <div class="card" id="deleteAccountCard" style="border:1px solid rgba(239,68,68,0.45);background:rgba(127,29,29,0.12);">
+        <div class="card-title" style="color:#f87171;"><i class="ri-error-warning-line"></i> Delete FinPro Account</div>
+        <p style="font-size:13px;color:#cbd5e1;line-height:1.65;margin:0 0 14px;">
+          This permanently deletes your FinPro account and every record linked to it, including financial accounts,
+          transactions, budgets, goals, investments, loans, insurance policies, AI conversations, receipts, exports,
+          devices, and pending SMS suggestions. This is not the same as removing one financial account above.
+          <strong style="color:#fecaca;">Deletion cannot be undone.</strong>
+        </p>
+        <form id="deleteAccountForm" autocomplete="off">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="deletePassword">Password (required for password accounts)</label>
+              <input type="password" id="deletePassword" class="form-control" autocomplete="current-password" placeholder="Leave blank for Google-only accounts">
+            </div>
+            <div class="form-group">
+              <label for="deleteConfirmation">Type DELETE to confirm</label>
+              <input type="text" id="deleteConfirmation" class="form-control" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="DELETE">
+            </div>
+          </div>
+          <label style="display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:#cbd5e1;margin:4px 0 14px;">
+            <input type="checkbox" id="deleteUnderstand" style="margin-top:3px;accent-color:#dc2626;">
+            <span>I understand that my FinPro account and all associated data will be permanently deleted.</span>
+          </label>
+          <div id="deleteAccountError" role="alert" style="display:none;background:rgba(127,29,29,0.35);border:1px solid rgba(248,113,113,0.5);color:#fecaca;border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:12px;"></div>
+          <button type="submit" id="deleteAccountBtn" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;">
+            <i class="ri-delete-bin-6-line"></i> Permanently Delete Account
+          </button>
+        </form>
+      </div>
+
       <!-- Action Footer -->
       <div style="display:flex;justify-content:flex-end;gap:14px;align-items:center;">
         <span id="saveStatus" style="font-size:13px;color:#34d399;display:none;"></span>
@@ -780,6 +811,74 @@
         window.finproAudio.playAudioChime('success');
       }
     });
+
+    // Permanent account deletion (distinct from deleting a financial account)
+    const deleteAccountForm = document.getElementById('deleteAccountForm');
+    if (deleteAccountForm) {
+      deleteAccountForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const errorEl = document.getElementById('deleteAccountError');
+        const btn = document.getElementById('deleteAccountBtn');
+        const password = document.getElementById('deletePassword').value;
+        const confirmation = document.getElementById('deleteConfirmation').value.trim();
+        const understand = document.getElementById('deleteUnderstand').checked;
+
+        const showDeleteError = (message) => {
+          errorEl.textContent = message;
+          errorEl.style.display = 'block';
+        };
+
+        errorEl.style.display = 'none';
+
+        if (confirmation.toUpperCase() !== 'DELETE') {
+          showDeleteError('Type DELETE exactly to confirm permanent deletion.');
+          document.getElementById('deleteConfirmation').focus();
+          return;
+        }
+        if (!understand) {
+          showDeleteError('Check the acknowledgement box to continue.');
+          return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ri-loader-4-line"></i> Deleting…';
+
+        try {
+          const res = await apiFetch('/auth/account', {
+            method: 'DELETE',
+            body: JSON.stringify({ password: password || undefined, confirmation: 'DELETE' }),
+          });
+
+          if (res?.success) {
+            localStorage.removeItem('jf_access_token');
+            localStorage.removeItem('jf_refresh_token');
+            localStorage.removeItem('jf_user');
+            window.location.href = '/delete-account.html?deleted=1';
+            return;
+          }
+
+          const code = res?.error?.code;
+          if (code === 'PASSWORD_REQUIRED') {
+            showDeleteError('Enter your current FinPro password to delete this account.');
+          } else if (code === 'INVALID_CREDENTIALS') {
+            showDeleteError('The password you entered is incorrect.');
+          } else if (code === 'CONFIRMATION_REQUIRED') {
+            showDeleteError('Type DELETE exactly to confirm permanent deletion.');
+          } else if (code === 'ACCOUNT_DELETION_RATE_LIMITED') {
+            showDeleteError(res.error.message || 'Too many deletion attempts. Try again later.');
+          } else if (res?.error?.message?.toLowerCase().includes('unavailable')) {
+            showDeleteError('Your account is still active because file cleanup could not complete. Some uploaded files may already have been removed. Please try again.');
+          } else {
+            showDeleteError(res?.error?.message || 'Deletion could not be completed. Please try again.');
+          }
+        } catch (_) {
+          showDeleteError('Unable to reach FinPro. Check your connection and try again.');
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="ri-delete-bin-6-line"></i> Permanently Delete Account';
+        }
+      });
+    }
 
     updateNotifStatus();
     loadProfile();

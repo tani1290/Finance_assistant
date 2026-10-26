@@ -241,6 +241,32 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+
+            _SectionLabel('Legal & data', isDark: isDark),
+            FinancialCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _SettingTile(
+                    icon: Icons.policy_outlined,
+                    title: 'Privacy Policy',
+                    subtitle: 'How FinPro collects, uses and deletes data',
+                    isDark: isDark,
+                    onTap: () => context.push('/privacy-policy'),
+                  ),
+                  Divider(height: 1, color: AppColors.border(isDark)),
+                  _SettingTile(
+                    icon: Icons.delete_forever_outlined,
+                    title: 'Delete account',
+                    subtitle: 'Permanently erase your account and records',
+                    isDark: isDark,
+                    isDestructive: true,
+                    onTap: () => context.push('/delete-account'),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 28),
 
             // ── Logout ───────────────────────────────────────────────
@@ -328,16 +354,23 @@ class _SettingTile extends StatelessWidget {
   final bool isDark;
   final VoidCallback onTap;
 
+  /// Renders the tile in the destructive (danger) palette. Used for account
+  /// deletion so it is visually distinct from ordinary navigation.
+  final bool isDestructive;
+
   const _SettingTile({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.isDark,
     required this.onTap,
+    this.isDestructive = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = isDestructive ? AppColors.expense : AppColors.primaryLight;
+
     return Pressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(0),
@@ -348,10 +381,10 @@ class _SettingTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
+                color: accent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: AppColors.primaryLight, size: 19),
+              child: Icon(icon, color: accent, size: 19),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -363,7 +396,9 @@ class _SettingTile extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
-                      color: AppColors.textPrimary(isDark),
+                      color: isDestructive
+                          ? AppColors.expense
+                          : AppColors.textPrimary(isDark),
                     ),
                   ),
                   const SizedBox(height: 2),

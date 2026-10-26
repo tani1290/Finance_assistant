@@ -233,6 +233,13 @@ flutter build apk --release
 # APK is generated at: mobile/build/app/outputs/flutter-apk/app-release.apk
 ```
 
+A release build fails fast when `android/key.properties` and the keystore are
+incomplete; it never falls back to the debug key. Before uploading to Play, read
+[GOOGLE_PLAY_COMPLIANCE.md](GOOGLE_PLAY_COMPLIANCE.md): it records the required
+public privacy policy and account-deletion URLs, the SMS disclosure/consent
+behaviour, the merged-manifest permissions, Data Safety inputs, and the manual
+console actions that code cannot perform.
+
 ---
 
 ## 6. Production Verification Probes

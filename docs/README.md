@@ -21,6 +21,7 @@ One canonical set, one question per document. Start here.
 | [PHASE5_STAGING_CHECKLIST.md](PHASE5_STAGING_CHECKLIST.md) | The Phase 5 staging operator checklist: pre-flight, variables, backup-then-migrate, deploy, AI/deposit/financial smoke tests, off-site recovery and rollback. |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Design tokens, typography, spacing and component rules for the web UI. |
 | [MOBILE.md](MOBILE.md) | Flutter architecture, navigation and the Android SMS engine. |
+| [GOOGLE_PLAY_COMPLIANCE.md](GOOGLE_PLAY_COMPLIANCE.md) | Phase 7 Google Play code-level compliance: privacy policy, account deletion, SMS disclosure/consent, Data Safety inputs, artifact evidence, and the manual actions that remain. |
 
 ## Reading order for a new contributor
 

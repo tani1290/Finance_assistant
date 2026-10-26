@@ -29,24 +29,32 @@ class SmsPlatformChannel {
   /// Whether the user has switched on-device bank SMS detection on/off.
   /// Permission and preference are separate: Android cannot revoke an already
   /// granted runtime permission from code, so the app owns an explicit flag.
+  ///
+  /// Fails closed: if the platform channel is unavailable or answers with
+  /// something other than a boolean, detection is reported as off.
   static Future<bool> isDetectionEnabled() async {
     try {
       final res = await _channel.invokeMethod<bool>('isSmsDetectionEnabled');
-      return res ?? true;
+      return res ?? false;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 
+  /// Persists the detection flag natively.
+  ///
+  /// Returns `true` only when the native side reports the write succeeded.
+  /// An exception or a `null`/non-boolean reply is treated as a failure so the
+  /// UI never claims detection is on when it was not stored.
   static Future<bool> setDetectionEnabled(bool enabled) async {
     try {
       final res = await _channel.invokeMethod<bool>(
         'setSmsDetectionEnabled',
         {'enabled': enabled},
       );
-      return res ?? enabled;
+      return res == true;
     } catch (_) {
-      return enabled;
+      return false;
     }
   }
 
@@ -66,20 +74,6 @@ class SmsPlatformChannel {
     try {
       await _channel.invokeMethod('clearBufferedSms');
     } catch (_) {}
-  }
-
-  static Future<List<Map<String, dynamic>>> readRecentInboxSms() async {
-    try {
-      final res = await _channel.invokeListMethod<dynamic>(
-        'readRecentInboxSms',
-      );
-      if (res != null) {
-        return res
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
-      }
-    } catch (_) {}
-    return [];
   }
 
   /// Ingest buffered SMS messages to backend API
