@@ -5,12 +5,16 @@ dead code, unnecessary dependencies and temporary artifacts, while preserving be
 security, data integrity, deployment compatibility and test coverage.
 
 **Date:** 2026-10-26
-**Repository:** `tanishq version` (branch `finpro/pre-deployment-checkpoint`)
+**Repository:** `tanishq version` (cleanup developed on `finpro/pre-deployment-checkpoint`,
+integrated into `main`)
 **Baseline commit:** `375f8f2c793c82436777561e396db0991125199c`
+**Cleanup commit:** `938cbf9` (`chore(cleanup): remove dead code and unused dependencies`)
 **Live release at time of audit:** `b9c054c` (deploys after that commit are docs-only)
 
-> This cleanup was performed **without committing, pushing, merging or deploying**.
-> All changes described here are left in the working tree for review.
+> The cleanup was committed as `938cbf9` and pushed to `origin/main` as a clean
+> fast-forward from `4e9b6d3`. No merge conflict arose and no history was rewritten.
+> No manual deploy, blueprint sync, environment-variable change or database migration
+> was performed; the only deployment effect is the Render auto-deploy described in §9.
 
 ---
 
@@ -428,7 +432,7 @@ had its expectations changed.
 | Backend production advisories | 3 | 0 | −3 |
 | Jest suites / tests | 35 / 572 | 35 / 572 | unchanged |
 | Flutter tests | 239 | 239 | unchanged |
-| Git diff (tracked) | — | 22 files, 9 insertions, 1,855 deletions | net −1,846 lines |
+| Cleanup commit (`938cbf9`) | — | 23 files, 479 insertions, 1,855 deletions | net −1,376 lines |
 
 The deletion count is dominated by lockfile churn (1,548 of the 1,855 deleted lines are
 the two lockfiles). Actual hand-edited source reduction is **291 lines across 18 files**.
@@ -437,29 +441,46 @@ the two lockfiles). Actual hand-edited source reduction is **291 lines across 18
 
 ## 9. Final state
 
-- **No commit, push, merge or deployment was performed.** `HEAD` is still
-  `375f8f2c793c82436777561e396db0991125199c` on `finpro/pre-deployment-checkpoint`, and
-  the live release remains `b9c054c` / `dep-dbflt99srm7s73ff9bp0`.
-- The working tree contains **22 modified tracked files** and **one untracked file**
-  (`docs/CODEBASE_CLEANUP_REPORT.md`). Nothing else was staged or discarded, and no
-  pre-existing local modification was overwritten.
+- **Committed and pushed.** The cleanup is commit
+  `938cbf953a02d31f6733b18b704652c4858fb073` on `main`, pushed to
+  `origin/main` (`tani1290/Finance_assistant`) as a fast-forward from `4e9b6d3`.
+  The push was a normal `git push origin main`; no `--force` or `--force-with-lease`
+  was used and no commit was amended or rewritten.
+- **Integration was a clean fast-forward.** `origin/main` was verified to be an
+  ancestor of the cleanup branch before integration, so no merge commit, conflict
+  resolution or rebase was required. The cleanup branch
+  `finpro/pre-deployment-checkpoint` was left in place locally and on the remote.
+- **Working tree is clean.** The commit contains 23 files (22 modified + the new
+  report), 479 insertions and 1,855 deletions. Nothing was left staged or
+  uncommitted, and no pre-existing local modification was overwritten.
 - Behaviour is preserved per §6: every suite that passed before the cleanup passes
-  after it, with no test added, removed, skipped or re-specified.
+  after it, with no test added, removed, skipped or re-specified. The post-cleanup
+  gates additionally include `npm ci --dry-run` (backend and root), a Docker image
+  build, and a signed Flutter release APK build.
 - Security posture improved: production advisories **3 → 0**; no auth, authorization,
   tenant-isolation, validation, rate-limit, transaction, idempotency or AI-confirmation
   logic was touched.
 - No migration, seed, fixture, rollback utility, schema, test, deployment config or
   documentation file was deleted or altered.
-- **The repository is intentionally not clean.** The changes are left uncommitted for
-  review, as instructed.
+- **Deployment:** no manual deploy was triggered. The Render service
+  `finpro-finance-ai` (`srv-db5sb1vavr4c739td7d0`) tracks `main` with
+  `autoDeploy: yes` / `autoDeployTrigger: commit`, so the push to `main` can start an
+  automatic build/deploy of `938cbf9`. That is a consequence of the authorized push,
+  not an additional action: no Render or Vercel CLI deploy, blueprint sync,
+  environment-variable edit or database migration was issued from this session. The
+  last release observed before the push was `b9c054c` / `dep-dbflt99srm7s73ff9bp0`.
+- **This §9 status is itself recorded in a docs-only follow-up commit** on top of
+  `938cbf9`; `git log -1 -- docs/CODEBASE_CLEANUP_REPORT.md` gives its hash. It changes
+  documentation only and does not affect the verified code state above.
 
 ---
 
 ## 10. Remaining risks
 
-1. **P3 duplication remains.** The 17 inline API clients can drift from `api.js`
-   (for example, different error handling or base-URL logic). This is a maintenance
-   risk, not a correctness defect observed in testing.
+1. **P3 duplication remains.** The 13 pages with an inline `API_BASE` (8 of which also
+   define `apiFetch`) can drift from `api.js` (for example, different error handling or
+   base-URL logic). This is a maintenance risk, not a correctness defect observed in
+   testing.
 2. **Deployment-config drift remains documented but unfixed** (`render.yaml` runtime
    and health path, stale `FRONTEND_URL`). Changing them requires deployment
    authorization and re-verification.
