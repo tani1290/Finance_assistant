@@ -375,7 +375,4 @@ const createHttpClient = (options = {}) => {
 module.exports = {
   createHttpClient,
   parseRetryAfterMs,
-  sanitizedError,
-  NETWORK_CODES,
-  IDEMPOTENT_METHODS,
 };

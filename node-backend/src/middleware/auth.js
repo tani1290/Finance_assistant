@@ -88,48 +88,4 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-/**
- * Optional authentication — does not fail if no token
- * Sets req.user if valid token exists, otherwise req.user is null
- */
-const optionalAuth = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      req.user = null;
-      return next();
-    }
-
-    const token = authHeader.split(' ')[1];
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: { id: true, email: true, username: true, firstName: true, role: true },
-      });
-      req.user = user || null;
-    } catch {
-      req.user = null;
-    }
-    next();
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Role-based authorization — use AFTER authenticate
- */
-const authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'You do not have permission to perform this action.' },
-      });
-    }
-    next();
-  };
-};
-
-module.exports = { authenticate, optionalAuth, authorize };
+module.exports = { authenticate };

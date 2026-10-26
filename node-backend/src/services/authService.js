@@ -272,5 +272,4 @@ module.exports = {
   refreshAccessToken,
   logout,
   deleteAccount,
-  sanitizeUser,
 };

@@ -32,7 +32,6 @@
 
 'use strict';
 
-const EXCLUDED_TYPES = Object.freeze(['TRANSFER', 'INVESTMENT', 'LOAN_PAYMENT']);
 const SPENDING_TYPES = Object.freeze(['EXPENSE', 'REFUND', 'REVERSAL']);
 
 /**
@@ -698,28 +697,22 @@ const signedTotal = (rows) =>
   );
 
 module.exports = {
-  EXCLUDED_TYPES,
   SPENDING_TYPES,
   signedSpendingAmount,
   signedTotal,
-  FORECAST_METHOD,
-  UNCATEGORIZED,
   toNumber,
   round2,
   round1,
   isRefund,
-  categoryLabelOf,
   getMonthBounds,
   daysInMonth,
   parsePeriodInput,
-  duplicateKeyOf,
   detectExactDuplicates,
   dedupeExact,
   summarize,
   monthOverMonth,
   forecast,
   normalizeThreshold,
-  budgetMatchesTransaction,
   evaluateBudgets,
   generateInsights,
 };

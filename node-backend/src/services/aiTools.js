@@ -2780,4 +2780,4 @@ const DECLARATIONS = TOOL_LIST.map(({ name, description, parameters }) => ({
   parameters,
 }));
 
-module.exports = { TOOL_LIST, TOOL_MAP, DECLARATIONS, pickAccount, emit };
+module.exports = { TOOL_LIST, TOOL_MAP, DECLARATIONS, emit };

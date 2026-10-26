@@ -111,4 +111,4 @@ const calculateHealthScore = ({
   return Math.max(0, Math.min(100, Math.round(score)));
 };
 
-module.exports = { calculateEMI, calculateTotalInterest, simulatePrepayment, calculateHealthScore };
+module.exports = { calculateEMI, simulatePrepayment, calculateHealthScore };

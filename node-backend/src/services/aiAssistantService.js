@@ -348,4 +348,4 @@ async function run(userId, userMessage, chatHistory = []) {
   return null;
 }
 
-module.exports = { run, executeTool };
+module.exports = { run };

@@ -397,22 +397,6 @@ async function cancelProposal(userId, token) {
 }
 
 /**
- * Backwards-compatible audit helper. It may only annotate a terminal proposal;
- * it can never attach a result to PENDING/EXECUTING or reopen a token.
- */
-async function recordResult(proposalId, summary) {
-  if (!proposalId) return;
-  try {
-    await prisma.aiActionProposal.updateMany({
-      where: { id: proposalId, status: { in: ['COMPLETED', 'FAILED', 'CONFIRMED'] } },
-      data: { resultSummary: String(summary || '').slice(0, 2000) },
-    });
-  } catch (err) {
-    console.warn('[AI-CONFIRM] Could not record result:', err.message);
-  }
-}
-
-/**
  * Read the current state of a proposal without changing it.
  *
  * This exists for one situation: the client sent a confirmation and the
@@ -465,9 +449,7 @@ async function getProposalStatus(userId, token) {
 }
 
 module.exports = {
-  TOKEN_TTL_MS,
   isMutatingTool,
-  describeAction,
   createProposal,
   beginExecution,
   consumeProposal,
@@ -475,6 +457,4 @@ module.exports = {
   failProposal,
   cancelProposal,
   getProposalStatus,
-  recordResult,
-  buildProposalMessage,
 };

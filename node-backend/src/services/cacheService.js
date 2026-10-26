@@ -634,8 +634,6 @@ const getStatus = () => ({
   stats: { ...state.stats },
 });
 
-const getMetrics = () => ({ ...state.stats, memoryEntries: state.memory.size });
-
 // ── Test seams (never used by production code) ───────────────────────────────
 
 const __setClientForTests = (client, options = {}) => {
@@ -682,7 +680,6 @@ module.exports = {
   init,
   shutdown,
   get,
-  getEntry,
   set,
   del,
   incr,
@@ -690,7 +687,6 @@ module.exports = {
   withCache,
   ping,
   getStatus,
-  getMetrics,
   isRedisAvailable,
   namespaceKey,
   __setClientForTests,

@@ -107,6 +107,4 @@ module.exports = {
   inputSanitizer,
   hppProtection,
   securityHeaders,
-  sanitizeString,
-  deepSanitize,
 };

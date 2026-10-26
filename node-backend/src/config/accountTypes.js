@@ -24,18 +24,6 @@ const ACCOUNT_TYPES = Object.freeze([
 
 const DEFAULT_ACCOUNT_TYPE = 'BANK';
 
-const ACCOUNT_TYPE_LABELS = Object.freeze({
-  BANK: 'Bank Account',
-  CASH: 'Cash',
-  WALLET: 'Wallet',
-  CREDIT_CARD: 'Credit Card',
-  CASH_WALLET: 'Cash Wallet',
-  CASH_IN_HAND: 'Cash in Hand',
-  SAVINGS: 'Savings Account',
-  CURRENT: 'Current Account',
-  OTHER: 'Other',
-});
-
 const ACCOUNT_TYPE_ERROR = `Account type must be one of: ${ACCOUNT_TYPES.join(', ')}.`;
 
 /**
@@ -61,8 +49,6 @@ function parseAccountType(raw, { defaultType = DEFAULT_ACCOUNT_TYPE } = {}) {
 
 module.exports = {
   ACCOUNT_TYPES,
-  ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPE_ERROR,
-  DEFAULT_ACCOUNT_TYPE,
   parseAccountType,
 };

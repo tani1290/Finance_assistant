@@ -220,5 +220,4 @@ module.exports = {
   render,
   snapshot,
   reset,
-  escapeLabelValue,
 };

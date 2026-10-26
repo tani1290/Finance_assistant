@@ -142,21 +142,6 @@ function stats() {
   };
 }
 
-/** Force-close every connection (used on graceful shutdown). */
-function closeAll() {
-  for (const set of clients.values()) {
-    for (const client of set) {
-      try {
-        client.res.end();
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-  clients.clear();
-  stopHeartbeat();
-}
-
 function ensureHeartbeat() {
   if (heartbeatTimer) return;
   heartbeatTimer = setInterval(() => {
@@ -189,6 +174,5 @@ module.exports = {
   currentSeq,
   serialize,
   stats,
-  closeAll,
   HEARTBEAT_MS,
 };

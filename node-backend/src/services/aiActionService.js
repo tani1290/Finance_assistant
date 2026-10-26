@@ -873,9 +873,5 @@ module.exports = {
   parseActionIntent,
   parseNaturalDate,
   inferCategory,
-  handleAddTransaction,
-  handleViewUserData,
-  handleDeleteTransaction,
-  handleEditTransaction,
   tryExecuteAction,
 };

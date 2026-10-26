@@ -2077,12 +2077,6 @@ module.exports = {
 
   // Technical Analysis
   getTechnicalIndicators,
-  fetchDailyCloses,
-  fetchSMA,
-  fetchEMA,
-  fetchRSI,
-  fetchMACD,
-  fetchBBands,
 
   // Fundamentals
   fetchCompanyOverview,
@@ -2091,11 +2085,9 @@ module.exports = {
   // Forex & Commodities
   fetchFXRate,
   fetchCommodity,
-  fetchLiveUSDINR,
 
   // Helpers
   isMarketOpen,
-  getISTTimestamp,
 
   // Session, validation & background worker (Phase 9 market reliability engine)
   getMarketSession,
