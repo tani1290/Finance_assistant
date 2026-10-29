@@ -39,8 +39,18 @@ const fail = (message) => {
   process.exitCode = 1;
 };
 
-const localUrl = (database) =>
-  `postgresql://${encodeURIComponent(USER)}@${HOST}:${PORT}/${encodeURIComponent(database)}`;
+// The drill builds its own local connection strings, so it must carry the
+// password from the environment when the server requires password auth. CI's
+// postgres service does; without this, connectionEnv() clears PGPASSWORD for the
+// child process and pg_dump fails with "fe_sendauth: no password supplied".
+const PASSWORD = process.env.PGPASSWORD || '';
+
+const localUrl = (database) => {
+  const credentials = PASSWORD
+    ? `${encodeURIComponent(USER)}:${encodeURIComponent(PASSWORD)}`
+    : encodeURIComponent(USER);
+  return `postgresql://${credentials}@${HOST}:${PORT}/${encodeURIComponent(database)}`;
+};
 
 const createdb = (database) => {
   const result = run('createdb', ['-h', HOST, '-p', PORT, database], { env: baseEnv, timeoutMs: 30000 });
