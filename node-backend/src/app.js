@@ -142,6 +142,7 @@ if (process.env.NODE_ENV !== 'test') {
   app.use('/api/', limiter);
   app.use('/api/v1/auth/login', authLimiter);
   app.use('/api/v1/auth/register', authLimiter);
+  app.use('/api/v1/auth/google', authLimiter);
 
   // Account deletion re-verifies the password, so it needs its own tight
   // failure budget instead of relying on the general API limiter.

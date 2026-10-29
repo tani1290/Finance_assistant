@@ -71,7 +71,7 @@ FinPro is a full-stack, enterprise-grade personal finance management and advisor
 - **Offline Resilience:** SharedPreferences secure token caching and local sync states.
 
 ### 2.5 Cloud, Authentication & Notifications
-- **Authentication:** Dual-token JWT (60m access token, 7d refresh token) with Bcrypt (10 salt rounds) password hashing; credentials are first-party email + password.
+- **Authentication:** Dual-token JWT (60m access token, 7d refresh token) with Bcrypt (10 salt rounds) password hashing. Supports first-party email + password alongside unified Google Authentication (Google Sign-In on Flutter, Google Identity Services on Web, verified by backend Firebase Admin SDK / Google Auth Library `verifyIdToken()`, linking existing email accounts and provisioning new users with primary accounts).
 - **Push Notifications:** Firebase Cloud Messaging (FCM) via Firebase Admin SDK, fed by a bounded in-process retry queue. Push is best-effort and degrades to "not sent" without failing the request; queued jobs are not durable across restarts.
 - **AI Core:** Google Gemini (`@google/generative-ai`) grounded in real user records; deterministic rule fallbacks when offline.
 - **OCR & Voice:** Tesseract.js receipt scanner & Web Speech API intent parser.

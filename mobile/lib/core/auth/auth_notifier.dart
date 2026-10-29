@@ -154,6 +154,91 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  /// Sign in using Google OAuth / Firebase ID token.
+  ///
+  /// Returns `true` if the session was established with FinPro,
+  /// `false` if cancelled or failed.
+  Future<bool> loginWithGoogle({String? explicitIdToken}) async {
+    state = AuthState.loading();
+    try {
+      String? idToken = explicitIdToken;
+      if (idToken == null) {
+        idToken = await FirebaseService.instance.signInWithGoogle();
+        if (idToken == null) {
+          // User cancelled the Google picker
+          state = AuthState.unauthenticated();
+          return false;
+        }
+      }
+
+      final response = await apiClient.post(
+        ApiEndpoints.googleAuth,
+        data: {'idToken': idToken},
+      );
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final data = response.data['data'];
+        if (data is! Map) {
+          state = AuthState.unauthenticated(
+            error: 'The server returned an invalid Google sign-in response.',
+          );
+          return false;
+        }
+
+        final accessToken = data['accessToken'];
+        final refreshToken = data['refreshToken'];
+        final userJson = data['user'];
+        if (accessToken is! String ||
+            accessToken.isEmpty ||
+            refreshToken is! String ||
+            refreshToken.isEmpty ||
+            userJson is! Map) {
+          state = AuthState.unauthenticated(
+            error: 'The server returned an invalid Google sign-in response.',
+          );
+          return false;
+        }
+
+        final user = UserModel.fromJson(Map<String, dynamic>.from(userJson));
+
+        await TokenStorage.saveTokens(
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          userId: user.id,
+          email: user.email,
+          name: user.fullName,
+        );
+
+        state = AuthState.authenticated(user);
+
+        // Firebase: register FCM token + analytics + set user ID
+        FirebaseService.instance.registerFcmToken();
+        FirebaseService.instance.setUserId(user.id);
+        FirebaseService.instance.logLogin(method: 'google');
+
+        return true;
+      } else {
+        final message = response.data is Map
+            ? (response.data['error'] is Map
+                ? response.data['error']['message']
+                : response.data['message'])
+            : null;
+        state = AuthState.unauthenticated(
+          error: message?.toString() ?? 'Google sign-in failed.',
+        );
+        return false;
+      }
+    } catch (e) {
+      state = AuthState.unauthenticated(
+        error: _extractErrorMessage(
+          e,
+          'Unable to complete Google sign-in. Please try again.',
+        ),
+      );
+      return false;
+    }
+  }
+
   Future<bool> register({
     required String username,
     required String email,

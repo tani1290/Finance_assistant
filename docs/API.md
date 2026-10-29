@@ -33,6 +33,8 @@
 |---|---|---|---|
 | `POST` | `/auth/register` | Public | Register a new user (`email`, `username`, `password`, `firstName`, `lastName`) |
 | `POST` | `/auth/login` | Public | Authenticate user & return `{ accessToken, refreshToken, user }` |
+| `POST` | `/auth/google` | Public | Authenticate with Google ID token (`idToken`); verifies token, links/provisions account & returns `{ accessToken, refreshToken, user }` |
+| `POST` | `/auth/google/link` | Protected | Link verified Google account (`idToken`) to authenticated user's account |
 | `POST` | `/auth/refresh` | Public | Issue new access token using valid `refreshToken` |
 | `POST` | `/auth/logout` | Protected | Invalidate and revoke refresh token in database |
 | `GET` | `/auth/me` | Protected | Retrieve authenticated user profile |
@@ -127,6 +129,7 @@ value is `400 VALIDATION_ERROR`. It defaults to `EXPENSE` when omitted.
   as income or expense by dashboard, budget, AI, or export aggregates.
 - The response includes `toAccount` (the destination account name) and, for a
   transfer, a destination-aware `message`.
+- **Insufficient Funds Enforcement:** All debit transactions (`EXPENSE`, `TRANSFER`, `INVESTMENT`, `LOAN_PAYMENT`) verify available account balance prior to mutation. If the debit amount exceeds the account's current balance, the request is rejected with HTTP `400 INSUFFICIENT_FUNDS` (`{ success: false, error: { code: 'INSUFFICIENT_FUNDS', message: '...' } }`). `CREDIT_CARD` accounts are exempt from insufficient-funds rejection (reflecting revolving credit limits). Incoming transactions (`INCOME`, `REFUND`) are never blocked. Transaction updates via `PATCH /transactions/:id` similarly enforce that net increases in debits do not overdraft the account.
 
 A transfer accepts an optional `idempotencyKey`: 8–128 characters from
 `A–Z a–z 0–9 . _ : -`. The key is scoped to the authenticated user and the

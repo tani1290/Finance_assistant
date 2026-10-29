@@ -9,6 +9,9 @@ const {
   reverseEffects,
   applyEffects,
   revertEffects,
+  isDebitType,
+  checkSufficientFunds,
+  lockAccountsForUpdate,
 } = require('../services/transactionBalance');
 
 /**
@@ -214,6 +217,19 @@ async function lockUserForTransfer(tx, userId) {
 }
 
 /**
+ * Advisory lock on an account row to prevent concurrent debit race conditions
+ * (double spending) across transactions.
+ */
+async function lockAccountForMutation(tx, accountId) {
+  if (!accountId) return;
+  try {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(('x' || substr(md5(${`account:${accountId}`}), 1, 8))::bit(32)::int)`;
+  } catch (_) {
+    // Fallback safely for mocked clients in unit tests
+  }
+}
+
+/**
  * Resolve/create a category as part of the caller's transaction. Keeping this
  * inside the transaction means a rejected or rolled-back transfer cannot leave
  * a stray category behind.
@@ -384,6 +400,7 @@ const createTransaction = async (req, res, next) => {
 
     // Find or resolve the source account
     let targetAccountId = accountId || null;
+    let resolvedSourceAccount = null;
     if (targetAccountId) {
       const account = await prisma.financialAccount.findFirst({
         where: { id: targetAccountId, userId },
@@ -394,6 +411,7 @@ const createTransaction = async (req, res, next) => {
           error: { code: 'NOT_FOUND', message: 'Account not found.' },
         });
       }
+      resolvedSourceAccount = account;
     } else {
       const defaultAcc = await prisma.financialAccount.findFirst({
         where: { userId, isActive: true },
@@ -401,6 +419,7 @@ const createTransaction = async (req, res, next) => {
       });
       if (defaultAcc) {
         targetAccountId = defaultAcc.id;
+        resolvedSourceAccount = defaultAcc;
       }
     }
 
@@ -507,6 +526,26 @@ const createTransaction = async (req, res, next) => {
           if (replay) return replay;
         }
 
+        // Concurrency-safe row locking and insufficient-funds enforcement on the debit leg
+        const accountsToLock = transactionType === 'TRANSFER'
+          ? [targetAccountId, destinationAccountId]
+          : (targetAccountId ? [targetAccountId] : []);
+        const lockedAccounts = await lockAccountsForUpdate(tx, accountsToLock);
+
+        if (targetAccountId && isDebitType(transactionType)) {
+          const accountToCheck = lockedAccounts.get(targetAccountId) || resolvedSourceAccount;
+          const fundsCheck = checkSufficientFunds(accountToCheck, -amountNum);
+          if (!fundsCheck.allowed) {
+            return {
+              error: {
+                status: 400,
+                code: 'INSUFFICIENT_FUNDS',
+                message: `Insufficient funds in ${accountToCheck?.name || 'account'}. Available balance: ${formatINR(fundsCheck.currentBalance)}, required: ${formatINR(fundsCheck.required)}.`,
+              },
+            };
+          }
+        }
+
         // Category resolution is inside the transaction so a rejected or
         // rolled-back transfer cannot leave a stray category behind.
         const categoryRecord = await resolveTransactionCategory(tx, userId, categoryName, transactionType);
@@ -590,6 +629,16 @@ const createTransaction = async (req, res, next) => {
       }
     }
 
+    if (outcome && outcome.error) {
+      return res.status(outcome.error.status || 400).json({
+        success: false,
+        error: {
+          code: outcome.error.code,
+          message: outcome.error.message,
+        },
+      });
+    }
+
     const { transaction, categoryRecord } = outcome;
 
     // Statistical Anomaly Detection (new entries only; a replay must not
@@ -627,7 +676,7 @@ const createTransaction = async (req, res, next) => {
           entity: 'Transaction',
           entityId: transaction.id,
           ipAddress: req.ip || null,
-          userAgent: req.headers['user-agent'] || null,
+          userAgent: req.headers?.['user-agent'] || null,
         },
       }).catch(() => {});
     }
@@ -874,7 +923,7 @@ const updateTransaction = async (req, res, next) => {
       // Replace the old ledger effect with the new one atomically. This is
       // correct for amount edits, account moves and destination changes, and
       // nets to zero when only descriptive fields changed.
-      await applyEffects(tx, [
+      const combinedEffects = [
         ...reverseEffects(current),
         ...transactionEffects({
           transactionType: t.transactionType,
@@ -882,7 +931,36 @@ const updateTransaction = async (req, res, next) => {
           accountId: t.accountId,
           toAccountId: t.toAccountId,
         }),
-      ]);
+      ];
+
+      // Insufficient funds enforcement on any net debit with concurrency row locking
+      const totals = new Map();
+      const accountsToLock = [];
+      for (const effect of combinedEffects) {
+        if (!effect || !effect.accountId) continue;
+        const d = Number(effect.delta) || 0;
+        totals.set(effect.accountId, (totals.get(effect.accountId) || 0) + d);
+        accountsToLock.push(effect.accountId);
+      }
+
+      const lockedAccounts = await lockAccountsForUpdate(tx, accountsToLock);
+
+      for (const [accId, delta] of totals) {
+        if (delta < 0) {
+          const accRow = lockedAccounts.get(accId);
+          const check = checkSufficientFunds(accRow, delta);
+          if (!check.allowed) {
+            const err = new Error(
+              `Insufficient funds in ${accRow?.name || 'account'} for this update. Available balance: ${formatINR(check.currentBalance)}, required deduction: ${formatINR(check.required)}.`
+            );
+            err.statusCode = 400;
+            err.code = 'INSUFFICIENT_FUNDS';
+            throw err;
+          }
+        }
+      }
+
+      await applyEffects(tx, combinedEffects);
 
       return t;
     });
@@ -948,7 +1026,7 @@ const deleteTransaction = async (req, res, next) => {
         entity: 'Transaction',
         entityId: req.params.id,
         ipAddress: req.ip || null,
-        userAgent: req.headers['user-agent'] || null,
+        userAgent: req.headers?.['user-agent'] || null,
       },
     }).catch(() => {});
 

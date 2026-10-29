@@ -266,9 +266,269 @@ const sanitizeUser = (user) => ({
   createdAt: user.createdAt,
 });
 
+/**
+ * Verify Google ID token or Firebase ID token.
+ * Supports:
+ * 1. Firebase ID token via Firebase Admin SDK.
+ * 2. Google OAuth ID token via Google OAuth2Client.
+ */
+const verifyGoogleToken = async (idToken) => {
+  if (!idToken || typeof idToken !== 'string') {
+    throw Object.assign(new Error('idToken is required.'), { statusCode: 400, code: 'VALIDATION_ERROR' });
+  }
+
+  const trimmedToken = idToken.trim();
+  let verified = null;
+
+  // 1. Try Firebase Admin ID token verification first
+  try {
+    const admin = require('firebase-admin');
+    const { getAuth } = require('firebase-admin/auth');
+
+    const apps = admin.getApps ? admin.getApps() : (admin.apps || []);
+    if (!apps.length) {
+      const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      const projectId = process.env.FIREBASE_PROJECT_ID || 'minor-finance';
+
+      if (serviceAccountJson && serviceAccountJson !== 'YOUR_FIREBASE_SERVICE_ACCOUNT_JSON') {
+        const serviceAccount = JSON.parse(serviceAccountJson);
+        const cred = admin.cert ? admin.cert(serviceAccount) : (admin.credential && admin.credential.cert ? admin.credential.cert(serviceAccount) : undefined);
+        admin.initializeApp({ ...(cred ? { credential: cred } : {}), projectId: serviceAccount.project_id || projectId });
+      } else {
+        admin.initializeApp({ projectId });
+      }
+    }
+
+    const decoded = await getAuth().verifyIdToken(trimmedToken);
+    const googleSub = decoded.firebase?.identities?.['google.com']?.[0] || decoded.sub || decoded.uid;
+    verified = {
+      uid: googleSub,
+      email: (decoded.email || '').toLowerCase().trim(),
+      emailVerified: Boolean(decoded.email_verified),
+      name: decoded.name || '',
+      picture: decoded.picture || null,
+      provider: 'firebase',
+    };
+  } catch (firebaseErr) {
+    // 2. If Firebase verification fails, try Google OAuth ID token verification
+    try {
+      const { OAuth2Client } = require('google-auth-library');
+      const client = new OAuth2Client();
+      const ticket = await client.verifyIdToken({
+        idToken: trimmedToken,
+        audience: [
+          process.env.GOOGLE_CLIENT_ID,
+          '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
+          '1024776311502-02qf5999j49r784gao2nvqjjoi2avvbg.apps.googleusercontent.com',
+          '1024776311502-p48ego8rv07r8oe9d8p5g5n8jirb9kkh.apps.googleusercontent.com',
+        ].filter(Boolean),
+      });
+      const payload = ticket.getPayload();
+      if (payload) {
+        verified = {
+          uid: payload.sub,
+          email: (payload.email || '').toLowerCase().trim(),
+          emailVerified: Boolean(payload.email_verified),
+          name: payload.name || '',
+          picture: payload.picture || null,
+          provider: 'google',
+        };
+      }
+    } catch (googleErr) {
+      throw Object.assign(
+        new Error('Invalid, expired or unverified Google token.'),
+        { statusCode: 401, code: 'INVALID_TOKEN' }
+      );
+    }
+  }
+
+  if (!verified || !verified.email || !verified.emailVerified) {
+    throw Object.assign(
+      new Error('Google email is required and must be verified by Google.'),
+      { statusCode: 400, code: 'UNVERIFIED_EMAIL' }
+    );
+  }
+
+  return verified;
+};
+
+/**
+ * Authenticate or register a user via Google identity token
+ */
+const googleLogin = async ({ idToken }) => {
+  const verified = await verifyGoogleToken(idToken);
+  const { uid, email, name, picture } = verified;
+
+  // 1. Check if user already exists with this googleId
+  let user = await prisma.user.findFirst({
+    where: { googleId: uid },
+  });
+
+  let isNewUser = false;
+
+  if (!user) {
+    // 2. Check if a user exists with this verified email
+    const existingUser = await prisma.user.findFirst({
+      where: { email },
+    });
+
+    if (existingUser) {
+      // Security Policy: Reject collision if already linked to a different Google account
+      if (existingUser.googleId && existingUser.googleId !== uid) {
+        throw Object.assign(
+          new Error('This email address is already associated with another Google account.'),
+          { statusCode: 409, code: 'ACCOUNT_LINK_CONFLICT' }
+        );
+      }
+
+      // Security Policy: Prevent Pre-Account Takeover (Pre-ATO).
+      // If the account has a password, do not automatically link on unauthenticated OAuth sign-in.
+      // The user must sign in with their password first or link from an authenticated session.
+      if (existingUser.password !== null) {
+        throw Object.assign(
+          new Error('An account with this email already exists with password login. Please sign in with your email and password to access or link your account.'),
+          { statusCode: 409, code: 'ACCOUNT_EXISTS_WITH_PASSWORD' }
+        );
+      }
+
+      // Safe linking: Existing passwordless OAuth user without googleId set
+      user = await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          googleId: uid,
+          ...(picture && !existingUser.avatarUrl ? { avatarUrl: picture } : {}),
+        },
+      });
+    } else {
+      // 3. First-time Google user: Create new account
+      isNewUser = true;
+      let baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '') || 'user';
+      let username = baseUsername;
+      let counter = 1;
+      while (await prisma.user.findUnique({ where: { username } })) {
+        username = `${baseUsername}${counter++}`;
+      }
+
+      const nameParts = (name || '').trim().split(/\s+/);
+      const firstName = nameParts[0] || username;
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      user = await prisma.user.create({
+        data: {
+          email,
+          username,
+          firstName,
+          lastName,
+          googleId: uid,
+          avatarUrl: picture,
+          password: null, // passwordless OAuth user
+        },
+      });
+
+      // Default profile records
+      await prisma.profile.create({ data: { userId: user.id } }).catch(() => {});
+      await prisma.financialProfile.create({
+        data: {
+          userId: user.id,
+          monthlySalary: 0,
+          estimatedMonthlyExpenses: 0,
+          currentSavings: 0,
+          totalDebt: 0,
+        },
+      }).catch(() => {});
+      await prisma.financialAccount.create({
+        data: {
+          userId: user.id,
+          name: 'Primary Account',
+          accountType: 'BANK',
+          balance: 0,
+          currency: 'INR',
+        },
+      });
+    }
+  }
+
+  if (!user.isActive) {
+    throw Object.assign(new Error('This account has been deactivated. Please contact support.'), {
+      statusCode: 403,
+      code: 'ACCOUNT_DEACTIVATED',
+    });
+  }
+
+  // Update last login
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  }).catch(() => {});
+
+  const { accessToken, refreshToken } = generateTokens(user.id);
+  await storeRefreshToken(user.id, refreshToken);
+
+  return {
+    user: sanitizeUser(user),
+    accessToken,
+    refreshToken,
+    isNewUser,
+  };
+};
+
+/**
+ * Explicitly link a verified Google account to an authenticated user's profile
+ */
+const linkGoogleAccount = async (userId, { idToken }) => {
+  const verified = await verifyGoogleToken(idToken);
+  const { uid, email } = verified;
+
+  const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+  if (!currentUser || !currentUser.isActive) {
+    throw Object.assign(new Error('User not found or account deactivated.'), {
+      statusCode: 404,
+      code: 'USER_NOT_FOUND',
+    });
+  }
+
+  if (currentUser.googleId === uid) {
+    return { user: sanitizeUser(currentUser), alreadyLinked: true };
+  }
+
+  if (currentUser.googleId && currentUser.googleId !== uid) {
+    throw Object.assign(new Error('This FINpro account is already linked to a different Google account.'), {
+      statusCode: 409,
+      code: 'ACCOUNT_LINK_CONFLICT',
+    });
+  }
+
+  // Ensure verified Google email matches this account's email
+  if (currentUser.email.toLowerCase() !== email.toLowerCase()) {
+    throw Object.assign(new Error('Google account email does not match your FINpro email address.'), {
+      statusCode: 400,
+      code: 'EMAIL_MISMATCH',
+    });
+  }
+
+  // Check if this Google ID is already claimed by another user
+  const conflictUser = await prisma.user.findFirst({ where: { googleId: uid } });
+  if (conflictUser && conflictUser.id !== userId) {
+    throw Object.assign(new Error('This Google account is already linked to another FINpro user.'), {
+      statusCode: 409,
+      code: 'ACCOUNT_LINK_CONFLICT',
+    });
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: { googleId: uid },
+  });
+
+  return { user: sanitizeUser(updatedUser), linked: true };
+};
+
 module.exports = {
   register,
   login,
+  googleLogin,
+  linkGoogleAccount,
+  verifyGoogleToken,
   refreshAccessToken,
   logout,
   deleteAccount,

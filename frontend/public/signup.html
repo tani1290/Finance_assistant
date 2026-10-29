@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -218,6 +219,28 @@
         <p class="terms">By signing up, you agree to our <a href="/terms.html">Terms of Service</a> and <a href="/privacy.html">Privacy Policy</a>.</p>
       </form>
 
+      <div class="auth-divider" style="display:flex;align-items:center;margin:20px 0;gap:12px;color:var(--text-muted);font-size:12px;font-weight:600;">
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+        <span>OR</span>
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+
+      <div id="g_id_onload"
+           data-client_id="1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com"
+           data-callback="handleGoogleCredentialResponse"
+           data-auto_prompt="false">
+      </div>
+      <div class="g_id_signin"
+           data-type="standard"
+           data-size="large"
+           data-theme="outline"
+           data-text="signup_with"
+           data-shape="rectangular"
+           data-logo_alignment="left"
+           data-width="390"
+           style="display:flex;justify-content:center;">
+      </div>
+
     </div>
 
     <div class="auth-footer">
@@ -265,6 +288,38 @@
       inp.type = inp.type === 'password' ? 'text' : 'password';
       icon.className = inp.type === 'password' ? 'ri-eye-line' : 'ri-eye-off-line';
     });
+
+    // Google Credential Response
+    async function handleGoogleCredentialResponse(response) {
+      if (!response || !response.credential) return;
+      setLoading(true);
+      clearAlert();
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/google`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: response.credential }),
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          localStorage.setItem('jf_access_token', data.data.accessToken);
+          localStorage.setItem('jf_refresh_token', data.data.refreshToken);
+          localStorage.setItem('jf_user', JSON.stringify(data.data.user));
+
+          showAlert('success', 'Account signed in! Redirecting to dashboard...');
+          setTimeout(() => { window.location.href = '/dashboard.html'; }, 800);
+        } else {
+          showAlert('error', data.error?.message || data.message || 'Google sign-up failed. Please try again.');
+        }
+      } catch (err) {
+        showAlert('error', 'Unable to complete Google sign-up. Is the backend running on port 5001?');
+      } finally {
+        setLoading(false);
+      }
+    }
 
     // Form submit
     document.getElementById('signupForm').addEventListener('submit', async (e) => {

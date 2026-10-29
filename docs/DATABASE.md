@@ -138,3 +138,35 @@ Verify after a deploy:
 cd node-backend
 npm run db:reconcile:strict     # exits 1 if the schema could not be reconciled
 ```
+
+---
+
+## 5. PostgreSQL Lifecycle, Continuity & Disaster Recovery
+
+### 5.1 Render Free-Tier Expiry Notice
+Render free PostgreSQL instances are ephemeral and subjected to an expiration date (historically scheduled for November 11, 2026). Upon expiration, Render suspends the instance and deletes all database files after a 14-day grace period unless upgraded.
+
+### 5.2 Backup Automation & Verification
+To ensure business continuity and zero data loss:
+1. **Automated Remote Backups:** GitHub Actions workflow `.github/workflows/backup.yml` is configured to run daily.
+   - Required Repository Secrets: `BACKUP_DATABASE_URL`, `BACKUP_ENCRYPTION_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`.
+   - Required Variables: `BACKUP_S3_BUCKET`, `BACKUP_ENABLED=true`.
+2. **Local Encrypted Backups:**
+   ```bash
+   npm --prefix node-backend run backup:encrypted
+   ```
+   Uses AES-256-GCM encryption with SHA-256 integrity validation and stores a timestamped manifest alongside the encrypted payload.
+3. **Isolated Test Restoration:**
+   ```bash
+   npm --prefix node-backend run verify:backup:restore
+   ```
+   Restores the latest backup into a temporary scratch database, verifies record counts and relationships, and cleanly tears down the scratch database without mutating production.
+
+### 5.3 Database Migration / Cutover Plan
+When migrating from Render free tier to a paid instance or alternate cloud provider (e.g., Supabase, Neon, or AWS RDS):
+1. Create new PostgreSQL instance (PostgreSQL 16+).
+2. Take a final consistent backup using `node scripts/backup-db.js --remote`.
+3. Restore into the destination database using `TARGET_DATABASE_URL=<new_db_url> node scripts/restore-db.js --file <latest_backup>`.
+4. Validate schema and constraints: `DATABASE_URL=<new_db_url> npm run db:reconcile:strict`.
+5. Update `DATABASE_URL` in the Render Web Service environment settings and trigger a redeploy.
+6. Verify service health at `/health` and verify transaction integrity.

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../firebase_options.dart';
@@ -177,6 +178,53 @@ class FirebaseService {
     await auth.sendPasswordResetEmail(email: email.trim());
   }
 
+  /// Authenticate using native Google Sign-In and return a verified identity token.
+  /// Returns `null` if the user dismissed or cancelled the account picker.
+  Future<String?> signInWithGoogle({GoogleSignIn? customGoogleSignIn}) async {
+    try {
+      final googleSignIn = customGoogleSignIn ??
+          GoogleSignIn(
+            serverClientId:
+                '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
+            scopes: ['email', 'profile'],
+          );
+
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        logDebug('[GoogleAuth] User cancelled Google sign-in dialog.');
+        return null;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Attempt Firebase credential sign-in if Firebase is active
+      try {
+        final OAuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        final userCredential = await auth.signInWithCredential(credential);
+        final firebaseToken = await userCredential.user?.getIdToken();
+        if (firebaseToken != null && firebaseToken.isNotEmpty) {
+          return firebaseToken;
+        }
+      } catch (fbErr) {
+        logDebug('[GoogleAuth] Firebase credential note: $fbErr');
+      }
+
+      // Fallback: return direct Google ID token
+      if (googleAuth.idToken != null && googleAuth.idToken!.isNotEmpty) {
+        return googleAuth.idToken;
+      }
+
+      throw Exception('Failed to retrieve authentication token from Google.');
+    } catch (e, stackTrace) {
+      recordError(e, stackTrace, reason: 'Google sign-in');
+      rethrow;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Firebase Messaging
   // ---------------------------------------------------------------------------
@@ -332,6 +380,12 @@ class FirebaseService {
       // Local sign-out is the source of truth for the app session. Firebase
       // failures must not block clearing app tokens.
       logDebug('[Firebase] Firebase sign-out failed.');
+    }
+
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {
+      logDebug('[GoogleAuth] Google sign-out completed or not signed in.');
     }
   }
 }

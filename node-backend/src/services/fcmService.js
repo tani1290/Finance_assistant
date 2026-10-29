@@ -28,9 +28,11 @@ const initFirebase = () => {
 
     const serviceAccount = JSON.parse(serviceAccountJson);
 
-    if (!admin.apps.length) {
+    const apps = admin.getApps ? admin.getApps() : (admin.apps || []);
+    if (!apps.length) {
+      const credential = admin.cert ? admin.cert(serviceAccount) : (admin.credential && admin.credential.cert ? admin.credential.cert(serviceAccount) : undefined);
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+        ...(credential ? { credential } : {}),
       });
     }
 

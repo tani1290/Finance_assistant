@@ -4,6 +4,8 @@ const auth = require('../controllers/authController');
 
 router.post('/register', auth.register);
 router.post('/login', auth.login);
+router.post('/google', auth.googleLogin);
+router.post('/google/link', require('../middleware/auth').authenticate, auth.linkGoogle);
 router.post('/refresh', auth.refresh);
 router.post('/logout', auth.logout);
 router.get('/me', require('../middleware/auth').authenticate, auth.getMe);

@@ -94,6 +94,47 @@ const login = async (req, res, next) => {
 };
 
 /**
+ * POST /api/v1/auth/google
+ */
+const googleLogin = async (req, res, next) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken || typeof idToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'idToken is required.' },
+      });
+    }
+
+    const result = await authService.googleLogin({ idToken });
+
+    // Audit Log
+    await prisma.auditLog.create({
+      data: {
+        userId: result.user.id,
+        action: result.isNewUser ? 'USER_REGISTER_GOOGLE' : 'USER_LOGIN_GOOGLE',
+        entity: 'User',
+        entityId: result.user.id,
+        ipAddress: req.ip || null,
+        userAgent: req.headers['user-agent'] || null,
+      },
+    }).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        message: result.isNewUser ? 'Welcome to FinPro!' : 'Google sign-in successful!',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /api/v1/auth/refresh
  */
 const refresh = async (req, res, next) => {
@@ -296,9 +337,52 @@ const deleteAccount = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/v1/auth/google/link
+ */
+const linkGoogle = async (req, res, next) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken || typeof idToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'idToken is required.' },
+      });
+    }
+
+    const result = await authService.linkGoogleAccount(req.user.id, { idToken });
+
+    // Audit Log
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'USER_LINK_GOOGLE',
+        entity: 'User',
+        entityId: req.user.id,
+        ipAddress: req.ip || null,
+        userAgent: req.headers['user-agent'] || null,
+      },
+    }).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        user: result.user,
+        message: result.alreadyLinked
+          ? 'Google account already linked.'
+          : 'Google account linked successfully!',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
+  googleLogin,
+  linkGoogle,
   refresh,
   logout,
   getMe,

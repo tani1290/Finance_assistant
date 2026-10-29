@@ -904,6 +904,13 @@ const TOOL_LIST = [
       const categoryName = a.category || inferCategory(`${description || ''} ${merchant || ''}`, transactionType);
       const date = toDate(a.date);
 
+      const accountPre = await pickAccount(userId, a.account);
+      if (accountPre && (transactionType === 'EXPENSE' || transactionType === 'INVESTMENT' || transactionType === 'LOAN_PAYMENT')) {
+        if (accountPre.accountType !== 'CREDIT_CARD' && accountPre.balance != null && num(accountPre.balance) < amount) {
+          return fail(`Insufficient funds in ${accountPre.name}. Available balance is ${inr(accountPre.balance)}, but transaction requires ${inr(amount)}.`);
+        }
+      }
+
       const result = await prisma.$transaction(async (tx) => {
         const account = await pickAccount(userId, a.account, tx);
         const category = await pickCategory(tx, userId, categoryName, transactionType);
@@ -1079,6 +1086,9 @@ const TOOL_LIST = [
       const to = await pickAccount(userId, a.toAccount);
       if (!from || !to) return fail('Could not resolve both accounts.');
       if (from.id === to.id) return fail('Source and destination must differ.');
+      if (from.accountType !== 'CREDIT_CARD' && from.balance != null && num(from.balance) < amount) {
+        return fail(`Insufficient funds in ${from.name}. Available balance is ${inr(from.balance)}, but transfer requires ${inr(amount)}.`);
+      }
 
       await prisma.$transaction(async (tx) => {
         const category = await pickCategory(tx, userId, 'Transfer', 'TRANSFER');

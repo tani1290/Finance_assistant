@@ -78,9 +78,20 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // ── Insufficient Funds Error (400) ──
+  if (err.code === 'INSUFFICIENT_FUNDS' || (err.message && err.message.toLowerCase().includes('insufficient funds'))) {
+    return res.status(err.statusCode || err.status || 400).json({
+      success: false,
+      error: {
+        code: 'INSUFFICIENT_FUNDS',
+        message: err.message || 'Insufficient funds in the selected account.',
+      },
+    });
+  }
+
   // ── Insufficient Credits Error ──
   if (err.code === 'INSUFFICIENT_CREDITS' ||
-      (err.message && (err.message.toLowerCase().includes('insufficient') || err.message.toLowerCase().includes('credits')))) {
+      (err.message && err.message.toLowerCase().includes('insufficient credits'))) {
     return res.status(402).json({
       success: false,
       error: {
