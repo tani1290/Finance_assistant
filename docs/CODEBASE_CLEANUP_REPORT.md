@@ -464,11 +464,14 @@ the two lockfiles). Actual hand-edited source reduction is **291 lines across 18
   documentation file was deleted or altered.
 - **Deployment:** no manual deploy was triggered. The Render service
   `finpro-finance-ai` (`srv-db5sb1vavr4c739td7d0`) tracks `main` with
-  `autoDeploy: yes` / `autoDeployTrigger: commit`, so the push to `main` can start an
-  automatic build/deploy of `938cbf9`. That is a consequence of the authorized push,
-  not an additional action: no Render or Vercel CLI deploy, blueprint sync,
-  environment-variable edit or database migration was issued from this session. The
-  last release observed before the push was `b9c054c` / `dep-dbflt99srm7s73ff9bp0`.
+  `autoDeploy: yes` / `autoDeployTrigger: commit`, so a push to `main` can start an
+  automatic build/deploy. After the push, `render deploys list` still reported
+  `dep-dbflt99srm7s73ff9bp0` (commit `b9c054c`) as the newest deploy — no new deploy
+  for `938cbf9` or `8757a4f` had been created at the time of checking — and
+  `GET /api/v1/health/live` returned HTTP 200. No Render or Vercel CLI deploy,
+  blueprint sync, environment-variable edit or database migration was issued from
+  this session. If Render later picks up the commit, it will build `8757a4f` (the
+  docs-only report update on top of the verified `938cbf9` code).
 - **This §9 status is itself recorded in a docs-only follow-up commit** on top of
   `938cbf9`; `git log -1 -- docs/CODEBASE_CLEANUP_REPORT.md` gives its hash. It changes
   documentation only and does not affect the verified code state above.
