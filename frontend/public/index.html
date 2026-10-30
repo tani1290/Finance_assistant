@@ -22,7 +22,7 @@
       --text-secondary: #475569;
       --text-muted: #64748b;
       --text-light: #94a3b8;
-      
+
       --primary: #059669;
       --primary-hover: #047857;
       --primary-light: #ecfdf5;
@@ -1062,7 +1062,67 @@
       .section-wrap { padding: 56px 16px; }
       .trust-bullets { flex-direction: column; gap: 8px; }
     }
+
+    :root.dark-mode, :root:not(.light-mode) {
+      color-scheme: dark;
+      --bg: #0c0f1a;
+      --surface: #141825;
+      --surface-subtle: #1c2035;
+      --border: #2a2f45;
+      --border-subtle: #252a40;
+      --text: #e8ecf4;
+      --text-secondary: #cbd5e1;
+      --text-muted: #8b95b0;
+      --text-light: #5e6880;
+    }
+    :root.dark-mode .nav-brand, :root:not(.light-mode) .nav-brand { color: #e8ecf4; }
+    :root.dark-mode nav, :root:not(.light-mode) nav { background: rgba(20,24,37,0.88); border-color: #2a2f45; }
+    :root.dark-mode .nav-link, :root:not(.light-mode) .nav-link { color: #cbd5e1; }
+    :root.dark-mode .nav-link:hover, :root:not(.light-mode) .nav-link:hover { color: #10b981; }
+    :root.dark-mode .btn-ghost, :root:not(.light-mode) .btn-ghost { color: #e8ecf4; }
+    :root.dark-mode .hero-card, :root.dark-mode .feature-card, :root.dark-mode .step-card, :root.dark-mode .calc-card,
+    :root:not(.light-mode) .hero-card, :root:not(.light-mode) .feature-card, :root:not(.light-mode) .step-card, :root:not(.light-mode) .calc-card {
+      background: #141825;
+      border-color: #2a2f45;
+      color: #e8ecf4;
+    }
+    :root.dark-mode .faq-item, :root:not(.light-mode) .faq-item {
+      background: #141825;
+      border-color: #2a2f45;
+    }
+    :root.dark-mode .faq-question, :root:not(.light-mode) .faq-question {
+      color: #e8ecf4;
+    }
+    :root.dark-mode .calc-input, :root:not(.light-mode) .calc-input {
+      background: #1c2035;
+      color: #e8ecf4;
+      border-color: #2a2f45;
+    }
+    :root.dark-mode footer, :root:not(.light-mode) footer {
+      background: #090c14;
+      border-color: #2a2f45;
+    }
+    .landing-theme-toggle {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.2s;
+    }
+    .landing-theme-toggle:hover {
+      background: var(--surface-subtle);
+      color: var(--text);
+    }
+
   </style>
+  <script src="/assets/js/theme.js"></script>
 </head>
 <body>
 
@@ -1562,7 +1622,7 @@
       btn.addEventListener('click', () => {
         const item = btn.parentElement;
         const isActive = item.classList.contains('active');
-        
+
         // Close others
         document.querySelectorAll('.faq-item').forEach(other => other.classList.remove('active'));
 

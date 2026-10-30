@@ -63,7 +63,76 @@
     .skip-link:hover{color:var(--primary)}
     .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
+
+    :root.dark-mode, :root:not(.light-mode) {
+      color-scheme: dark;
+      --surface: #141825;
+      --border: #2a2f45;
+      --text: #e8ecf4;
+      --muted: #8b95b0;
+    }
+    :root.dark-mode body, :root:not(.light-mode) body {
+      background: #0c0f1a;
+      color: #e8ecf4;
+    }
+    :root.dark-mode .card, :root:not(.light-mode) .card {
+      background: #141825;
+      border-color: #2a2f45;
+      box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.4);
+    }
+    :root.dark-mode .form-input, :root:not(.light-mode) .form-input {
+      background: #1c2035;
+      color: #e8ecf4;
+      border-color: #2a2f45;
+    }
+    :root.dark-mode .option-btn, :root:not(.light-mode) .option-btn {
+      background: #1c2035;
+      color: #e8ecf4;
+      border-color: #2a2f45;
+    }
+    :root.dark-mode .step, :root:not(.light-mode) .step {
+      background: #2a2f45;
+    }
+    .custom-budget-panel {
+      margin-top: 14px;
+      padding: 16px;
+      background: var(--surface-2, rgba(16, 185, 129, 0.04));
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .custom-cat-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .custom-cat-name { flex: 2; }
+    .custom-cat-pct { flex: 1; min-width: 70px; }
+    .custom-cat-remove {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      padding: 6px;
+      font-size: 16px;
+      border-radius: 6px;
+    }
+    .custom-cat-remove:hover { background: rgba(239, 68, 68, 0.1); }
+    .custom-total-badge {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+    .custom-total-badge.valid { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .custom-total-badge.invalid { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
   </style>
+  <script src="/assets/js/theme.js"></script>
 </head>
 <body>
   <div class="container">
@@ -80,7 +149,7 @@
       <h1 id="stepTitle">Tell us about yourself</h1>
       <p class="subtitle" id="stepSub">We'll personalize your financial plan</p>
     </div>
-    
+
     <div class="card">
       <!-- Step 1: Basic Info -->
       <div id="step1">
@@ -113,7 +182,7 @@
           <input type="number" id="currentSavings" class="form-input" placeholder="100000" min="0">
         </div>
       </div>
-      
+
       <!-- Step 2: Debt & Investments -->
       <div id="step2" style="display:none">
         <div class="form-group">
@@ -136,13 +205,23 @@
             <button class="option-btn" data-val="CUSTOM" onclick="select('budgetGroup',this)">Custom</button>
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Top Financial Priorities (optional)</label>
-          <input type="text" id="priorities" class="form-input" placeholder="e.g. Emergency fund, Home purchase, Retirement">
-          <p class="hint">Separate with commas</p>
+        <div id="customBudgetContainer" class="custom-budget-panel" style="display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <span style="font-size:13px;font-weight:600;color:var(--text);">Custom Budget Allocations</span>
+            <button type="button" class="btn-back" style="padding:4px 8px;font-size:11px;" onclick="resetCustomBudget()">Reset Defaults</button>
+          </div>
+          <div id="customCategoriesList"></div>
+          <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;">
+            <button type="button" class="btn-back" style="padding:6px 12px;font-size:12px;display:inline-flex;" onclick="addCustomCategory()"><i class="ri-add-line"></i> Add Category</button>
+            <div id="customTotalBadge" class="custom-total-badge valid">
+              <span>Total: <strong id="customTotalDisplay">100%</strong></span>
+            </div>
+          </div>
+          <div id="customBudgetError" style="color:#ef4444;font-size:12px;margin-top:6px;display:none;"></div>
         </div>
+
       </div>
-      
+
       <!-- Step 3: Goals -->
       <div id="step3" style="display:none">
         <p style="font-size:13px;color:#94a3b8;margin-bottom:20px;line-height:1.6">Almost done! Your financial plan is ready to generate. We'll create a personalized plan based on your inputs.</p>
@@ -159,7 +238,7 @@
         </div>
         <div id="submitResult" style="display:none;padding:16px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:12px;font-size:13px;color:#6ee7b7;margin-top:16px;"></div>
       </div>
-      
+
       <div class="btn-nav">
         <button class="btn-back" id="backBtn" style="display:none" onclick="prevStep()">← Back</button>
         <button class="btn-next" id="nextBtn" onclick="nextStep()">
@@ -167,40 +246,132 @@
           <div class="spinner" id="nextSpinner" style="display:none;"></div>
         </button>
       </div>
-      
+
       <a class="skip-link" id="skipLink" onclick="skipOnboarding()">Skip for now — I'll set this up later</a>
     </div>
   </div>
-  
+
   <script>
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const API_BASE = (!isLocal || window.location.origin.includes(':5001')) ? '/api/v1' : 'http://127.0.0.1:5001/api/v1';
-    
+
     const token = localStorage.getItem('jf_access_token');
     if (!token) window.location.href = '/login.html';
-    
+
+
+    // Custom Budget Categories State
+    const defaultCustomCategories = [
+      { name: 'Needs', percentage: 50 },
+      { name: 'Wants', percentage: 30 },
+      { name: 'Savings & Investments', percentage: 20 },
+    ];
+    let customCategories = JSON.parse(localStorage.getItem('jf_custom_budget') || 'null') || JSON.parse(JSON.stringify(defaultCustomCategories));
+
+    function renderCustomCategories() {
+      const listEl = document.getElementById('customCategoriesList');
+      if (!listEl) return;
+      listEl.innerHTML = '';
+      customCategories.forEach((cat, idx) => {
+        const row = document.createElement('div');
+        row.className = 'custom-cat-row';
+        row.innerHTML = `
+          <input type="text" class="form-input custom-cat-name" value="${cat.name}" placeholder="Category name" oninput="updateCustomCatName(${idx}, this.value)">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <input type="number" class="form-input custom-cat-pct" value="${cat.percentage}" min="0" max="100" step="1" oninput="updateCustomCatPct(${idx}, this.value)">
+            <span style="font-size:13px;color:var(--muted);">%</span>
+          </div>
+          <button type="button" class="custom-cat-remove" title="Remove" onclick="removeCustomCategory(${idx})"><i class="ri-delete-bin-line"></i></button>
+        `;
+        listEl.appendChild(row);
+      });
+      validateCustomBudget();
+    }
+
+    function updateCustomCatName(idx, name) {
+      customCategories[idx].name = name;
+      localStorage.setItem('jf_custom_budget', JSON.stringify(customCategories));
+    }
+
+    function updateCustomCatPct(idx, val) {
+      const num = Math.max(0, parseFloat(val) || 0);
+      customCategories[idx].percentage = num;
+      localStorage.setItem('jf_custom_budget', JSON.stringify(customCategories));
+      validateCustomBudget();
+    }
+
+    function addCustomCategory() {
+      customCategories.push({ name: 'Other', percentage: 0 });
+      renderCustomCategories();
+      localStorage.setItem('jf_custom_budget', JSON.stringify(customCategories));
+    }
+
+    function removeCustomCategory(idx) {
+      if (customCategories.length <= 1) {
+        alert('You must have at least one budget category.');
+        return;
+      }
+      customCategories.splice(idx, 1);
+      renderCustomCategories();
+      localStorage.setItem('jf_custom_budget', JSON.stringify(customCategories));
+    }
+
+    function resetCustomBudget() {
+      customCategories = JSON.parse(JSON.stringify(defaultCustomCategories));
+      renderCustomCategories();
+      localStorage.setItem('jf_custom_budget', JSON.stringify(customCategories));
+    }
+
+    function validateCustomBudget() {
+      const total = customCategories.reduce((acc, c) => acc + (parseFloat(c.percentage) || 0), 0);
+      const badge = document.getElementById('customTotalBadge');
+      const display = document.getElementById('customTotalDisplay');
+      const errEl = document.getElementById('customBudgetError');
+      if (display) display.textContent = `${total}%`;
+
+      const isValid = Math.abs(total - 100) < 0.01;
+      if (badge) {
+        badge.className = `custom-total-badge ${isValid ? 'valid' : 'invalid'}`;
+      }
+      if (errEl) {
+        if (!isValid) {
+          errEl.style.display = 'block';
+          errEl.textContent = total < 100 ? `Total is ${total}%. Please add ${100 - total}% more.` : `Total is ${total}%. Please reduce by ${total - 100}%.`;
+        } else {
+          errEl.style.display = 'none';
+        }
+      }
+      return isValid;
+    }
+
     let currentStep = 1;
     const totalSteps = 3;
     let riskVal = 'MODERATE', budgetVal = 'FIFTY_THIRTY_TWENTY', goalVal = 'HOME';
-    
+
     function select(groupId, btn) {
       document.querySelectorAll(`#${groupId} .option-btn`).forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
       if (groupId === 'riskGroup') riskVal = btn.dataset.val;
-      else if (groupId === 'budgetGroup') budgetVal = btn.dataset.val;
+      else if (groupId === 'budgetGroup') {
+        budgetVal = btn.dataset.val;
+        const panel = document.getElementById('customBudgetContainer');
+        if (panel) {
+          panel.style.display = budgetVal === 'CUSTOM' ? 'block' : 'none';
+          if (budgetVal === 'CUSTOM') renderCustomCategories();
+        }
+      }
       else if (groupId === 'goalGroup') goalVal = btn.dataset.val;
     }
-    
+
     const steps = {
       1: { title: 'Tell us about yourself', sub: 'We\'ll personalize your financial plan' },
       2: { title: 'Debt & Preferences', sub: 'Help us understand your financial situation' },
       3: { title: 'Almost there!', sub: 'Generate your personalized financial plan' },
     };
-    
+
     function updateUI() {
       document.getElementById('stepTitle').textContent = steps[currentStep].title;
       document.getElementById('stepSub').textContent = steps[currentStep].sub;
-      
+
       for (let i = 1; i <= totalSteps; i++) {
         const el = document.getElementById('step' + i);
         const indicator = document.getElementById('s' + i);
@@ -211,10 +382,10 @@
           else if (i === currentStep) indicator.classList.add('active');
         }
       }
-      
+
       document.getElementById('backBtn').style.display = currentStep > 1 ? 'flex' : 'none';
       document.getElementById('skipLink').style.display = currentStep < totalSteps ? 'block' : 'none';
-      
+
       const nextBtn = document.getElementById('nextBtnText');
       const nextIcon = document.getElementById('nextBtnIcon');
       if (currentStep === totalSteps) {
@@ -225,12 +396,18 @@
         nextIcon.className = 'ri-arrow-right-line';
       }
     }
-    
+
     function prevStep() {
       if (currentStep > 1) { currentStep--; updateUI(); }
     }
-    
+
     async function nextStep() {
+      if (currentStep === 2 && budgetVal === 'CUSTOM') {
+        if (!validateCustomBudget()) {
+          alert('Custom budget allocations must total exactly 100% before continuing.');
+          return;
+        }
+      }
       if (currentStep < totalSteps) {
         currentStep++;
         updateUI();
@@ -238,7 +415,7 @@
         await submitOnboarding();
       }
     }
-    
+
     async function submitOnboarding() {
       const btn = document.getElementById('nextBtn');
       const text = document.getElementById('nextBtnText');
@@ -248,7 +425,7 @@
       text.textContent = 'Generating plan...';
       icon.style.display = 'none';
       spinner.style.display = 'block';
-      
+
       const payload = {
         age: parseInt(document.getElementById('age').value) || 25,
         city: document.getElementById('city').value.trim() || 'India',
@@ -259,9 +436,9 @@
         totalDebt: parseFloat(document.getElementById('totalDebt').value) || 0,
         riskProfile: riskVal,
         budgetMethod: budgetVal,
-        financialPriorities: document.getElementById('priorities').value.trim(),
+        customBudgetCategories: budgetVal === 'CUSTOM' ? customCategories : undefined,
       };
-      
+
       try {
         const res = await fetch(`${API_BASE}/onboarding`, {
           method: 'POST',
@@ -269,7 +446,7 @@
           body: JSON.stringify(payload),
         });
         const data = await res.json();
-        
+
         if (data.success) {
           const result = document.getElementById('submitResult');
           result.style.display = 'block';
@@ -290,13 +467,13 @@
         spinner.style.display = 'none';
       }
     }
-    
+
     function skipOnboarding() {
       if (confirm('Skip onboarding? You can complete it later from Settings.')) {
         window.location.href = '/dashboard.html';
       }
     }
-    
+
     updateUI();
   </script>
 </body>

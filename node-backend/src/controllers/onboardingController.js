@@ -13,7 +13,7 @@ const submitOnboarding = async (req, res, next) => {
       age, city, monthlySalary, otherMonthlyIncome = 0,
       estimatedMonthlyExpenses, currentSavings, totalDebt = 0,
       riskProfile = 'MODERATE', budgetMethod = 'FIFTY_THIRTY_TWENTY',
-      financialPriorities = '',
+      financialPriorities = '', customBudgetCategories,
     } = req.body;
 
     const salary = parseFloat(monthlySalary) || 0;
@@ -21,6 +21,17 @@ const submitOnboarding = async (req, res, next) => {
     const savings = parseFloat(currentSavings) || 0;
     const debt = parseFloat(totalDebt) || 0;
     const otherIncome = parseFloat(otherMonthlyIncome) || 0;
+    // Process custom budget categories if method is CUSTOM
+    let sanitizedPriorities = financialPriorities?.trim() || '';
+    if (budgetMethod === 'CUSTOM' && Array.isArray(customBudgetCategories) && customBudgetCategories.length > 0) {
+      // Validate non-negative numbers and sanitize names
+      const validCategories = customBudgetCategories.map(cat => ({
+        name: String(cat.name || 'Category').trim().slice(0, 50),
+        percentage: Math.max(0, parseFloat(cat.percentage) || 0)
+      }));
+      sanitizedPriorities = JSON.stringify({ customBudgetCategories: validCategories });
+    }
+
 
     // Upsert FinancialProfile
     const profile = await prisma.financialProfile.upsert({
@@ -35,7 +46,7 @@ const submitOnboarding = async (req, res, next) => {
         totalDebt: debt,
         riskProfile,
         budgetMethod,
-        financialPriorities: financialPriorities?.trim() || '',
+        financialPriorities: sanitizedPriorities,
         isOnboardingComplete: true,
       },
       create: {
@@ -49,7 +60,7 @@ const submitOnboarding = async (req, res, next) => {
         totalDebt: debt,
         riskProfile,
         budgetMethod,
-        financialPriorities: financialPriorities?.trim() || '',
+        financialPriorities: sanitizedPriorities,
         isOnboardingComplete: true,
       },
     });

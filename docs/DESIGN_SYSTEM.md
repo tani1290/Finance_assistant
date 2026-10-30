@@ -73,3 +73,26 @@ Status indicators must pair color with shape/text for accessible identification:
 - **Status Bar & Navigation Bar**: Dark immersive mode (`SystemUiOverlayStyle.dark`), system navigation bars blend into `AppColors.darkBg`.
 - **Bottom Navigation**: 5 canonical tabs (Dashboard, Transactions, SMS Inbox, AI Advisor, Settings). Active items display emerald glow pill with high-contrast icon.
 - **Haptics**: Subtle haptic feedback (`HapticFeedback.lightImpact()`) on confirming or rejecting pending transactions.
+
+---
+
+## 4. Theme System & Mode Persistence
+
+### Behavior & Tokens
+- **Default Theme:** Dark mode is the default state (`jf_dark_mode: 'true'` or unset).
+- **Opt-In Light Mode:** Light mode is activated via `:root.light-mode` (`jf_dark_mode: 'false'`).
+- **Synchronized Shared Module:** `frontend/public/assets/js/theme.js` exposes `window.FinProTheme` (`isDark()`, `toggle()`, `init()`, `apply()`) and auto-initializes before first paint to prevent flashes.
+- **Toggles:** Sun/moon toggle is accessible in:
+  1. Main dashboard sidebar & topbar (`#darkModeToggle`, `#topbarThemeToggle`).
+  2. Public Landing page navigation bar (`#darkModeToggle`).
+  3. Login page (`#darkModeToggle`).
+  4. Signup page (`#darkModeToggle`).
+- **Contrast Compliance:** In light mode, surfaces default to `#ffffff` and `#f8fafb`, text to `#0f172a`, and inputs/controls adapt semantically without hardcoded light colors on light backgrounds.
+
+---
+
+## 5. Custom Budget Method Specifications
+- Available Methods: `FIFTY_THIRTY_TWENTY`, `ZERO_BASED`, `CUSTOM`.
+- Custom Allocations: Users specify custom category names and percentage splits (e.g., Needs 50%, Wants 30%, Savings 20%).
+- Validation: Total allocation must sum to exactly 100% before completing onboarding.
+- Persistence: Stored in PostgreSQL `financial_profiles.financialPriorities` as structured JSON `{"customBudgetCategories": [...]}` and preserved in `localStorage('jf_custom_budget')`.

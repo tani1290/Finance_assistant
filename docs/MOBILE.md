@@ -156,3 +156,27 @@ flutter run -d <device_id>
 If testing without a physical SIM card:
 1. Use Android Studio Emulator Extended Controls -> Phone -> Receive SMS.
 2. Or use the built-in **"Simulate Test SMS"** button on the `Pending SMS Review` screen inside the mobile app to post a real bank alert directly to `/api/v1/sms/ingest`.
+
+---
+
+## Android APK Build & Verification
+
+### Build Command
+```bash
+cd mobile
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --debug
+```
+
+### Artifact Deliverables
+- **Debug APK Location:** `mobile/build/app/outputs/flutter-apk/app-debug.apk`
+- **Application Package ID:** `com.finpro.app.finpro_mobile`
+- **Minimum SDK:** 23 (Android 6.0 Marshmallow)
+- **Target SDK:** 34 (Android 14)
+
+### Authentication Notes
+- Mobile uses Google Sign-In and Firebase Authentication to obtain credentials forwarded to the backend `/api/v1/auth/google`.
+- The Web frontend uses Google Identity Services (GIS) with direct token verification.
+- Both clients resolve to identical user accounts via normalized Google identity subjects (`payload.sub`).

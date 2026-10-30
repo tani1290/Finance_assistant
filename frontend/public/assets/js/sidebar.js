@@ -159,6 +159,9 @@ if (typeof window !== 'undefined') {
 }
 
 function toggleDarkMode() {
+  if (window.FinProTheme && typeof window.FinProTheme.toggle === 'function') {
+    return window.FinProTheme.toggle();
+  }
   // Dark is the default, so "not light" means currently dark.
   const willBeDark = document.documentElement.classList.contains('light-mode');
 
@@ -176,6 +179,10 @@ function toggleDarkMode() {
 }
 
 function initDarkMode() {
+  if (window.FinProTheme && typeof window.FinProTheme.init === 'function') {
+    window.FinProTheme.init();
+    return;
+  }
   const saved = localStorage.getItem('jf_dark_mode');
   // Dark mode is the default experience; users opt out by choosing light.
   const isDark = saved !== 'false';
