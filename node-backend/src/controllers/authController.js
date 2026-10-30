@@ -378,6 +378,19 @@ const linkGoogle = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/v1/auth/config
+ * Public auth client configuration for frontend initialization.
+ */
+const getAuthConfig = (req, res) => {
+  return res.status(200).json({
+    success: true,
+    data: {
+      googleClientId: process.env.GOOGLE_CLIENT_ID || '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
+    },
+  });
+};
+
 module.exports = {
   register,
   login,
@@ -388,4 +401,5 @@ module.exports = {
   getMe,
   updateProfile,
   deleteAccount,
+  getAuthConfig,
 };

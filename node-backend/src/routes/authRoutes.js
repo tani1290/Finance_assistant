@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../controllers/authController');
 
+router.get('/config', auth.getAuthConfig);
 router.post('/register', auth.register);
 router.post('/login', auth.login);
 router.post('/google', auth.googleLogin);

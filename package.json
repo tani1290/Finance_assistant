@@ -20,6 +20,11 @@
     "db:reconcile:strict": "npm --prefix node-backend run db:reconcile:strict",
     "db:studio": "npm --prefix node-backend run prisma:studio",
     "test:unit": "npm --prefix node-backend run test:unit",
+    "test:e2e": "playwright test tests/e2e",
+    "test:visual": "playwright test tests/visual",
+    "test:visual:update": "playwright test tests/visual --update-snapshots",
+    "test:a11y": "playwright test tests/e2e/theme.spec.js",
+    "test:staging": "playwright test tests/e2e tests/visual",
     "backup:db": "npm --prefix node-backend run backup:db",
     "backup:verify": "npm --prefix node-backend run backup:verify",
     "backup:publish": "npm --prefix node-backend run backup:publish",
@@ -42,5 +47,9 @@
     "javascript"
   ],
   "author": "Jinay Golecha <jinay_golecha>",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1"
+  }
 }

@@ -48,6 +48,8 @@
 
     html {
       scroll-behavior: smooth;
+      overflow-x: hidden;
+      max-width: 100vw;
     }
 
     body {
@@ -58,6 +60,7 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       overflow-x: hidden;
+      max-width: 100vw;
     }
 
     /* Ambient Warmth Background */
@@ -506,8 +509,8 @@
     }
 
     .ai-insight-box {
-      background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%);
-      border: 1px solid var(--primary-border);
+      background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+      border: 1px solid #a7f3d0;
       border-radius: var(--radius-md);
       padding: 18px 22px;
       display: flex;
@@ -530,15 +533,16 @@
 
     .ai-insight-content h5 {
       font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
+      font-weight: 700;
+      color: #065f46;
       margin-bottom: 4px;
     }
 
     .ai-insight-content p {
       font-size: 13px;
-      color: var(--text-secondary);
+      color: #1e293b;
       line-height: 1.5;
+      font-weight: 500;
     }
 
     /* ===== SECTION COMMON ===== */
@@ -983,25 +987,26 @@
 
     /* ===== PEACEFUL FINAL CTA ===== */
     .final-cta {
-      background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 50%, #f8fafc 100%);
-      border: 1px solid var(--primary-border);
+      background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 50%, #ffffff 100%);
+      border: 1px solid #a7f3d0;
       border-radius: var(--radius-xl);
       padding: 64px 32px;
       text-align: center;
       margin-bottom: 80px;
+      box-shadow: 0 10px 30px -10px rgba(5, 150, 105, 0.08);
     }
 
     .final-cta h2 {
       font-family: 'Outfit', sans-serif;
       font-size: clamp(26px, 4vw, 38px);
       font-weight: 700;
-      color: var(--text);
+      color: #0f172a;
       margin-bottom: 14px;
     }
 
     .final-cta p {
       font-size: 16px;
-      color: var(--text-secondary);
+      color: #334155;
       max-width: 540px;
       margin: 0 auto 28px;
       line-height: 1.6;
@@ -1057,6 +1062,9 @@
     }
 
     @media (max-width: 600px) {
+      .nav-container { padding: 10px 14px; }
+      .nav-actions { gap: 6px; }
+      .nav-actions .btn-ghost { display: none; }
       .hero { padding: 48px 16px 36px; }
       .showcase-card { padding: 20px 16px; }
       .section-wrap { padding: 56px 16px; }
@@ -1085,6 +1093,90 @@
       background: #141825;
       border-color: #2a2f45;
       color: #e8ecf4;
+    }
+    :root.dark-mode .final-cta, :root:not(.light-mode) .final-cta {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(20, 24, 37, 0.95) 100%);
+      border-color: rgba(16, 185, 129, 0.25);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+    :root.dark-mode .final-cta h2, :root:not(.light-mode) .final-cta h2 {
+      color: #f8fafc;
+    }
+    :root.dark-mode .final-cta p, :root:not(.light-mode) .final-cta p {
+      color: #cbd5e1;
+    }
+    :root.dark-mode .btn-hero-secondary, :root:not(.light-mode) .btn-hero-secondary {
+      background: #1c2035;
+      color: #e8ecf4;
+      border-color: #2a2f45;
+    }
+    :root.dark-mode .btn-hero-secondary:hover, :root:not(.light-mode) .btn-hero-secondary:hover {
+      background: #252a40;
+      color: #10b981;
+      border-color: #10b981;
+    }
+    :root.dark-mode .showcase-card, :root:not(.light-mode) .showcase-card {
+      background: #141825;
+      border-color: #2a2f45;
+    }
+    :root.dark-mode .metric-box, :root:not(.light-mode) .metric-box {
+      background: #0c0f1a;
+      border-color: #252a40;
+    }
+    :root.dark-mode .metric-label, :root:not(.light-mode) .metric-label {
+      color: #94a3b8;
+    }
+    :root.dark-mode .metric-value, :root:not(.light-mode) .metric-value {
+      color: #f8fafc;
+    }
+    :root.dark-mode .user-avatar, :root:not(.light-mode) .user-avatar {
+      background: #1c2035;
+      color: #34d399;
+      border: 1px solid #2a2f45;
+    }
+    :root.dark-mode .greeting-text h4, :root:not(.light-mode) .greeting-text h4 {
+      color: #f8fafc;
+    }
+    :root.dark-mode .greeting-text p, :root:not(.light-mode) .greeting-text p {
+      color: #94a3b8;
+    }
+    :root.dark-mode .progress-bar-wrap, :root:not(.light-mode) .progress-bar-wrap {
+      background: #1c2035;
+    }
+    :root.dark-mode .showcase-status, :root:not(.light-mode) .showcase-status {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+    :root.dark-mode .ai-insight-box, :root:not(.light-mode) .ai-insight-box {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(20, 24, 37, 0.85) 100%);
+      border-color: rgba(16, 185, 129, 0.28);
+    }
+    :root.dark-mode .ai-insight-content h5, :root:not(.light-mode) .ai-insight-content h5 {
+      color: #34d399;
+    }
+    :root.dark-mode .ai-insight-content p, :root:not(.light-mode) .ai-insight-content p {
+      color: #cbd5e1;
+    }
+    :root.dark-mode .pillar-icon-box.green, :root:not(.light-mode) .pillar-icon-box.green {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+    :root.dark-mode .pillar-icon-box.blue, :root:not(.light-mode) .pillar-icon-box.blue {
+      background: rgba(2, 132, 199, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(2, 132, 199, 0.25);
+    }
+    :root.dark-mode .pillar-icon-box.amber, :root:not(.light-mode) .pillar-icon-box.amber {
+      background: rgba(217, 119, 6, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(217, 119, 6, 0.25);
+    }
+    :root.dark-mode .pillar-icon-box.purple, :root:not(.light-mode) .pillar-icon-box.purple {
+      background: rgba(124, 58, 237, 0.15);
+      color: #a78bfa;
+      border: 1px solid rgba(124, 58, 237, 0.25);
     }
     :root.dark-mode .faq-item, :root:not(.light-mode) .faq-item {
       background: #141825;
@@ -1146,6 +1238,9 @@
       </div>
 
       <div class="nav-actions">
+        <button type="button" id="themeToggleBtn" class="landing-theme-toggle" aria-label="Toggle theme" onclick="toggleDarkMode()">
+          <i class="ri-moon-line"></i>
+        </button>
         <a href="/downloads/finpro-finance-ai.apk" download="finpro-finance-ai.apk" class="btn-ghost" style="color:#059669;font-weight:600;"><i class="ri-download-line"></i> APK</a>
         <a href="/login.html" class="btn-ghost">Sign In</a>
         <a href="/signup.html" class="btn-primary">Get Started Free</a>

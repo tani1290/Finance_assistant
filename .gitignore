@@ -75,6 +75,8 @@ backups/
 *.temp
 *.bak
 *.swp
+playwright-report/
+test-results/
 
 # Local/private data
 .artifacts/

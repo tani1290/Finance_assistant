@@ -59,7 +59,7 @@ const prisma = require('../config/database');
 const { getAuth } = require('firebase-admin/auth');
 const { __verifyIdTokenMock } = require('google-auth-library');
 const authService = require('../services/authService');
-const { googleLogin, linkGoogle } = require('../controllers/authController');
+const { googleLogin, linkGoogle, getAuthConfig } = require('../controllers/authController');
 
 process.env.JWT_SECRET = 'ci_test_jwt_secret_key_minimum_32_characters';
 process.env.JWT_REFRESH_SECRET = 'ci_test_refresh_secret_key_minimum_32_characters';
@@ -516,5 +516,35 @@ describe('Google Identity Normalization (Flutter vs Web Parity)', () => {
 
     // Confirm that the same FINpro user ID is returned in both cases
     expect(bodyOf(flutterRes).data.user.id).toBe(bodyOf(webRes).data.user.id);
+  });
+
+  describe('GET /api/v1/auth/config — Public Client Configuration', () => {
+    it('returns default Google Client ID when GOOGLE_CLIENT_ID is unset', () => {
+      const originalEnv = process.env.GOOGLE_CLIENT_ID;
+      delete process.env.GOOGLE_CLIENT_ID;
+
+      const res = makeRes();
+      getAuthConfig({}, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(bodyOf(res).success).toBe(true);
+      expect(bodyOf(res).data.googleClientId).toBe('1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com');
+
+      process.env.GOOGLE_CLIENT_ID = originalEnv;
+    });
+
+    it('returns environment-specific Google Client ID when GOOGLE_CLIENT_ID is set', () => {
+      const originalEnv = process.env.GOOGLE_CLIENT_ID;
+      process.env.GOOGLE_CLIENT_ID = 'test-custom-client-id.apps.googleusercontent.com';
+
+      const res = makeRes();
+      getAuthConfig({}, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(bodyOf(res).success).toBe(true);
+      expect(bodyOf(res).data.googleClientId).toBe('test-custom-client-id.apps.googleusercontent.com');
+
+      process.env.GOOGLE_CLIENT_ID = originalEnv;
+    });
   });
 });

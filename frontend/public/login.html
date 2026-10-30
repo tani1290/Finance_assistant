@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleAuth()"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -301,10 +301,65 @@
       color: #e8ecf4;
       border-color: #2a2f45;
     }
+    :root.dark-mode .form-input::placeholder, :root:not(.light-mode) .form-input::placeholder {
+      color: #64748b;
+    }
     :root.dark-mode .card, :root:not(.light-mode) .card {
       background: #141825;
       border-color: #2a2f45;
       box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.4);
+    }
+    :root.dark-mode .alert.error, :root:not(.light-mode) .alert.error {
+      background: rgba(220, 38, 38, 0.15);
+      border: 1px solid rgba(220, 38, 38, 0.35);
+      color: #fca5a5;
+    }
+    :root.dark-mode .alert.success, :root:not(.light-mode) .alert.success {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #6ee7b7;
+    }
+    .google-btn-container {
+      width: 100%;
+      min-height: 44px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 6px;
+    }
+    .google-official-btn {
+      width: 100%;
+      height: 44px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      transition: all 0.2s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    .google-official-btn:hover {
+      background: var(--surface-subtle);
+      border-color: #cbd5e1;
+    }
+    :root.dark-mode .google-official-btn,
+    :root:not(.light-mode) .google-official-btn {
+      background: #1c2035;
+      border-color: #2a2f45;
+      color: #e8ecf4;
+    }
+    :root.dark-mode .google-official-btn:hover,
+    :root:not(.light-mode) .google-official-btn:hover {
+      background: #252a40;
+      border-color: #3a4060;
     }
     .theme-toggle-fixed {
       position: absolute;
@@ -333,6 +388,9 @@
   <script src="/assets/js/theme.js"></script>
 </head>
 <body>
+  <button type="button" class="theme-toggle-fixed" id="themeToggleBtn" aria-label="Toggle theme" onclick="toggleDarkMode()">
+    <i class="ri-sun-line"></i>
+  </button>
   <div class="auth-container">
     <!-- Brand -->
     <div class="brand">
@@ -405,27 +463,13 @@
         <div style="flex:1;height:1px;background:var(--border);"></div>
       </div>
 
-            <div id="googleBtnContainer" style="display:flex;flex-direction:column;align-items:center;width:100%;min-height:44px;justify-content:center;">
-        <div id="g_id_onload"
-             data-client_id="1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com"
-             data-callback="handleGoogleCredentialResponse"
-             data-auto_prompt="false">
+      <div id="googleBtnContainer" class="google-btn-container">
+        <div id="googleSignInBtn" style="width:100%;display:flex;justify-content:center;">
+          <button type="button" id="googleCustomBtn" class="google-official-btn" onclick="triggerGoogleSignIn()">
+            <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+            <span>Continue with Google</span>
+          </button>
         </div>
-        <div class="g_id_signin"
-             id="gIdSigninDiv"
-             data-type="standard"
-             data-size="large"
-             data-theme="outline"
-             data-text="continue_with"
-             data-shape="rectangular"
-             data-logo_alignment="left"
-             data-width="376"
-             style="display:flex;justify-content:center;width:100%;">
-        </div>
-        <button type="button" id="googleCustomBtn" style="display:none;width:100%;height:44px;background:#ffffff;border:1px solid #dadce0;border-radius:8px;align-items:center;justify-content:center;gap:12px;cursor:pointer;font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:#3c4043;transition:all .2s;" onclick="triggerGoogleSignIn()">
-          <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
-          <span>Continue with Google</span>
-        </button>
       </div>
 
     </div>
@@ -484,32 +528,73 @@
       }
     });
 
-    // Google Credential Response
+    // Google Authentication Initialization & Render
+    let googleClientId = '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com';
 
-    function triggerGoogleSignIn() {
-      if (window.google && window.google.accounts && window.google.accounts.id) {
-        google.accounts.id.prompt((notification) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            showAlert("error", "Google One Tap / sign-in prompt was suppressed or closed. Please allow popups or verify third-party cookies.");
+    async function initGoogleAuth() {
+      try {
+        const res = await fetch(`${API_BASE}/auth/config`);
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg?.data?.googleClientId) {
+            googleClientId = cfg.data.googleClientId;
           }
+        }
+      } catch (e) {}
+
+      renderGoogleButton();
+    }
+
+    function renderGoogleButton() {
+      const container = document.getElementById('googleSignInBtn');
+      if (!container || !window.google?.accounts?.id) return;
+
+      const isDark = document.documentElement.classList.contains('dark-mode') || !document.documentElement.classList.contains('light-mode');
+
+      try {
+        google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          itp_support: true,
         });
-      } else {
-        showAlert("error", "Google Identity Services could not be loaded. Please check your internet connection.");
+
+        container.innerHTML = '';
+        const btnBox = document.createElement('div');
+        btnBox.style.display = 'flex';
+        btnBox.style.justifyContent = 'center';
+        btnBox.style.width = '100%';
+        container.appendChild(btnBox);
+
+        google.accounts.id.renderButton(btnBox, {
+          type: 'standard',
+          theme: isDark ? 'filled_black' : 'outline',
+          size: 'large',
+          text: 'continue_with',
+          shape: 'rectangular',
+          logo_alignment: 'left',
+          width: Math.min(376, container.offsetWidth || 376),
+        });
+      } catch (err) {
+        console.warn('Google Identity Services renderButton warning:', err);
       }
     }
 
-    // Check if GIS iframe rendered after 1.5s; if blocked, reveal fallback button
-    window.addEventListener("load", () => {
-      setTimeout(() => {
-        const signinDiv = document.getElementById("gIdSigninDiv");
-        const customBtn = document.getElementById("googleCustomBtn");
-        if (signinDiv && customBtn) {
-          const iframe = signinDiv.querySelector("iframe");
-          if (!iframe || iframe.offsetHeight === 0) {
-            customBtn.style.display = "flex";
-          }
-        }
-      }, 1500);
+    function triggerGoogleSignIn() {
+      if (window.google?.accounts?.id) {
+        renderGoogleButton();
+      } else {
+        showAlert('error', 'Google Sign-In is unavailable or blocked by browser protections. Please allow popups or verify third-party cookies, or sign in with your email/password.');
+      }
+    }
+
+    window.addEventListener('finpro-theme-change', () => {
+      renderGoogleButton();
+    });
+
+    window.addEventListener('load', () => {
+      initGoogleAuth();
     });
 
     async function handleGoogleCredentialResponse(response) {

@@ -18,14 +18,21 @@
     var root = document.documentElement;
     if (isDark) {
       root.classList.add('dark-mode');
+      root.classList.add('dark');
       root.classList.remove('light-mode');
+      root.classList.remove('light');
       root.style.colorScheme = 'dark';
     } else {
       root.classList.remove('dark-mode');
+      root.classList.remove('dark');
       root.classList.add('light-mode');
+      root.classList.add('light');
       root.style.colorScheme = 'light';
     }
     updateIcons(isDark);
+    try {
+      window.dispatchEvent(new CustomEvent('finpro-theme-change', { detail: { isDark: isDark } }));
+    } catch (e) {}
   }
 
   function updateIcons(isDark) {
@@ -33,12 +40,12 @@
     var titleText = isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
     var ariaLabel = isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
 
-    var icons = document.querySelectorAll('#darkModeIcon, .dark-mode-icon');
+    var icons = document.querySelectorAll('#darkModeIcon, .dark-mode-icon, .theme-toggle-fixed i, .landing-theme-toggle i, [data-theme-icon]');
     for (var i = 0; i < icons.length; i++) {
       icons[i].className = iconClass;
     }
 
-    var toggles = document.querySelectorAll('#darkModeToggle, .dark-mode-toggle, [data-theme-toggle]');
+    var toggles = document.querySelectorAll('#darkModeToggle, .dark-mode-toggle, [data-theme-toggle], .theme-toggle-fixed, .landing-theme-toggle');
     for (var j = 0; j < toggles.length; j++) {
       toggles[j].title = titleText;
       toggles[j].setAttribute('aria-label', ariaLabel);
