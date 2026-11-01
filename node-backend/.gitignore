@@ -12,3 +12,6 @@ uploads/*
 
 # Logs
 *.log
+
+# Tesseract.js language data (downloaded at runtime, not part of the repo)
+*.traineddata

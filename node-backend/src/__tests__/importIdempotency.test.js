@@ -70,7 +70,7 @@ describe('confirmReceipt — replay safety', () => {
 
     const res = makeRes();
     const next = jest.fn();
-    await confirmReceipt(reqFor({ scanId: 'scan-2', amount: 250 }), res, next);
+    await confirmReceipt(reqFor({ scanId: 'scan-2', amount: 250, date: '2026-08-10' }), res, next);
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
@@ -96,12 +96,45 @@ describe('confirmReceipt — replay safety', () => {
 
     const res = makeRes();
     const next = jest.fn();
-    await confirmReceipt(reqFor({ scanId: 'scan-3', amount: 250, merchant: 'Cafe' }), res, next);
+    await confirmReceipt(reqFor({ scanId: 'scan-3', amount: 250, merchant: 'Cafe', date: '2026-08-10' }), res, next);
 
     expect(res.status).toHaveBeenCalledWith(201);
     expect(create).toHaveBeenCalledTimes(1);
     expect(updateAccount).toHaveBeenCalledTimes(1);
     expect(bodyOf(res).data.transaction.id).toBe('tx-3');
+  });
+
+  it('refuses to confirm without a real receipt date instead of silently booking today', async () => {
+    prisma.receiptScan.findFirst.mockResolvedValue({ id: 'scan-4', status: 'MANUAL_INPUT_REQUIRED', date: null });
+
+    const res = makeRes();
+    const next = jest.fn();
+    await confirmReceipt(reqFor({ scanId: 'scan-4', amount: 250 }), res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(bodyOf(res).error.code).toBe('RECEIPT_DATE_REQUIRED');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('uses the stored scan date when the client omits one', async () => {
+    prisma.receiptScan.findFirst.mockResolvedValue({ id: 'scan-5', status: 'PENDING_CONFIRMATION', date: new Date('2026-08-11') });
+    prisma.financialAccount.findFirst.mockResolvedValue({ id: 'acc-1', name: 'Primary' });
+    prisma.category.findFirst.mockResolvedValue({ id: 'cat-1', name: 'Food & Dining' });
+
+    const create = jest.fn().mockResolvedValue({ id: 'tx-5', amount: 99 });
+    prisma.$transaction.mockImplementation(async (fn) => fn({
+      receiptScan: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      transaction: { create },
+      financialAccount: { update: jest.fn().mockResolvedValue({}) },
+    }));
+
+    const res = makeRes();
+    const next = jest.fn();
+    await confirmReceipt(reqFor({ scanId: 'scan-5', amount: 99 }), res, next);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(create.mock.calls[0][0].data.date.toISOString().slice(0, 10)).toBe('2026-08-11');
   });
 });
 

@@ -1,10 +1,9 @@
 const prisma = require('../config/database');
 const { formatINR } = require('../utils/inr');
 const { parseDateOnly, formatDateOnly, todayDateOnly } = require('../utils/dateOnly');
-const { createWorker } = require('tesseract.js');
 const storageService = require('../services/storageService');
 const documentIngestionService = require('../services/documentIngestionService');
-const mlCategorizerService = require('../services/mlCategorizerService');
+const receiptOcrService = require('../services/receiptOcrService');
 const { v4: uuidv4 } = require('uuid');
 
 /**
@@ -33,294 +32,336 @@ const isRetryableConflict = (error) =>
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Helper: Parse structured receipt fields from extracted text
-const parseReceiptText = (rawText) => {
-  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
-  let merchant = null;
-  let amount = null;
-  let date = null;
-  let category = 'General';
-  const items = [];
+/**
+ * POST /api/v1/receipts/scan
+ *
+ * Real OCR extraction for one receipt image (or pasted receipt text). The heavy
+ * lifting — decoding, preprocessing, deskew, multi-pass Tesseract, optional
+ * vision fallback and field extraction — lives in `receiptOcrService`.
+ *
+ * Contract: nothing is invented. A field that cannot be read is returned as
+ * `null`, a missing date is never replaced with today's date, and a scan is
+ * persisted even when the amount is missing so the user can complete it
+ * manually and still confirm through the normal transaction flow.
+ */
+const MAX_RECEIPT_IMAGES = 5;
 
-  const textLower = rawText.toLowerCase();
+const receiptStorageExtension = (mimeType) => {
+  if (mimeType === 'image/png') return '.png';
+  if (mimeType === 'image/webp') return '.webp';
+  return '.jpg';
+};
 
-  // 1. Merchant Detection: Check known brands
-  const knownMerchants = [
-    { pattern: /starbucks/i, name: 'Starbucks Coffee', cat: 'Food & Dining' },
-    { pattern: /mcdonald|mcd/i, name: "McDonald's", cat: 'Food & Dining' },
-    { pattern: /subway/i, name: 'Subway', cat: 'Food & Dining' },
-    { pattern: /domino/i, name: "Domino's Pizza", cat: 'Food & Dining' },
-    { pattern: /swiggy/i, name: 'Swiggy', cat: 'Food & Dining' },
-    { pattern: /zomato/i, name: 'Zomato', cat: 'Food & Dining' },
-    { pattern: /d-?mart|avenue\s+supermarts/i, name: 'DMart Supermarket', cat: 'Groceries' },
-    { pattern: /reliance\s+(?:fresh|smart|retail)/i, name: 'Reliance Retail', cat: 'Groceries' },
-    { pattern: /nature'?s\s+basket/i, name: "Nature's Basket", cat: 'Groceries' },
-    { pattern: /bigbasket/i, name: 'BigBasket', cat: 'Groceries' },
-    { pattern: /apollo\s+pharmacy/i, name: 'Apollo Pharmacy', cat: 'Healthcare' },
-    { pattern: /medplus/i, name: 'MedPlus Pharmacy', cat: 'Healthcare' },
-    { pattern: /uber/i, name: 'Uber Rides', cat: 'Transport' },
-    { pattern: /ola/i, name: 'Ola Cabs', cat: 'Transport' },
-    { pattern: /shell|bharat\s+petroleum|indian\s+oil|hp\s+petrol/i, name: 'Fuel Station', cat: 'Transport' },
-    { pattern: /amazon/i, name: 'Amazon India', cat: 'Shopping' },
-    { pattern: /flipkart/i, name: 'Flipkart', cat: 'Shopping' },
-    { pattern: /zara/i, name: 'Zara', cat: 'Shopping' },
-    { pattern: /h&m|hnm/i, name: 'H&M', cat: 'Shopping' },
-    { pattern: /croma/i, name: 'Croma Electronics', cat: 'Shopping' },
-    { pattern: /ikea/i, name: 'IKEA', cat: 'Shopping' },
-  ];
+/**
+ * Duplicate detection. Two independent signals, both advisory only:
+ *   • the same image bytes were scanned before (SHA-256 of the processed image)
+ *   • an expense with the same amount already exists on the same date
+ * The user may genuinely have two identical receipts, so this never blocks the
+ * confirmation — it just lets the client warn before saving twice.
+ */
+const findReceiptDuplicates = async ({ userId, imageHash, amount, merchant, dateIso }) => {
+  const duplicates = { image: null, transaction: null };
 
-  for (const km of knownMerchants) {
-    if (km.pattern.test(textLower)) {
-      merchant = km.name;
-      category = km.cat;
-      break;
+  if (imageHash) {
+    const recentScans = await prisma.receiptScan.findMany({
+      where: { userId, status: { not: 'REJECTED' } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      select: { id: true, merchant: true, amount: true, date: true, status: true, createdAt: true, items: true },
+    });
+    const match = recentScans.find(
+      (scan) => scan.items && typeof scan.items === 'object' && scan.items.imageHash === imageHash
+    );
+    if (match) {
+      duplicates.image = {
+        scanId: match.id,
+        merchant: match.merchant,
+        amount: match.amount === null || match.amount === undefined ? null : Number(match.amount),
+        date: formatDateOnly(match.date),
+        status: match.status,
+        scannedAt: match.createdAt,
+      };
     }
   }
 
-  // Fallback to first line that isn't a tax or header line
-  if (!merchant && lines.length > 0) {
-    for (let i = 0; i < Math.min(3, lines.length); i++) {
-      const candidate = lines[i].replace(/[^\w\s&'-]/g, '').trim();
-      if (candidate.length >= 3 && !/invoice|tax|receipt|bill|gstin|pan/i.test(candidate)) {
-        merchant = candidate;
-        break;
-      }
+  if (Number.isFinite(amount) && amount > 0 && dateIso) {
+    let parsedDate = null;
+    try {
+      parsedDate = parseDateOnly(dateIso, 'date');
+    } catch (error) {
+      parsedDate = null;
     }
-  }
-  if (!merchant) merchant = 'Retail Merchant';
-
-  // 2. Amount Detection
-  const totalRegex = /(?:grand\s+total|net\s+total|total\s+amount|bill\s+amount|amount\s+payable|total|net\s+payable|bal(?:ance)?\s+due|subtotal)[\s:=₹rs\.]*([\d,]+(?:\.\d{1,2})?)/i;
-  const matchTotal = rawText.match(totalRegex);
-  if (matchTotal && matchTotal[1]) {
-    const parsed = parseFloat(matchTotal[1].replace(/,/g, ''));
-    if (!isNaN(parsed) && parsed > 0) amount = parsed;
-  }
-
-  // Fallback: look for currency symbol followed by numbers
-  if (!amount) {
-    const currencyRegex = /(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)/gi;
-    let match;
-    let maxFound = 0;
-    while ((match = currencyRegex.exec(rawText)) !== null) {
-      const val = parseFloat(match[1].replace(/,/g, ''));
-      if (!isNaN(val) && val > maxFound) maxFound = val;
-    }
-    if (maxFound > 0) amount = maxFound;
-  }
-
-  // Last resort amount fallback: highest reasonable monetary value in lines
-  if (!amount) {
-    const anyNumberRegex = /\b\d+(?:,\d{3})*(?:\.\d{2})\b/g;
-    const nums = rawText.match(anyNumberRegex);
-    if (nums) {
-      const vals = nums.map(n => parseFloat(n.replace(/,/g, ''))).filter(v => v > 0 && v < 1000000);
-      if (vals.length > 0) {
-        amount = Math.max(...vals);
+    if (parsedDate) {
+      const match = await prisma.transaction.findFirst({
+        where: { userId, transactionType: 'EXPENSE', amount, date: parsedDate },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, merchant: true, amount: true, date: true, description: true },
+      });
+      if (match) {
+        duplicates.transaction = {
+          id: match.id,
+          merchant: match.merchant || match.description || null,
+          amount: Number(match.amount),
+          date: formatDateOnly(match.date),
+        };
       }
     }
   }
 
-  // 3. Date Detection
-  const datePatterns = [
-    /\b(\d{4}[-/.]\d{2}[-/.]\d{2})\b/, // YYYY-MM-DD
-    /\b(\d{2}[-/.]\d{2}[-/.]\d{4})\b/, // DD-MM-YYYY
-    /\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})\b/i,
-  ];
-  for (const dp of datePatterns) {
-    const dm = rawText.match(dp);
-    if (dm && dm[1]) {
-      const parsedDate = new Date(dm[1]);
-      if (!isNaN(parsedDate.getTime())) {
-        date = parsedDate.toISOString().split('T')[0];
-        break;
-      }
-    }
-  }
-  if (!date) {
-    date = new Date().toISOString().split('T')[0];
-  }
+  return duplicates;
+};
 
-  // 4. ML / Keyword Categorization Refinement
-  if (category === 'General') {
-    const mlPred = mlCategorizerService.predict(merchant, amount);
-    category = mlPred.category;
-  }
-
-  // 5. Items extraction: lines with quantity or price patterns
-  lines.forEach(line => {
-    if (line.length > 4 && /\d/.test(line) && !/total|gst|tax|cash|change|card|subtotal/i.test(line)) {
-      items.push(line.replace(/[^\w\s.,-]/g, '').trim());
-    }
-  });
+const buildScanResponse = ({ scan, parsed, gst, storedReceipt, duplicates, ocrMeta }) => {
+  const amount = parsed.amount === null || parsed.amount === undefined ? null : Number(parsed.amount);
+  const manual = !(Number.isFinite(amount) && amount > 0);
 
   return {
-    merchant,
-    amount: amount ? Math.round(amount * 100) / 100 : null,
-    date,
-    category,
-    items: items.slice(0, 5),
+    scanId: scan.id,
+    merchant: parsed.merchant || null,
+    amount,
+    formattedAmount: manual ? null : formatINR(amount),
+    date: parsed.date || null,
+    dateConfidence: parsed.confidence?.date ?? 0,
+    category: parsed.category || 'General',
+    paymentMethod: parsed.paymentMethod || null,
+    receiptNumber: parsed.receiptNumber || null,
+    items: Array.isArray(parsed.items) ? parsed.items : [],
+    gst: gst || null,
+    confidence: parsed.confidence || { merchant: 0, amount: 0, date: 0, category: 0, overall: 0 },
+    sources: parsed.sources || {},
+    amountLabel: parsed.amountLabel || null,
+    ocrConfidence: ocrMeta?.ocrConfidence ?? null,
+    ocrVariants: ocrMeta?.ocrVariants || null,
+    skewAngle: ocrMeta?.skewAngle ?? null,
+    imageHash: parsed.imageHash || null,
+    rawTextPreview: ocrMeta?.rawText ? ocrMeta.rawText.slice(0, 500) : null,
+    receiptImageUrl: storedReceipt?.url || null,
+    storageKey: storedReceipt?.key || null,
+    duplicates: duplicates || { image: null, transaction: null },
+    status: manual ? 'MANUAL_INPUT_REQUIRED' : 'PENDING_CONFIRMATION',
+    message: manual
+      ? 'The total amount could not be read from this receipt. Please enter the amount (and the date, if missing) before confirming.'
+      : `Extracted ${formatINR(amount)} ${parsed.category || 'General'} expense from ${parsed.merchant || 'this receipt'}. Please confirm to save it.`,
   };
 };
 
 /**
- * POST /api/v1/receipts/scan
- * Performs real OCR extraction using Tesseract.js on uploaded receipt image or text
- * Extracts GST data (GSTIN, CGST, SGST, IGST, total GST) when present
+ * Scan exactly one image payload: OCR → parse → store image → persist scan.
+ * Throws on unreadable input so the caller can decide between a 422 (single
+ * scan) and a per-item error (batch scan).
  */
+const scanOneImage = async ({ userId, imagePayload }) => {
+  const decoded = receiptOcrService.decodeImagePayload(imagePayload);
+  if (decoded.error) {
+    const error = new Error(decoded.message);
+    error.code = decoded.error;
+    error.statusCode = decoded.error === 'IMAGE_TOO_LARGE' ? 413 : 400;
+    throw error;
+  }
+
+  const { buffer, mimeType } = decoded;
+  const extracted = await receiptOcrService.extractReceipt(buffer);
+
+  let stored = null;
+  try {
+    const storageKey = `users/${userId}/receipts/receipt_${Date.now()}_${uuidv4().slice(0, 8)}${receiptStorageExtension(mimeType)}`;
+    stored = await storageService.upload({
+      buffer,
+      key: storageKey,
+      contentType: mimeType,
+      metadata: { userId, documentType: 'receipts', scanDate: new Date().toISOString() },
+    });
+  } catch (storageErr) {
+    // Losing the archive copy must not lose the extraction result.
+    console.warn('[Storage] Receipt image storage notice:', storageErr.message);
+  }
+
+  const gst = documentIngestionService.extractGSTInformation(extracted.ocrText || '');
+  const duplicates = await findReceiptDuplicates({
+    userId,
+    imageHash: extracted.imageHash,
+    amount: extracted.amount,
+    merchant: extracted.merchant,
+    dateIso: extracted.date,
+  });
+
+  const scan = await prisma.receiptScan.create({
+    data: {
+      userId,
+      merchant: extracted.merchant || null,
+      amount: extracted.amount,
+      date: extracted.date ? parseDateOnly(extracted.date, 'date') : null,
+      category: extracted.category || 'General',
+      items: {
+        lineItems: extracted.items || [],
+        gst,
+        storageKey: stored?.key || null,
+        receiptImageUrl: stored?.url || null,
+        imageHash: extracted.imageHash || null,
+        paymentMethod: extracted.paymentMethod || null,
+        receiptNumber: extracted.receiptNumber || null,
+        confidence: extracted.confidence || null,
+        sources: extracted.sources || null,
+        ocrConfidence: extracted.ocrConfidence ?? null,
+        ocrVariants: extracted.ocrVariants || null,
+        skewAngle: extracted.skewAngle ?? null,
+        amountLabel: extracted.amountLabel || null,
+      },
+      rawText: (extracted.ocrText || '').slice(0, 1000),
+      status: Number.isFinite(Number(extracted.amount)) && Number(extracted.amount) > 0
+        ? 'PENDING_CONFIRMATION'
+        : 'MANUAL_INPUT_REQUIRED',
+    },
+  });
+
+  return buildScanResponse({
+    scan,
+    parsed: extracted,
+    gst,
+    storedReceipt: stored,
+    duplicates,
+    ocrMeta: {
+      ocrConfidence: extracted.ocrConfidence,
+      ocrVariants: extracted.ocrVariants,
+      skewAngle: extracted.skewAngle,
+      rawText: extracted.ocrText,
+    },
+  });
+};
+
 const scanReceipt = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { receiptText, imageData } = req.body;
+    const { receiptText, imageData, images } = req.body || {};
 
-    if (!receiptText && !imageData) {
+    // Pasted text is a first-class input: it skips OCR but goes through the
+    // exact same parser and persistence path, so confidence/duplicate rules and
+    // the "never invent a date" rule stay identical.
+    if (!receiptText && !imageData && !(Array.isArray(images) && images.length)) {
       return res.status(400).json({
         success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'Either receipt image (imageData) or receipt text is required.' },
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'At least one receipt image or the receipt text is required.',
+        },
       });
     }
 
-    let extractedText = (receiptText || '').trim();
-    let ocrConfidence = 100;
+    if (Array.isArray(images) && images.length > MAX_RECEIPT_IMAGES) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'TOO_MANY_IMAGES',
+          message: `A maximum of ${MAX_RECEIPT_IMAGES} receipts can be scanned in one request.`,
+        },
+      });
+    }
 
-    // If imageData is provided, perform genuine OCR via Tesseract.js
-    if (imageData) {
-      let imageBuffer = null;
-
-      if (typeof imageData === 'string' && imageData.startsWith('data:image/')) {
-        // Base64 data URL
-        const match = imageData.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
-        if (!match) {
-          return res.status(400).json({
-            success: false,
-            error: { code: 'INVALID_IMAGE_FORMAT', message: 'Only PNG, JPEG, and WebP images are supported.' },
-          });
-        }
-        imageBuffer = Buffer.from(match[2], 'base64');
-      } else if (typeof imageData === 'string') {
-        // Raw base64 string
-        imageBuffer = Buffer.from(imageData, 'base64');
-      } else if (Buffer.isBuffer(imageData)) {
-        imageBuffer = imageData;
-      }
-
-      if (!imageBuffer || imageBuffer.length < 100) {
+    const textOnly = !imageData && !(Array.isArray(images) && images.length);
+    if (textOnly) {
+      const text = String(receiptText || '').trim();
+      if (text.length < 10) {
         return res.status(400).json({
           success: false,
-          error: { code: 'INVALID_IMAGE', message: 'Image payload is invalid or empty.' },
+          error: { code: 'VALIDATION_ERROR', message: 'The pasted receipt text is too short to parse.' },
         });
       }
 
-      // Max 10MB file limit
-      if (imageBuffer.length > 10 * 1024 * 1024) {
-        return res.status(413).json({
-          success: false,
-          error: { code: 'IMAGE_TOO_LARGE', message: 'Image size exceeds maximum limit of 10MB.' },
-        });
-      }
+      const parsed = receiptOcrService.parseReceiptText(text);
+      const gst = documentIngestionService.extractGSTInformation(text);
+      const duplicates = await findReceiptDuplicates({
+        userId,
+        imageHash: null,
+        amount: parsed.amount,
+        merchant: parsed.merchant,
+        dateIso: parsed.date,
+      });
 
-      // Run Tesseract OCR Worker
-      const worker = await createWorker('eng');
-      try {
-        const ocrResult = await worker.recognize(imageBuffer);
-        extractedText = (ocrResult.data?.text || '').trim();
-        ocrConfidence = Math.round(ocrResult.data?.confidence || 0);
-      } finally {
-        await worker.terminate();
-      }
-
-      if (!extractedText) {
-        return res.status(422).json({
-          success: false,
-          error: {
-            code: 'OCR_UNREADABLE',
-            message: 'Could not extract readable text from the uploaded image. Please ensure the receipt is well-lit and legible, or enter details manually.',
+      const scan = await prisma.receiptScan.create({
+        data: {
+          userId,
+          merchant: parsed.merchant || null,
+          amount: parsed.amount,
+          date: parsed.date ? parseDateOnly(parsed.date, 'date') : null,
+          category: parsed.category || 'General',
+          items: {
+            lineItems: parsed.items || [],
+            gst,
+            confidence: parsed.confidence || null,
+            sources: parsed.sources || null,
+            amountLabel: parsed.amountLabel || null,
           },
-        });
-      }
+          rawText: text.slice(0, 1000),
+          status: Number.isFinite(Number(parsed.amount)) && Number(parsed.amount) > 0
+            ? 'PENDING_CONFIRMATION'
+            : 'MANUAL_INPUT_REQUIRED',
+        },
+      });
 
-      // Persist raw receipt image to Cloud / Local Storage Service (User-isolated path)
-      try {
-        const receiptExt = '.png';
-        const storageKey = `users/${userId}/receipts/receipt_${Date.now()}_${uuidv4().slice(0, 8)}${receiptExt}`;
-        const stored = await storageService.upload({
-          buffer: imageBuffer,
-          key: storageKey,
-          contentType: 'image/png',
-          metadata: { userId, documentType: 'receipts', scanDate: new Date().toISOString() },
-        });
-        req.__storedReceipt = stored;
-      } catch (storageErr) {
-        console.warn('[Storage] Receipt image storage notice:', storageErr.message);
-      }
-    }
-
-    const parsed = parseReceiptText(extractedText);
-    const gstInfo = documentIngestionService.extractGSTInformation(extractedText);
-    const storedReceipt = req.__storedReceipt || null;
-
-    if (!parsed.amount || parsed.amount <= 0) {
       return res.status(200).json({
         success: true,
-        data: {
-          scanId: null,
-          merchant: parsed.merchant || 'Unidentified Merchant',
-          amount: null,
-          formattedAmount: 'Unrecognized',
-          date: parsed.date,
-          category: parsed.category,
-          items: parsed.items,
-          gst: gstInfo,
-          rawText: extractedText.slice(0, 500),
-          ocrConfidence,
-          receiptImageUrl: storedReceipt?.url || null,
-          storageKey: storedReceipt?.key || null,
-          status: 'MANUAL_INPUT_REQUIRED',
-          message: 'Could not detect a clear total amount from the receipt. Please enter the amount before confirming.',
-        },
+        data: buildScanResponse({
+          scan,
+          parsed,
+          gst,
+          storedReceipt: null,
+          duplicates,
+          ocrMeta: { ocrConfidence: null, ocrVariants: null, skewAngle: null, rawText: text },
+        }),
       });
     }
 
-    // Persist scan preview to DB with status PENDING_CONFIRMATION
-    const scan = await prisma.receiptScan.create({
-      data: {
-        userId,
-        merchant: parsed.merchant,
-        amount: parsed.amount,
-        date: parseDateOnly(parsed.date, 'date'),
-        category: parsed.category,
-        items: {
-          lineItems: parsed.items,
-          gst: gstInfo,
-          storageKey: storedReceipt?.key || null,
-          receiptImageUrl: storedReceipt?.url || null,
-          confidence: ocrConfidence,
-        },
-        rawText: extractedText.slice(0, 1000),
-        status: 'PENDING_CONFIRMATION',
-      },
-    });
+    const payloads = Array.isArray(images) && images.length ? images : [imageData];
+    const results = [];
+
+    for (const payload of payloads) {
+      try {
+        results.push({ success: true, data: await scanOneImage({ userId, imagePayload: payload }) });
+      } catch (error) {
+        if (payloads.length === 1) throw error;
+        results.push({
+          success: false,
+          error: { code: error.code || 'OCR_FAILED', message: error.message },
+        });
+      }
+    }
+
+    if (payloads.length === 1) {
+      const only = results[0];
+      if (!only.success) {
+        const status = only.error.code === 'IMAGE_TOO_LARGE' ? 413 : only.error.code === 'OCR_UNREADABLE' ? 422 : 400;
+        return res.status(status).json({ success: false, error: only.error });
+      }
+      return res.status(200).json({ success: true, data: only.data });
+    }
 
     return res.status(200).json({
       success: true,
       data: {
-        scanId: scan.id,
-        merchant: parsed.merchant,
-        amount: parsed.amount,
-        formattedAmount: formatINR(parsed.amount),
-        date: parsed.date,
-        category: parsed.category,
-        items: parsed.items,
-        gst: gstInfo,
-        ocrConfidence,
-        rawTextPreview: extractedText.slice(0, 200),
-        receiptImageUrl: storedReceipt?.url || null,
-        storageKey: storedReceipt?.key || null,
-        status: 'PENDING_CONFIRMATION',
-        message: `Extracted ${formatINR(parsed.amount)} ${parsed.category} expense from ${parsed.merchant}. Please confirm to save to your transactions.`,
+        multiple: true,
+        total: results.length,
+        succeeded: results.filter((r) => r.success).length,
+        results,
       },
     });
   } catch (error) {
+    if (error && error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: { code: error.code || 'INVALID_IMAGE', message: error.message },
+      });
+    }
+    if (error && error.code === 'OCR_UNREADABLE') {
+      return res.status(422).json({
+        success: false,
+        error: {
+          code: 'OCR_UNREADABLE',
+          message:
+            error.message ||
+            'Could not extract readable text from the uploaded image. Please ensure the receipt is well-lit and legible, or enter details manually.',
+        },
+      });
+    }
     next(error);
   }
 };
@@ -347,8 +388,9 @@ const confirmReceipt = async (req, res, next) => {
     // double-tap and retry on flaky networks, and each replay previously created
     // a *second* expense and decremented the balance again. If the scan is
     // already CONFIRMED we return the original transaction untouched.
+    let existingScan = null;
     if (scanId) {
-      const existingScan = await prisma.receiptScan.findFirst({ where: { id: scanId, userId } });
+      existingScan = await prisma.receiptScan.findFirst({ where: { id: scanId, userId } });
       if (!existingScan) {
         return res.status(404).json({
           success: false,
@@ -370,6 +412,29 @@ const confirmReceipt = async (req, res, next) => {
       }
     }
 
+    // The transaction date must be a real, user-visible date. The client sends
+    // the date it extracted/edited; if it did not, the stored scan date is used;
+    // if neither exists we ask instead of silently booking today — a receipt
+    // without a readable date historically landed on the wrong day.
+    let txDate = null;
+    if (date) {
+      txDate = parseDateOnly(date, 'date');
+    } else if (existingScan && existingScan.date) {
+      txDate = parseDateOnly(existingScan.date, 'date');
+    }
+    if (!txDate) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'RECEIPT_DATE_REQUIRED',
+          message: 'The receipt date could not be read. Please choose the transaction date before confirming.',
+        },
+      });
+    }
+
+    const resolvedMerchant = String(merchant || existingScan?.merchant || '').trim();
+    const resolvedCategory = String(category || existingScan?.category || 'Food & Dining').trim();
+
     let account = await prisma.financialAccount.findFirst({
       where: {
         userId,
@@ -385,15 +450,13 @@ const confirmReceipt = async (req, res, next) => {
     }
 
     let categoryRecord = await prisma.category.findFirst({
-      where: { userId, name: { equals: category || 'Food & Dining', mode: 'insensitive' } },
+      where: { userId, name: { equals: resolvedCategory, mode: 'insensitive' } },
     });
     if (!categoryRecord) {
       categoryRecord = await prisma.category.create({
-        data: { userId, name: category || 'Food & Dining', categoryType: 'EXPENSE' },
+        data: { userId, name: resolvedCategory, categoryType: 'EXPENSE' },
       });
     }
-
-    const txDate = date ? parseDateOnly(date, 'date') : parseDateOnly(todayDateOnly());
 
     const transaction = await prisma.$transaction(async (tx) => {
       // Atomically claim the scan *before* writing any money movement. The
@@ -419,8 +482,8 @@ const confirmReceipt = async (req, res, next) => {
           categoryId: categoryRecord.id,
           amount: txAmount,
           transactionType: 'EXPENSE',
-          merchant: (merchant || 'Receipt Merchant').trim(),
-          description: `Receipt: ${(merchant || 'Expense').trim()}`,
+          merchant: resolvedMerchant || 'Receipt Merchant',
+          description: `Receipt: ${resolvedMerchant || 'Expense'}`,
           notes: notes || 'Recorded via OCR Receipt Scanner confirmation',
           date: txDate,
         },
