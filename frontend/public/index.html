@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FinPro — Calm, Intelligent Personal Finance for India</title>
+  <title>FinPro: Calm, Intelligent Personal Finance for India</title>
   <meta name="description" content="Manage daily spending, track Indian investments, plan loans, and get gentle AI financial guidance in a clean, private, and welcoming platform.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,6 +12,13 @@
   <script src="/assets/js/theme.js"></script>
 
   <link rel="stylesheet" href="/assets/css/app.css">
+  <style>
+    /* Hallmark · shape: marketing · genre: modern-minimal · theme: brand · redesign: full */
+    html, body { overflow-x: clip; }
+    :focus-visible { outline: 2px solid var(--color-focus) !important; outline-offset: 2px !important; }
+    button:active, .btn:active, .btn-hero-lg:active, .btn-primary:active, .btn-ghost:active { transform: scale(0.985); }
+    button:disabled, input:disabled, .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  </style>
   <script>
     // Signed-in visitors go straight to the dashboard. Runs before paint so
     // the welcome overlay never delays or flashes over an authenticated session.
@@ -39,8 +46,7 @@
 
   <div class="welcome-overlay" id="welcomeOverlay" aria-hidden="true">
     <div class="welcome-panel">
-      <div class="welcome-mark"><i class="ri-wallet-3-line"></i></div>
-      <p class="welcome-eyebrow">Welcome to</p>
+      <div class="welcome-mark"><i class="ri-wallet-3-line" aria-hidden="true"></i></div>
       <p class="welcome-title">Fin<span>Pro</span></p>
       <p class="welcome-tagline">Calm, intelligent money management.</p>
       <div class="welcome-progress"><span></span></div>
@@ -79,35 +85,30 @@
 
   <!-- HERO -->
   <header class="hero">
-    <div class="pill-badge">
-      <i class="ri-sparkling-fill"></i>
-      <span>Calm, thoughtful money management built for India</span>
-    </div>
-
     <h1 class="hero-title">
       Clarity for your money.<br>
-      <em>Confidence for your future.</em>
+      <span class="hero-accent">Confidence for your future.</span>
     </h1>
 
     <p class="hero-subtitle">
-      Track monthly spending, organize your investments, stay on top of EMIs, and receive gentle, personalized AI guidance — without the clutter or financial stress.
+      Track monthly spending, organize investments, and receive gentle personalized AI guidance.
     </p>
 
     <div class="hero-ctas">
       <a href="/signup.html" class="btn-hero-lg">
         <span>Get Started Free</span>
-        <i class="ri-arrow-right-line"></i>
+        <i class="ri-arrow-right-line" aria-hidden="true"></i>
       </a>
       <a href="/downloads/finpro-finance-ai.apk" download="finpro-finance-ai.apk" class="btn-hero-apk" id="heroApkDownload" title="Direct download Android APK">
-        <i class="ri-android-fill"></i>
+        <i class="ri-android-fill" aria-hidden="true"></i>
         <span>Download Android App (.apk)</span>
       </a>
     </div>
 
     <div class="trust-bullets">
-      <span class="trust-bullet"><i class="ri-shield-check-fill"></i> 256-bit Bank-grade Security</span>
-      <span class="trust-bullet"><i class="ri-checkbox-circle-fill"></i> 100% Free & Private</span>
-      <span class="trust-bullet"><i class="ri-funds-fill"></i> Native ₹ INR & Indian Markets</span>
+      <span class="trust-bullet"><i class="ri-shield-check-fill" aria-hidden="true"></i> 256-bit Bank-grade Security</span>
+      <span class="trust-bullet"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i> 100% Free &amp; Private</span>
+      <span class="trust-bullet"><i class="ri-funds-fill" aria-hidden="true"></i> Native ₹ INR &amp; Indian Markets</span>
     </div>
   </header>
 
@@ -118,12 +119,12 @@
         <div class="user-greeting">
           <div class="user-avatar">RA</div>
           <div class="greeting-text">
-            <h4>Good afternoon, Rahul 👋</h4>
+            <h4>Good afternoon, Rahul</h4>
             <p>Here is your calm financial overview for October</p>
           </div>
         </div>
         <div class="showcase-status">
-          <span class="pulse-dot"></span>
+          <span class="pulse-dot" aria-hidden="true"></span>
           <span>Finances on Track</span>
         </div>
       </div>
@@ -174,12 +175,12 @@
       <!-- AI Advisor Friendly Callout -->
       <div class="ai-insight-box">
         <div class="ai-badge-icon">
-          <i class="ri-lightbulb-line"></i>
+          <i class="ri-lightbulb-line" aria-hidden="true"></i>
         </div>
         <div class="ai-insight-content">
           <h5>Gentle AI Recommendation for You</h5>
           <p>
-            "You are currently ₹4,800 under your usual dining expenses this month. If you allocate this extra surplus toward your ELSS tax-saving goal before the March deadline, you can save an estimated ₹1,440 in income tax under Section 80C."
+            “You are currently ₹4,800 under your usual dining expenses this month. If you allocate this extra surplus toward your ELSS tax-saving goal before the March deadline, you can save an estimated ₹1,440 in income tax under Section 80C.”
           </p>
         </div>
       </div>
@@ -189,7 +190,6 @@
   <!-- CORE FEATURES -->
   <section class="section-wrap" id="features">
     <div class="section-intro">
-      <span class="section-tag">Thoughtful Features</span>
       <h2 class="section-title">Everything you need, presented simply.</h2>
       <p class="section-desc">
         No complicated financial jargon or cluttered screens. Just the tools you need to make sensible, stress-free decisions with your money.
@@ -216,48 +216,48 @@
       <!-- Feature 2 -->
       <div class="pillar-card">
         <div class="pillar-icon-box blue">
-          <i class="ri-funds-box-line"></i>
+          <i class="ri-funds-box-line" aria-hidden="true"></i>
         </div>
-        <h3 class="pillar-title">Indian Portfolio & SIPs</h3>
+        <h3 class="pillar-title">Indian Portfolio &amp; SIPs</h3>
         <p class="pillar-desc">
-          Track all your investments in one unified dashboard — Indian equities, mutual funds, gold, fixed deposits, and public provident fund (PPF).
+          Track all your investments in one unified dashboard: Indian equities, mutual funds, gold, fixed deposits, and public provident fund (PPF).
         </p>
         <ul class="pillar-features">
-          <li><i class="ri-check-line"></i> Benchmark returns against Nifty 50</li>
-          <li><i class="ri-check-line"></i> Total asset allocation breakdown</li>
-          <li><i class="ri-check-line"></i> Clear profit & loss tracking over time</li>
+          <li><i class="ri-check-line" aria-hidden="true"></i> Benchmark returns against Nifty 50</li>
+          <li><i class="ri-check-line" aria-hidden="true"></i> Total asset allocation breakdown</li>
+          <li><i class="ri-check-line" aria-hidden="true"></i> Clear profit &amp; loss tracking over time</li>
         </ul>
       </div>
 
       <!-- Feature 3 -->
       <div class="pillar-card">
         <div class="pillar-icon-box amber">
-          <i class="ri-bank-card-line"></i>
+          <i class="ri-bank-card-line" aria-hidden="true"></i>
         </div>
-        <h3 class="pillar-title">Calm Loan & EMI Planning</h3>
+        <h3 class="pillar-title">Calm Loan &amp; EMI Planning</h3>
         <p class="pillar-desc">
           Keep your home loans, car loans, and credit EMIs under control. View payoff timelines and simulate prepayments to cut down on total interest paid.
         </p>
         <ul class="pillar-features">
-          <li><i class="ri-check-line"></i> Clear principal vs interest breakdown</li>
-          <li><i class="ri-check-line"></i> Smart prepayment simulator</li>
-          <li><i class="ri-check-line"></i> Due date reminders so you never incur penalties</li>
+          <li><i class="ri-check-line" aria-hidden="true"></i> Clear principal vs interest breakdown</li>
+          <li><i class="ri-check-line" aria-hidden="true"></i> Smart prepayment simulator</li>
+          <li><i class="ri-check-line" aria-hidden="true"></i> Due date reminders so you never incur penalties</li>
         </ul>
       </div>
 
       <!-- Feature 4 -->
       <div class="pillar-card">
         <div class="pillar-icon-box purple">
-          <i class="ri-chat-smile-2-line"></i>
+          <i class="ri-chat-smile-2-line" aria-hidden="true"></i>
         </div>
         <h3 class="pillar-title">Empathetic AI Financial Co-pilot</h3>
         <p class="pillar-desc">
           Ask real financial questions in plain language. Whether evaluating a major purchase, understanding tax deductions, or planning an emergency fund.
         </p>
         <ul class="pillar-features">
-          <li><i class="ri-check-line"></i> Tailored specifically to your numbers</li>
-          <li><i class="ri-check-line"></i> Unbiased, ad-free financial clarity</li>
-          <li><i class="ri-check-line"></i> Explanations in simple, accessible terms</li>
+          <li><i class="ri-check-line" aria-hidden="true"></i> Tailored specifically to your numbers</li>
+          <li><i class="ri-check-line" aria-hidden="true"></i> Unbiased, ad-free financial clarity</li>
+          <li><i class="ri-check-line" aria-hidden="true"></i> Explanations in simple, accessible terms</li>
         </ul>
       </div>
     </div>
@@ -266,7 +266,6 @@
   <!-- INTERACTIVE SIP CALCULATOR -->
   <section class="calculator-section" id="calculator">
     <div class="section-intro">
-      <span class="section-tag">Interactive Simulator</span>
       <h2 class="section-title">See the quiet power of steady savings.</h2>
       <p class="section-desc">
         Small amounts invested regularly grow exponentially over time. Adjust the numbers below to see what your future could look like.
@@ -347,7 +346,6 @@
   <!-- HOW IT WORKS -->
   <section class="section-wrap" id="how-it-works">
     <div class="section-intro">
-      <span class="section-tag">How It Works</span>
       <h2 class="section-title">Up and running in 3 calm steps.</h2>
       <p class="section-desc">
         No lengthy bank linking procedures or intimidating forms. Start at your own pace.
@@ -356,7 +354,7 @@
 
     <div class="steps-container">
       <div class="step-item">
-        <div class="step-number-tag">01</div>
+        <span class="step-counter" aria-hidden="true">1</span>
         <h3 class="step-title">Create your private space</h3>
         <p class="step-desc">
           Sign up with your email. No credit card, no complex verification, and zero commitments.
@@ -364,7 +362,7 @@
       </div>
 
       <div class="step-item">
-        <div class="step-number-tag">02</div>
+        <span class="step-counter" aria-hidden="true">2</span>
         <h3 class="step-title">Add your current snapshot</h3>
         <p class="step-desc">
           Note your monthly salary, everyday expenses, and any existing loans or investments you hold.
@@ -372,7 +370,7 @@
       </div>
 
       <div class="step-item">
-        <div class="step-number-tag">03</div>
+        <span class="step-counter" aria-hidden="true">3</span>
         <h3 class="step-title">Enjoy continuous clarity</h3>
         <p class="step-desc">
           See your monthly cash flow, receive gentle tips from the AI, and watch your savings grow month over month.
@@ -385,25 +383,24 @@
   <div class="section-wrap" style="padding-top: 0; padding-bottom: 0;">
     <div class="privacy-banner">
       <div class="privacy-content">
-        <span class="section-tag" style="margin-bottom: 8px;">Trust & Confidentiality</span>
         <h3>Your financial life belongs to you. Always.</h3>
         <p>
           Unlike traditional finance apps, we do not sell your data to third-party lenders, push high-interest loans, or clutter your experience with spam calls.
         </p>
         <ul class="privacy-points">
-          <li><i class="ri-shield-keyhole-line"></i> <strong>256-bit Encryption:</strong> Your data is protected using industry-standard protocols.</li>
-          <li><i class="ri-spam-line"></i> <strong>Zero Spam:</strong> We never share your phone number or email with marketing telecallers.</li>
-          <li><i class="ri-download-cloud-line"></i> <strong>Full Control:</strong> Export your complete data or delete your account whenever you choose.</li>
+          <li><i class="ri-shield-keyhole-line" aria-hidden="true"></i> <strong>256-bit Encryption:</strong> Your data is protected using industry-standard protocols.</li>
+          <li><i class="ri-spam-line" aria-hidden="true"></i> <strong>Zero Spam:</strong> We never share your phone number or email with marketing telecallers.</li>
+          <li><i class="ri-download-cloud-line" aria-hidden="true"></i> <strong>Full Control:</strong> Export your complete data or delete your account whenever you choose.</li>
         </ul>
       </div>
 
       <div style="background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; text-align: center;">
         <div style="width: 56px; height: 56px; border-radius: 50%; background: var(--primary-light); color: var(--primary); font-size: 26px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-          <i class="ri-lock-password-line"></i>
+          <i class="ri-lock-password-line" aria-hidden="true"></i>
         </div>
-        <h4 style="font-family: 'Outfit', sans-serif; font-size: 19px; font-weight: 700; margin-bottom: 8px;">Private & Independent</h4>
+        <h4 style="font-family: 'Outfit', sans-serif; font-size: 19px; font-weight: 700; margin-bottom: 8px;">Private &amp; Independent</h4>
         <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.6;">
-          Built as an engineering final year project to demonstrate clean AI decision support — free from advertising incentives.
+          Built as an engineering final year project to demonstrate clean AI decision support, free from advertising incentives.
         </p>
       </div>
     </div>
@@ -412,7 +409,6 @@
   <!-- FAQ SECTION -->
   <section class="section-wrap" id="faq">
     <div class="section-intro">
-      <span class="section-tag">Common Questions</span>
       <h2 class="section-title">Frequently asked questions.</h2>
       <p class="section-desc">
         Simple answers to everything you might wonder about FinPro.
@@ -423,7 +419,7 @@
       <div class="faq-item active">
         <button class="faq-question">
           <span>Is FinPro really free to use?</span>
-          <i class="ri-arrow-down-s-line"></i>
+          <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
         </button>
         <div class="faq-answer">
           Yes, completely free. There are no premium tiers, paywalls, or trial periods. It is designed to be an accessible decision-support platform for anyone wanting to organize their personal finances.
@@ -433,7 +429,7 @@
       <div class="faq-item">
         <button class="faq-question">
           <span>Does it support Indian financial instruments?</span>
-          <i class="ri-arrow-down-s-line"></i>
+          <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
         </button>
         <div class="faq-answer">
           Yes! FinPro is built natively for India. It includes native INR (₹) formatting, Indian mutual funds, equities benchmarked against Nifty 50, fixed deposits, public provident funds (PPF), and Section 80C tax planning.
@@ -443,7 +439,7 @@
       <div class="faq-item">
         <button class="faq-question">
           <span>How does the AI Financial Advisor work?</span>
-          <i class="ri-arrow-down-s-line"></i>
+          <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
         </button>
         <div class="faq-answer">
           The advisor reads your aggregated financial context (your income, spending habits, existing savings, and goals) and answers your specific questions objectively without selling products.
@@ -453,7 +449,7 @@
       <div class="faq-item">
         <button class="faq-question">
           <span>Do I need to connect my real bank account?</span>
-          <i class="ri-arrow-down-s-line"></i>
+          <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
         </button>
         <div class="faq-answer">
           No bank credentials or netbanking logins are ever required. You can add entries manually or upload statements as you feel comfortable. You retain 100% control over what data you enter.
@@ -467,7 +463,7 @@
     <div style="background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-dark) 50%, var(--primary-dark) 100%); border-radius: var(--radius-lg); padding: 48px 36px; color: var(--on-primary); display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; box-shadow: 0 16px 36px var(--shadow-primary); border: 1px solid var(--border);">
       <div style="max-width: 580px;">
         <div style="display: inline-flex; align-items: center; gap: 8px; background: var(--border); border: 1px solid var(--border-dark); border-radius: 9999px; padding: 4px 14px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px;">
-          <i class="ri-android-fill" style="color:var(--primary-bright);"></i> Android Mobile Release
+          <i class="ri-android-fill" style="color:var(--primary-bright);" aria-hidden="true"></i> Android Mobile Release
         </div>
         <h2 style="font-family:'Outfit',sans-serif; font-size: clamp(24px, 3vw, 32px); font-weight: 700; margin-bottom: 12px; color: var(--on-primary); letter-spacing: -0.02em;">
           Carry your calm finances everywhere.
@@ -477,17 +473,17 @@
         </p>
         <div style="display: flex; gap: 14px; flex-wrap: wrap; align-items: center;">
           <a href="/downloads/finpro-finance-ai.apk" download="finpro-finance-ai.apk" class="btn-hero-apk" style="background:var(--surface); color:var(--primary-dark); font-weight:700; padding:14px 28px; box-shadow: 0 6px 18px var(--overlay);">
-            <i class="ri-download-cloud-2-line" style="color:var(--primary-dark); font-size:20px;"></i>
-            <span>Download APK (v1.0.0 · 53 MB)</span>
+            <i class="ri-download-cloud-2-line" style="color:var(--primary-dark); font-size:20px;" aria-hidden="true"></i>
+            <span>Download APK (v1.0.0, 56 MB)</span>
           </a>
           <span style="font-size: 12px; color: var(--success-border); display: inline-flex; align-items: center; gap: 6px;">
-            <i class="ri-shield-check-line"></i> Direct APK · Android 8.0+
+            <i class="ri-shield-check-line" aria-hidden="true"></i> Direct APK, Android 8.0+
           </span>
         </div>
       </div>
       <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
         <div style="width: 140px; height: 140px; background: var(--surface); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--primary-dark); box-shadow: 0 8px 24px var(--overlay);">
-          <i class="ri-android-fill" style="font-size: 48px; color: var(--primary-dark); margin-bottom: 4px;"></i>
+          <i class="ri-android-fill" style="font-size: 48px; color: var(--primary-dark); margin-bottom: 4px;" aria-hidden="true"></i>
           <span style="font-size: 11px; font-weight: 700; text-transform: uppercase;">Android APK</span>
           <span style="font-size: 10px; color: var(--muted);">Ready to install</span>
         </div>

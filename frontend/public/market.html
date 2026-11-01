@@ -3,13 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Market Dashboard — Stocks, Gold & Commodities | FinPro</title>
+  <title>Live Market Dashboard: Stocks, Gold &amp; Commodities | FinPro</title>
   <meta name="description" content="Real-time NSE stocks, 24K/22K Gold, Silver, Crude Oil, USD/INR and technical indicators computed from live price history.">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js" defer></script>
   <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
+  <style>
+    /* Hallmark · shape: app screen · genre: modern-minimal · theme: brand · redesign: full */
+    html, body { overflow-x: clip; }
+    :focus-visible { outline: 2px solid var(--color-focus) !important; outline-offset: 2px !important; }
+    button:active, .btn:active { transform: scale(0.985); }
+    button:disabled, input:disabled, select:disabled, .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  </style>
 </head>
 <body class="page-market app-layout">
   <div id="sidebarRoot"></div>
@@ -22,14 +29,14 @@
     <div class="topbar">
       <div>
         <div class="topbar-title" style="display:flex;align-items:center;gap:10px;">
-          📈 Live Market Dashboard
+          Live Market Dashboard
           <span class="prov-badge prov-unknown" id="dashboardProvenance"><span class="prov-dot"></span><span id="dashboardProvenanceText">Checking…</span></span>
           <span class="market-pill closed" id="marketStatusPill">
             <span class="pulse"></span> <span id="marketStatusText">Checking...</span>
           </span>
           <span class="prov-session" id="marketSessionLabel"></span>
         </div>
-        <div class="topbar-sub" id="lastRefreshed">NSE Stocks · Gold 24K/22K · Silver · USD/INR · WTI Crude · Technical Indicators</div>
+        <div class="topbar-sub" id="lastRefreshed">NSE Stocks, Gold 24K/22K, Silver, USD/INR, WTI Crude, Technical Indicators</div>
       </div>
       <div class="topbar-actions">
         <button class="btn btn-secondary" id="refreshAllBtn"><i class="ri-refresh-line"></i> Refresh All</button>
@@ -113,7 +120,7 @@
       <div class="dash-grid dash-grid-42" style="margin-bottom:20px;">
         <div class="card">
           <div class="sec-row">
-            <span class="sec-title" id="chartTitle"><i class="ri-line-chart-line"></i> RELIANCE — Price Chart</span>
+            <span class="sec-title" id="chartTitle"><i class="ri-line-chart-line"></i> RELIANCE: Price Chart</span>
             <div style="display:flex;gap:6px;" id="tfBtns">
               <button class="tf-btn" data-tf="1D">1D</button>
               <button class="tf-btn" data-tf="1W">1W</button>
@@ -130,7 +137,7 @@
         </div>
         <div class="card">
           <div class="sec-title" style="margin-bottom:8px;"><i class="ri-pulse-line"></i> Technical Indicators</div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:10px;" id="techSymLabel">RELIANCE · Daily · Live History</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:10px;" id="techSymLabel">RELIANCE, Daily, Live History</div>
           <div class="tech-grid" id="techGrid">
             <div class="tech-item"><div class="tech-lbl">RSI (14)</div><div class="tech-val" id="rsiVal" style="color:var(--border);">--</div><div class="tech-sig" id="rsiSig">--</div></div>
             <div class="tech-item"><div class="tech-lbl">MACD</div><div class="tech-val" id="macdVal" style="font-size:14px;color:var(--border);">--</div><div class="tech-sig" id="macdSig">--</div></div>
@@ -151,15 +158,15 @@
       </div>
 
       <!-- Row 4: Commodities Strip -->
-      <div class="card" style="margin-bottom:20px;">
-        <div class="sec-title" style="margin-bottom:14px;"><i class="ri-earth-line"></i> Global Commodities (Live Futures)</div>
+      <div class="commodity-section" style="margin-bottom:20px;">
+        <div class="sec-title" style="margin-bottom:14px;"><i class="ri-earth-line" aria-hidden="true"></i> Global Commodities (Live Futures)</div>
         <div class="commodity-strip">
-          <div class="comm-card"><div class="comm-icon">🛢️</div><div class="comm-name">WTI Crude</div><div class="comm-val" id="c_wti">--</div><div class="comm-unit">USD/barrel</div></div>
-          <div class="comm-card"><div class="comm-icon">⛽</div><div class="comm-name">Brent</div><div class="comm-val" id="c_brent">--</div><div class="comm-unit">USD/barrel</div></div>
-          <div class="comm-card"><div class="comm-icon">🔥</div><div class="comm-name">Natural Gas</div><div class="comm-val" id="c_natgas">--</div><div class="comm-unit">USD/MMBtu</div></div>
-          <div class="comm-card"><div class="comm-icon">🟤</div><div class="comm-name">Copper</div><div class="comm-val" id="c_copper">--</div><div class="comm-unit">USD/lb</div></div>
-          <div class="comm-card"><div class="comm-icon">🌾</div><div class="comm-name">Wheat</div><div class="comm-val" id="c_wheat">--</div><div class="comm-unit">USD/bushel</div></div>
-          <div class="comm-card"><div class="comm-icon">☕</div><div class="comm-name">Coffee</div><div class="comm-val" id="c_coffee">--</div><div class="comm-unit">USD/lb</div></div>
+          <div class="comm-card"><div class="comm-icon" aria-hidden="true"><i class="ri-oil-line"></i></div><div class="comm-name">WTI Crude</div><div class="comm-val" id="c_wti">--</div><div class="comm-unit">USD/barrel</div></div>
+          <div class="comm-card"><div class="comm-icon" aria-hidden="true"><i class="ri-gas-station-line"></i></div><div class="comm-name">Brent</div><div class="comm-val" id="c_brent">--</div><div class="comm-unit">USD/barrel</div></div>
+          <div class="comm-card"><div class="comm-icon" aria-hidden="true"><i class="ri-fire-line"></i></div><div class="comm-name">Natural Gas</div><div class="comm-val" id="c_natgas">--</div><div class="comm-unit">USD/MMBtu</div></div>
+          <div class="comm-card"><div class="comm-icon" aria-hidden="true"><i class="ri-copper-coin-line"></i></div><div class="comm-name">Copper</div><div class="comm-val" id="c_copper">--</div><div class="comm-unit">USD/lb</div></div>
+          <div class="comm-card"><div class="comm-icon" aria-hidden="true"><i class="ri-plant-line"></i></div><div class="comm-name">Wheat</div><div class="comm-val" id="c_wheat">--</div><div class="comm-unit">USD/bushel</div></div>
+          <div class="comm-card"><div class="comm-icon" aria-hidden="true"><i class="ri-cup-line"></i></div><div class="comm-name">Coffee</div><div class="comm-val" id="c_coffee">--</div><div class="comm-unit">USD/lb</div></div>
         </div>
       </div>
 
@@ -196,10 +203,10 @@
       </div>
 
       <div class="av-footer">
-        Live market data by <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer">Finnhub</a> &amp;
-        <a href="https://finance.yahoo.com" target="_blank" rel="noopener noreferrer">Yahoo Finance</a> &middot;
-        Fundamental &amp; earnings data by <a href="https://www.alphavantage.co" target="_blank" rel="noopener noreferrer">Alpha Vantage</a> &middot;
-        NSE/BSE Stocks &middot; Gold &amp; Silver &middot; WTI/Brent &middot; FX &middot; RSI &middot; MACD &middot; BBands &middot;
+        Live market data by <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer">Finnhub</a> and
+        <a href="https://finance.yahoo.com" target="_blank" rel="noopener noreferrer">Yahoo Finance</a>.
+        Fundamental and earnings data by <a href="https://www.alphavantage.co" target="_blank" rel="noopener noreferrer">Alpha Vantage</a>.
+        NSE/BSE Stocks, Gold and Silver, WTI/Brent, FX, RSI, MACD, BBands,
         FinPro &copy; 2025
       </div>
     </div>

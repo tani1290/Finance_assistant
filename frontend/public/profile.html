@@ -3,11 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>User Profile & Settings — FinPro</title>
+  <title>User Profile &amp; Settings: FinPro</title>
+  <meta name="description" content="View and manage your personal financial profile, demographics, and account settings.">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/app.css">
   <script src="/assets/js/theme.js"></script>
+  <style>
+    /* Hallmark · shape: app screen · genre: modern-minimal · theme: brand · redesign: full */
+    html, body { overflow-x: clip; }
+    :focus-visible { outline: 2px solid var(--color-focus) !important; outline-offset: 2px !important; }
+    button:active, .btn:active { transform: scale(0.985); }
+    button:disabled, input:disabled, .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  </style>
 </head>
 <body class="app-layout page-profile">
   <div id="sidebarRoot"></div>
@@ -29,11 +37,9 @@
         <div class="profile-avatar-lg" id="profileAvatar">J</div>
         <div class="profile-meta">
           <h2 id="profileFullName">Loading Profile...</h2>
-          <p>
+          <p style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <span id="profileEmail"><i class="ri-mail-line"></i> ...</span>
-            <span>·</span>
             <span id="profileUsername"><i class="ri-user-line"></i> ...</span>
-            <span>·</span>
             <span class="badge-verified"><i class="ri-shield-check-line"></i> Verified Account</span>
           </p>
           <div style="margin-top:8px;font-size:12px;color:var(--muted);" id="profileMemberSince">Member Since: ...</div>
@@ -140,7 +146,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
           <div class="card-title" style="margin-bottom:0;"><i class="ri-wallet-3-line" style="color:var(--primary)"></i> Assets & Accounts</div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <span id="accountsTotal" style="font-size:12px;color:var(--muted);">Total liquid assets: —</span>
+            <span id="accountsTotal" style="font-size:12px;color:var(--muted);">Total liquid assets: ₹0</span>
             <button type="button" class="btn btn-secondary" id="addAccountBtn" style="padding:7px 12px;font-size:12px;"><i class="ri-add-line"></i> Add Account</button>
           </div>
         </div>

@@ -1,0 +1,23 @@
+{
+  "scanned": "2026-11-01",
+  "findings": {
+    "fonts": "Inter 300-700 (body) + Outfit 400-700 (display), Google Fonts link at frontend/public/index.html L10; tokens --font-sans/--font-display at assets/css/app.css L163-165",
+    "palette": "Hex + rgba custom properties at :root, emerald #10b981 brand signal, dark default with :root.light-mode opt-out (assets/css/app.css L23-208); no Tailwind, no OKLCH",
+    "motion": "No library. CSS transitions/keyframes plus a requestAnimationFrame ripple canvas on the homepage (index.html L680-808)",
+    "spacing": "No scale: ad-hoc px values. Radii are tokens --radius-sm..--radius-pill (assets/css/app.css L120-126)",
+    "framework": "Static HTML + vanilla JS served by Express (node-backend/src/server.js); no build step, no component framework"
+  },
+  "preserve": [
+    "font stack (Inter + Outfit) and the Google Fonts link",
+    "emerald #10b981 as the brand signal",
+    "dark-as-default with :root.light-mode as the only light switch",
+    "existing token names (--primary, --bg, --surface, --text, --radius-*)",
+    "every element id and handler: FAQ accordion, SIP calculator, ripple canvas, theme toggle, welcome overlay lifecycle",
+    "routing, API calls, auth flow, form posts - the homepage is read-only and stays read-only"
+  ],
+  "introduce": [
+    "a page-scoped Hallmark token layer for body.page-index only, so the other 22 pages are untouched",
+    "shape, hero discipline, gates, the CSS stamp, and image slots",
+    "real product screenshots in place of the fabricated dashboard figures"
+  ]
+}

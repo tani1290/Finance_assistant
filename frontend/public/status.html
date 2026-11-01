@@ -3,12 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cloud Status — FinPro</title>
+  <title>Cloud Status: FinPro</title>
   <meta name="description" content="FinPro Real-time Cloud Computing Architecture and Subsystem Status">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
+  <style>
+    /* Hallmark · shape: app screen · genre: modern-minimal · theme: brand · redesign: full */
+    html, body { overflow-x: clip; }
+    :focus-visible { outline: 2px solid var(--color-focus) !important; outline-offset: 2px !important; }
+    button:active, .btn:active { transform: scale(0.985); }
+    button:disabled, input:disabled, select:disabled, .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  </style>
 </head>
 <body class="page-status app-layout">
   <div id="sidebarRoot"></div>
@@ -123,7 +130,7 @@
       <!-- Cloud Verification Proof Box -->
       <div class="card" style="margin-top:24px; border:1px solid var(--border);">
         <h3 style="font-size:16px; font-weight:700; color:var(--text); margin-bottom:8px;">
-          <i class="ri-check-double-line" style="color:var(--primary-dark); margin-right:8px;"></i>Academic Cloud Architecture Verification
+          <span class="ri-check-double-line" aria-hidden="true" style="font-family:'remixicon'; color:var(--primary-dark); margin-right:8px;"></span>Academic Cloud Architecture Verification
         </h3>
         <p style="font-size:13px; color:var(--text-secondary); line-height:1.6; margin-bottom:16px; font-weight:500;">
           All metrics rendered on this dashboard reflect live HTTP probe responses against the FinPro backend API.
