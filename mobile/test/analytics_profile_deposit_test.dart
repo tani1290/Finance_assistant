@@ -611,9 +611,12 @@ void main() {
       expect(_queryOf(primary), containsPair('month', isNotNull));
       expect(_queryOf(primary), containsPair('year', isNotNull));
       // Ordered does not matter; both secondary calls carry the same month.
+      // Derive the expected period from the device clock so the test does not
+      // rot when the calendar month rolls over.
+      final now = DateTime.now();
       expect(_queryOf(adapter.last('GET', '/analytics/forecast')!), {
-        'month': '10',
-        'year': '2026',
+        'month': '${now.month}',
+        'year': '${now.year}',
       });
 
       expect(find.text('Financial Analytics'), findsOneWidget);

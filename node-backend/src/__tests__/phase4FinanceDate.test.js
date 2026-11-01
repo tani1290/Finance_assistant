@@ -81,6 +81,23 @@ async function call(handler, { query = {}, user = { id: USER_ID } } = {}) {
 }
 
 /**
+ * Reporting resolves "this month" from the calendar in the user-facing
+ * timezone, so ledger fixtures have to be anchored to that month. Hardcoded
+ * dates made the assertions pass against 0 === 0 and then fail on the first day
+ * of the following month, when every fixture fell outside the window.
+ */
+const THIS_MONTH = currentMonthParts();
+const THIS_MONTH_WINDOW = monthRangeStrings(THIS_MONTH.year, THIS_MONTH.month);
+const DAYS_IN_THIS_MONTH = monthRange(THIS_MONTH.year, THIS_MONTH.month).end.getUTCDate();
+
+/** UTC-midnight date inside the current reporting month, clamped to its length. */
+function inThisMonth(day) {
+  return new Date(
+    Date.UTC(THIS_MONTH.year, THIS_MONTH.month - 1, Math.min(day, DAYS_IN_THIS_MONTH))
+  );
+}
+
+/**
  * Ledger fixtures. `date` is a calendar date, exactly as the `date` column
  * stores it.
  */
@@ -91,8 +108,8 @@ function tx(overrides = {}) {
     amount: 100,
     transactionType: 'EXPENSE',
     description: 'fixture',
-    date: new Date(Date.UTC(2026, 9, 15)),
-    createdAt: new Date('2026-10-15T09:00:00.000Z'),
+    date: inThisMonth(15),
+    createdAt: new Date(Date.UTC(THIS_MONTH.year, THIS_MONTH.month - 1, 15, 9, 30)),
     ...overrides,
   };
 }
@@ -169,8 +186,8 @@ beforeEach(() => {
 describe('dashboard and AI advisor agree on the reporting period', () => {
   test('both surfaces report the same month, bounds and income definition', async () => {
     const ledger = [
-      tx({ id: 'i1', transactionType: 'INCOME', amount: 120000, date: new Date(Date.UTC(2026, 9, 1)) }),
-      tx({ id: 'e1', transactionType: 'EXPENSE', amount: 30000, date: new Date(Date.UTC(2026, 9, 20)) }),
+      tx({ id: 'i1', transactionType: 'INCOME', amount: 120000, date: inThisMonth(1) }),
+      tx({ id: 'e1', transactionType: 'EXPENSE', amount: 30000, date: inThisMonth(20) }),
     ];
     mockLedger(ledger);
 
@@ -188,7 +205,7 @@ describe('dashboard and AI advisor agree on the reporting period', () => {
 
   test('the profile salary is never used as income by either surface', async () => {
     mockLedger([
-      tx({ id: 'i1', transactionType: 'INCOME', amount: 120000, date: new Date(Date.UTC(2026, 9, 1)) }),
+      tx({ id: 'i1', transactionType: 'INCOME', amount: 120000, date: inThisMonth(1) }),
     ]);
 
     const dash = await call(getDashboard);
@@ -204,9 +221,9 @@ describe('dashboard and AI advisor agree on the reporting period', () => {
 describe('ledger classification', () => {
   test('transfers are excluded from both income and expenses', async () => {
     const ledger = [
-      tx({ id: 'i1', transactionType: 'INCOME', amount: 1000, date: new Date(Date.UTC(2026, 9, 2)) }),
-      tx({ id: 'e1', transactionType: 'EXPENSE', amount: 250, date: new Date(Date.UTC(2026, 9, 3)) }),
-      tx({ id: 't1', transactionType: 'TRANSFER', amount: 999999, date: new Date(Date.UTC(2026, 9, 4)) }),
+      tx({ id: 'i1', transactionType: 'INCOME', amount: 1000, date: inThisMonth(2) }),
+      tx({ id: 'e1', transactionType: 'EXPENSE', amount: 250, date: inThisMonth(3) }),
+      tx({ id: 't1', transactionType: 'TRANSFER', amount: 999999, date: inThisMonth(4) }),
     ];
     mockLedger(ledger);
 
@@ -235,13 +252,13 @@ describe('ledger classification', () => {
 
   test('a refund counts as income and never reduces expenses', async () => {
     const ledger = [
-      tx({ id: 'e1', transactionType: 'EXPENSE', amount: 2000, date: new Date(Date.UTC(2026, 9, 3)) }),
+      tx({ id: 'e1', transactionType: 'EXPENSE', amount: 2000, date: inThisMonth(3) }),
       tx({
         id: 'r1',
         transactionType: 'INCOME',
         amount: 2000,
         description: 'REFUND for order 881',
-        date: new Date(Date.UTC(2026, 9, 4)),
+        date: inThisMonth(4),
       }),
     ];
     mockLedger(ledger);
@@ -254,8 +271,8 @@ describe('ledger classification', () => {
 
   test('duplicate ledger rows are both counted — reporting never deduplicates', async () => {
     const ledger = [
-      tx({ id: 'd1', amount: 500, date: new Date(Date.UTC(2026, 9, 5)) }),
-      tx({ id: 'd2', amount: 500, date: new Date(Date.UTC(2026, 9, 5)) }),
+      tx({ id: 'd1', amount: 500, date: inThisMonth(5) }),
+      tx({ id: 'd2', amount: 500, date: inThisMonth(5) }),
     ];
     mockLedger(ledger);
 
@@ -279,15 +296,21 @@ describe('ledger classification', () => {
 describe('month boundaries', () => {
   test('the window includes the last day of the month and excludes the next first day', async () => {
     const ledger = [
-      tx({ id: 'last', transactionType: 'INCOME', amount: 1111, date: new Date(Date.UTC(2026, 9, 31)) }),
-      tx({ id: 'next', transactionType: 'INCOME', amount: 2222, date: new Date(Date.UTC(2026, 10, 1)) }),
+      // Last day of the reporting month, and the first day of the next one.
+      tx({ id: 'last', transactionType: 'INCOME', amount: 1111, date: inThisMonth(31) }),
+      tx({
+        id: 'next',
+        transactionType: 'INCOME',
+        amount: 2222,
+        date: new Date(Date.UTC(THIS_MONTH.year, THIS_MONTH.month, 1)),
+      }),
     ];
     mockLedger(ledger);
 
     const dash = await call(getDashboard);
     expect(dash.payload.data.monthlyIncome).toBe(1111);
-    expect(dash.payload.data.period.start).toBe('2026-10-01');
-    expect(dash.payload.data.period.end).toBe('2026-10-31');
+    expect(dash.payload.data.period.start).toBe(THIS_MONTH_WINDOW.start);
+    expect(dash.payload.data.period.end).toBe(THIS_MONTH_WINDOW.end);
   });
 
   test('monthRange covers the correct number of days, including leap February', () => {
