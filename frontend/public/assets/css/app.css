@@ -1,3 +1,11 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: brand · redesign: full
+ * paper: #0c0f1a / #f8fafc · accent: #10b981 · display: Outfit · body: Inter
+ * nav: kept · signature: real product showcases · states: 8-state control matrix
+ * axes: dark/grotesk-sans/warm · posture: committed · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: none, full token coverage */
+@import url("./tokens.css");
+@import url("./base.css");
+
 /* =====================================================================
    FinPro — Central Application Stylesheet
    ---------------------------------------------------------------------
@@ -220,6 +228,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  overflow-x: clip;
 }
 
 body {
@@ -228,7 +237,7 @@ body {
   color: var(--text);
   min-height: 100vh;
   line-height: 1.5;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -832,18 +841,16 @@ tbody tr:hover td { background: var(--row-hover); }
 /* ===== PAGE: INDEX ===== */
 body.page-index {
   scroll-behavior: smooth;
-  overflow-x: hidden;
-  max-width: 100vw
+  overflow-x: clip;
 }
 body.page-index {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-  max-width: 100vw
+  overflow-x: clip;
 }
 /* Branded welcome veil — shown once per session (and on refresh) for
    signed-out visitors. Display is gated by html.welcome-pending, which the
@@ -2329,7 +2336,7 @@ body.page-login .theme-toggle-fixed:hover {
 
 /* ===== PAGE: SIGNUP ===== */
 body.page-signup {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
   min-height: 100vh;
   background: var(--surface-subtle);
   color: var(--text);
@@ -2338,7 +2345,7 @@ body.page-signup {
   justify-content: center;
   padding: 24px;
   position: relative;
-  overflow-x: hidden
+  overflow-x: clip;
 }
 body.page-signup::before {
   content: '';
@@ -2921,12 +2928,12 @@ body.page-onboarding .custom-total-badge.invalid {
 
 /* ===== PAGE: DASHBOARD ===== */
 body.page-dashboard {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
   display: flex;
   min-height: 100vh;
-  overflow-x: hidden
+  overflow-x: clip;
 }
 body.page-dashboard .sidebar {
   width: var(--sidebar-width);

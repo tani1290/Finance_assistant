@@ -3,13 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Investments, Stocks & Precious Metals — FinPro</title>
+  <title>Investments: FinPro</title>
   <meta name="description" content="Track Stocks, Mutual Funds, 24K/22K Gold, Silver, and Crypto with real-time verified valuation.">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js" defer></script>
   <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
+  <style>
+    /* Hallmark · shape: app screen · genre: modern-minimal · theme: brand · redesign: full */
+    html, body { overflow-x: clip; }
+    :focus-visible { outline: 2px solid var(--color-focus) !important; outline-offset: 2px !important; }
+    button:active, .btn:active { transform: scale(0.985); }
+    button:disabled, input:disabled, select:disabled, .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  </style>
 </head>
 <body class="page-investments app-layout">
   <div id="sidebarRoot"></div>
@@ -92,7 +99,7 @@
       <div class="card" style="margin-bottom:24px;">
         <div class="card-header">
           <div style="display:flex;align-items:center;gap:12px;">
-            <span class="card-title" id="chartStockTitle">RELIANCE — Real-Time Chart</span>
+            <span class="card-title" id="chartStockTitle">RELIANCE: Real-Time Chart</span>
             <span class="status-badge status-cached" id="chartMarketStatus">LOADING</span>
           </div>
           <div class="timeframe-btns" id="chartTfBtns">
@@ -157,14 +164,14 @@
       <div class="form-group">
         <label class="form-label">Asset Type</label>
         <select id="investType" class="form-select">
-          <option value="STOCK">📈 Stock / Equity (NSE)</option>
-          <option value="GOLD">🥇 24K Physical Gold</option>
-          <option value="SILVER">🥈 Pure Silver</option>
-          <option value="MUTUAL_FUND">📊 Mutual Fund</option>
-          <option value="SIP">🔄 Systematic Investment (SIP)</option>
-          <option value="CRYPTO">🪙 Crypto</option>
-          <option value="BOND">📄 Bond / Debt</option>
-          <option value="ETF">🏛️ ETF</option>
+          <option value="STOCK">Stock / Equity (NSE)</option>
+          <option value="GOLD">24K Physical Gold</option>
+          <option value="SILVER">Pure Silver</option>
+          <option value="MUTUAL_FUND">Mutual Fund</option>
+          <option value="SIP">Systematic Investment (SIP)</option>
+          <option value="CRYPTO">Crypto</option>
+          <option value="BOND">Bond / Debt</option>
+          <option value="ETF">ETF</option>
         </select>
       </div>
       <div class="form-group">

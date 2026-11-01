@@ -3,11 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Insurance & Subscriptions — FinPro</title>
+  <title>Insurance: FinPro</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
+  <style>
+    /* Hallmark · shape: app screen · genre: modern-minimal · theme: brand · redesign: full */
+    html, body { overflow-x: clip; }
+    :focus-visible { outline: 2px solid var(--color-focus) !important; outline-offset: 2px !important; }
+    button:active, .btn:active { transform: scale(0.985); }
+    button:disabled, input:disabled, select:disabled, .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  </style>
 </head>
 <body class="page-insurance app-layout">
   <div id="sidebarRoot"></div>
@@ -81,12 +88,12 @@
       <div class="form-group"><label class="form-label">Insurer</label><input type="text" id="policyInsurer" class="form-input" placeholder="e.g. HDFC Life / Star Health"></div>
       <div class="form-group"><label class="form-label">Policy Type</label>
         <select id="policyType" class="form-select">
-          <option value="LIFE">🛡️ Term / Life Insurance</option>
-          <option value="HEALTH">🏥 Health Insurance</option>
-          <option value="VEHICLE">🚗 Motor / Vehicle</option>
-          <option value="HOME">🏠 Home Protection</option>
-          <option value="TRAVEL">✈️ Travel</option>
-          <option value="OTHER">📁 Other</option>
+          <option value="LIFE">Term / Life Insurance</option>
+          <option value="HEALTH">Health Insurance</option>
+          <option value="VEHICLE">Motor / Vehicle</option>
+          <option value="HOME">Home Protection</option>
+          <option value="TRAVEL">Travel</option>
+          <option value="OTHER">Other</option>
         </select>
       </div>
       <div class="form-group"><label class="form-label">Total Coverage Amount (₹)</label><input type="number" id="coverageAmount" class="form-input" placeholder="10000000" min="0"></div>

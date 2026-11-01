@@ -3,12 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Onboarding — FinPro</title>
+  <title>Onboarding: FinPro</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <script src="/assets/js/theme.js"></script>
 
-  <link rel="stylesheet" href="/assets/css/app.css"></head>
+  <link rel="stylesheet" href="/assets/css/app.css">
+  <style>
+    /* Hallmark · shape: app screen · genre: modern-minimal · theme: brand · redesign: full */
+    html, body { overflow-x: clip; }
+    :focus-visible { outline: 2px solid var(--color-focus) !important; outline-offset: 2px !important; }
+    button:active, .btn:active { transform: scale(0.985); }
+    button:disabled, input:disabled, select:disabled, .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  </style></head>
 <body class="page-onboarding">
   <div class="container">
     <div class="header">
@@ -61,15 +68,15 @@
       <!-- Step 2: Debt & Investments -->
       <div id="step2" style="display:none">
         <div class="form-group">
-          <label class="form-label">Total Outstanding Debt / Loans (₹) — enter 0 if none</label>
+          <label class="form-label">Total Outstanding Debt / Loans (₹), enter 0 if none</label>
           <input type="number" id="totalDebt" class="form-input" placeholder="0" min="0">
         </div>
         <div class="form-group">
           <label class="form-label">Risk Tolerance</label>
           <div class="option-group" id="riskGroup">
-            <button class="option-btn" data-val="CONSERVATIVE" onclick="select('riskGroup',this)">🛡️ Conservative</button>
-            <button class="option-btn selected" data-val="MODERATE" onclick="select('riskGroup',this)">⚖️ Moderate</button>
-            <button class="option-btn" data-val="AGGRESSIVE" onclick="select('riskGroup',this)">🚀 Aggressive</button>
+            <button class="option-btn" data-val="CONSERVATIVE" onclick="select('riskGroup',this)">Conservative</button>
+            <button class="option-btn selected" data-val="MODERATE" onclick="select('riskGroup',this)">Moderate</button>
+            <button class="option-btn" data-val="AGGRESSIVE" onclick="select('riskGroup',this)">Aggressive</button>
           </div>
         </div>
         <div class="form-group">
@@ -103,12 +110,12 @@
         <div class="form-group">
           <label class="form-label">Primary Financial Goal</label>
           <div class="option-group" style="grid-template-columns:1fr 1fr;" id="goalGroup">
-            <button class="option-btn" data-val="EMERGENCY_FUND" onclick="select('goalGroup',this)">🏦 Emergency Fund</button>
-            <button class="option-btn selected" data-val="HOME" onclick="select('goalGroup',this)">🏠 Buy a Home</button>
-            <button class="option-btn" data-val="RETIREMENT" onclick="select('goalGroup',this)">🌅 Retirement</button>
-            <button class="option-btn" data-val="EDUCATION" onclick="select('goalGroup',this)">🎓 Education</button>
-            <button class="option-btn" data-val="INVESTMENT" onclick="select('goalGroup',this)">📈 Grow Wealth</button>
-            <button class="option-btn" data-val="OTHER" onclick="select('goalGroup',this)">✨ Other</button>
+            <button class="option-btn" data-val="EMERGENCY_FUND" onclick="select('goalGroup',this)">Emergency Fund</button>
+            <button class="option-btn selected" data-val="HOME" onclick="select('goalGroup',this)">Buy a Home</button>
+            <button class="option-btn" data-val="RETIREMENT" onclick="select('goalGroup',this)">Retirement</button>
+            <button class="option-btn" data-val="EDUCATION" onclick="select('goalGroup',this)">Education</button>
+            <button class="option-btn" data-val="INVESTMENT" onclick="select('goalGroup',this)">Grow Wealth</button>
+            <button class="option-btn" data-val="OTHER" onclick="select('goalGroup',this)">Other</button>
           </div>
         </div>
         <div id="submitResult" style="display:none;padding:16px;background:var(--primary-light);border:1px solid var(--primary-border);border-radius:12px;font-size:13px;color:var(--primary-bright);margin-top:16px;"></div>
@@ -122,7 +129,7 @@
         </button>
       </div>
 
-      <a class="skip-link" id="skipLink" onclick="skipOnboarding()">Skip for now — I'll set this up later</a>
+      <a class="skip-link" id="skipLink" onclick="skipOnboarding()">Skip for now. I'll set this up later</a>
     </div>
   </div>
 
