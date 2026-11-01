@@ -8,116 +8,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js" defer></script>
+  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
-  <style>
-    :root {
-      --gold: #f59e0b; --gold-soft: rgba(245,158,11,0.15);
-      --silver: #94a3b8; --silver-soft: rgba(148,163,184,0.12);
-      --green: #10b981; --red: #ef4444; --blue: #10b981;
-      --card-bg: rgba(255,255,255,0.03); --card-border: rgba(255,255,255,0.07);
-    }
-    .ticker-wrap { width:100%; overflow:hidden; background:rgba(16,185,129,0.06); border-bottom:1px solid rgba(16,185,129,0.15); padding:6px 0; }
-    .ticker-inner { display:flex; gap:48px; white-space:nowrap; animation:tickerMove 40s linear infinite; }
-    .ticker-inner:hover { animation-play-state:paused; }
-    .ticker-item { display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:600; }
-    .ticker-item .sym { color:#94a3b8; } .ticker-item .prc { color:#e2e8f0; }
-    .ticker-item .chg.up { color:#10b981; } .ticker-item .chg.down { color:#ef4444; }
-    @keyframes tickerMove { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-    .market-pill { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
-    .market-pill.open { background:rgba(16,185,129,.15); color:#10b981; border:1px solid rgba(16,185,129,.3); }
-    .market-pill.closed { background:rgba(239,68,68,.1); color:#ef4444; border:1px solid rgba(239,68,68,.25); }
-    .pulse { width:7px; height:7px; border-radius:50%; background:currentColor; animation:pulse 1.4s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
-    .av-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:6px; font-size:10px; font-weight:700; background:linear-gradient(135deg,rgba(16,185,129,.2),rgba(5,150,105,.15)); color:#6ee7b7; border:1px solid rgba(16,185,129,.25); }
-    .dash-grid { display:grid; gap:16px; }
-    .dash-grid-3 { grid-template-columns:repeat(3,1fr); }
-    .dash-grid-2 { grid-template-columns:repeat(2,1fr); }
-    .dash-grid-42 { grid-template-columns:2fr 1fr; }
-    @media(max-width:900px) { .dash-grid-3,.dash-grid-2,.dash-grid-42 { grid-template-columns:1fr; } }
-    .mcard { background:var(--card-bg); border:1px solid var(--card-border); border-radius:14px; padding:18px; position:relative; overflow:hidden; transition:border-color .2s,transform .2s; }
-    .mcard:hover { border-color:rgba(16,185,129,.35); transform:translateY(-1px); }
-    .mcard.gold-card { border-color:rgba(245,158,11,.25); background:linear-gradient(135deg,rgba(245,158,11,.07),var(--card-bg)); }
-    .mcard.silver-card { border-color:rgba(148,163,184,.2); background:linear-gradient(135deg,rgba(148,163,184,.06),var(--card-bg)); }
-    .mcard.crude-card { border-color:rgba(168,85,247,.2); background:linear-gradient(135deg,rgba(168,85,247,.06),var(--card-bg)); }
-    .mcard.fx-card { border-color:rgba(59,130,246,.2); background:linear-gradient(135deg,rgba(59,130,246,.06),var(--card-bg)); }
-    .mcard-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; margin-bottom:12px; }
-    .icon-gold { background:rgba(245,158,11,.15); color:var(--gold); }
-    .icon-silver { background:rgba(148,163,184,.15); color:var(--silver); }
-    .icon-crude { background:rgba(168,85,247,.15); color:#34d399; }
-    .icon-fx { background:rgba(59,130,246,.15); color:#60a5fa; }
-    .icon-stock { background:rgba(16,185,129,.15); color:var(--green); }
-    .mcard-label { font-size:11px; color:#6b7280; font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
-    .mcard-value { font-size:22px; font-weight:800; color:#f1f5f9; line-height:1.2; }
-    .mcard-sub { font-size:12px; color:#94a3b8; margin-top:4px; }
-    .rates-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
-    .rate-row { background:rgba(0,0,0,.25); border-radius:8px; padding:8px 10px; }
-    .rate-lbl { font-size:10px; color:#6b7280; font-weight:600; }
-    .rate-val { font-size:14px; font-weight:700; color:#f1f5f9; margin-top:2px; }
-    .stock-table-wrap { overflow-x:auto; margin-top:4px; }
-    .stock-table { width:100%; border-collapse:collapse; font-size:13px; }
-    .stock-table thead tr th { padding:8px 12px; text-align:left; font-size:11px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid rgba(255,255,255,.06); }
-    .stock-table tbody tr { border-bottom:1px solid rgba(255,255,255,.04); transition:background .15s; }
-    .stock-table tbody tr:hover { background:rgba(255,255,255,.025); cursor:pointer; }
-    .stock-table td { padding:10px 12px; color:#e2e8f0; }
-    .sym-name { font-weight:700; font-size:13px; } .sym-exch { font-size:10px; color:#6b7280; font-weight:500; }
-    .price-cell { font-weight:700; font-size:14px; }
-    .chg-cell { font-weight:600; } .chg-cell.up { color:var(--green); } .chg-cell.down { color:var(--red); }
-    .source-dot { display:inline-block; width:6px; height:6px; border-radius:50%; }
-    .source-dot.av { background:#10b981; } .source-dot.fh { background:#f59e0b; } .source-dot.ref { background:#6b7280; }
-    #stockDetailChart { width:100%; height:300px; }
-    .tech-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
-    @media(max-width:700px) { .tech-grid { grid-template-columns:1fr 1fr; } }
-    .tech-item { background:rgba(0,0,0,.2); border-radius:10px; padding:10px 12px; text-align:center; }
-    .tech-lbl { font-size:10px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; }
-    .tech-val { font-size:18px; font-weight:800; margin-top:4px; }
-    .tech-sig { font-size:10px; font-weight:700; margin-top:4px; padding:2px 6px; border-radius:4px; }
-    .sig-buy { background:rgba(16,185,129,.15); color:var(--green); }
-    .sig-sell { background:rgba(239,68,68,.1); color:var(--red); }
-    .sig-hold { background:rgba(245,158,11,.1); color:var(--gold); }
-    .news-list { display:flex; flex-direction:column; gap:10px; }
-    .news-item { padding:12px 14px; border-radius:10px; background:rgba(0,0,0,.2); border:1px solid rgba(255,255,255,.05); cursor:pointer; transition:background .15s; }
-    .news-item:hover { background:rgba(255,255,255,.04); }
-    .news-headline { font-size:13px; font-weight:600; color:#e2e8f0; line-height:1.4; margin-bottom:4px; }
-    .news-meta { font-size:10px; color:#6b7280; display:flex; gap:10px; align-items:center; }
-    .commodity-strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
-    .comm-card { background:rgba(0,0,0,.25); border-radius:10px; padding:12px; text-align:center; border:1px solid rgba(255,255,255,.05); }
-    .comm-icon { font-size:24px; margin-bottom:4px; }
-    .comm-name { font-size:10px; color:#6b7280; font-weight:600; text-transform:uppercase; }
-    .comm-val { font-size:16px; font-weight:800; color:#e2e8f0; margin-top:4px; }
-    .comm-unit { font-size:10px; color:#94a3b8; margin-top:2px; }
-    .earn-table { width:100%; border-collapse:collapse; font-size:12px; }
-    .earn-table th { padding:7px 10px; text-align:left; color:#6b7280; font-size:10px; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid rgba(255,255,255,.06); }
-    .earn-table td { padding:7px 10px; border-bottom:1px solid rgba(255,255,255,.04); color:#e2e8f0; }
-    .beat { color:var(--green); font-weight:700; } .miss { color:var(--red); font-weight:700; }
-    .skel { background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.04) 75%); background-size:200% 100%; animation:skel 1.5s infinite; border-radius:6px; }
-    @keyframes skel { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-    .mkt-search { display:flex; gap:10px; align-items:center; }
-    .mkt-search input { flex:1; max-width:280px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:8px 14px; color:#e2e8f0; font-size:13px; outline:none; }
-    .mkt-search input:focus { border-color:#10b981; }
-    .sec-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
-    .sec-title { font-size:15px; font-weight:700; color:#e2e8f0; display:flex; align-items:center; gap:8px; }
-    .av-footer { text-align:center; padding:12px; font-size:11px; color:#4b5563; margin-top:24px; }
-    .av-footer a { color:#10b981; text-decoration:none; }
-    .tf-btn { padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:#94a3b8; transition:.15s; }
-    .tf-btn:hover { border-color:#10b981; color:#6ee7b7; }
-    .tf-btn.active { background:rgba(16,185,129,.2); border-color:rgba(16,185,129,.4); color:#6ee7b7; }
-    /* ── Data Provenance Badges (Phase 9) ─────────────────────────────────
-       These resolve from the shared theme tokens declared in assets/css/app.css
-       (--surface-2, --border, --text, --muted, --success/--warning/--danger and
-       their -light variants) so they follow the app's light-mode override
-       (:root.light-mode) instead of a fixed palette. Fallbacks keep them
-       readable if the tokens are unavailable. */
-    .prov-badge { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:999px; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; vertical-align:middle; border:1px solid var(--border, rgba(255,255,255,.12)); background:var(--surface-2, rgba(255,255,255,.06)); color:var(--muted, #8b95b0); }
-    .prov-dot { width:6px; height:6px; border-radius:50%; background:currentColor; flex:0 0 auto; }
-    .prov-badge.prov-live { color:var(--success, #059669); border-color:var(--primary, #10b981); background:var(--primary-light, rgba(16,185,129,.12)); }
-    .prov-badge.prov-cached { color:var(--warning, #d97706); border-color:var(--warning, #d97706); background:var(--warning-light, rgba(217,119,6,.12)); }
-    .prov-badge.prov-stale { color:var(--danger, #dc2626); border-color:var(--danger, #dc2626); background:var(--danger-light, rgba(220,38,38,.12)); }
-    .prov-badge.prov-unavailable { color:var(--muted, #64748b); border-color:var(--border-dark, #3a4060); background:var(--surface-3, rgba(255,255,255,.08)); }
-    .prov-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
-    .prov-session { font-size:10.5px; color:var(--muted, #8b95b0); }
-  </style>
 </head>
-<body>
+<body class="page-market app-layout">
   <div id="sidebarRoot"></div>
   <main class="main-content">
     <div class="ticker-wrap" id="tickerBar">
@@ -175,7 +69,7 @@
             <div class="mcard-icon icon-crude"><i class="ri-oil-line"></i></div>
             <div class="mcard-label">WTI Crude Oil (NYMEX)</div>
             <div class="mcard-value" id="crudeUSDVal">--</div>
-            <div class="mcard-sub">per barrel · <span id="crudeINRVal" style="color:#34d399">-- INR</span></div>
+            <div class="mcard-sub">per barrel · <span id="crudeINRVal" style="color:var(--accent-green)">-- INR</span></div>
           </div>
           <div class="mcard">
             <div class="mcard-icon icon-stock"><i class="ri-bar-chart-2-line"></i></div>
@@ -207,7 +101,7 @@
               </tr>
             </thead>
             <tbody id="stockTableBody">
-              <tr><td colspan="10" style="text-align:center;padding:40px;color:#6b7280;">
+              <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted);">
                 <div class="skel" style="height:14px;width:60%;margin:0 auto;"></div>
               </td></tr>
             </tbody>
@@ -231,23 +125,23 @@
             </div>
           </div>
           <div id="stockDetailChart"></div>
-          <div style="margin-top:8px;font-size:11px;color:#6b7280;" id="chartMeta">Live Price Data</div>
+          <div style="margin-top:8px;font-size:11px;color:var(--muted);" id="chartMeta">Live Price Data</div>
           <div class="prov-row" id="quoteProvenance"></div>
         </div>
         <div class="card">
           <div class="sec-title" style="margin-bottom:8px;"><i class="ri-pulse-line"></i> Technical Indicators</div>
-          <div style="font-size:11px;color:#6b7280;margin-bottom:10px;" id="techSymLabel">RELIANCE · Daily · Live History</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:10px;" id="techSymLabel">RELIANCE · Daily · Live History</div>
           <div class="tech-grid" id="techGrid">
-            <div class="tech-item"><div class="tech-lbl">RSI (14)</div><div class="tech-val" id="rsiVal" style="color:#e2e8f0;">--</div><div class="tech-sig" id="rsiSig">--</div></div>
-            <div class="tech-item"><div class="tech-lbl">MACD</div><div class="tech-val" id="macdVal" style="font-size:14px;color:#e2e8f0;">--</div><div class="tech-sig" id="macdSig">--</div></div>
-            <div class="tech-item"><div class="tech-lbl">SMA 20</div><div class="tech-val" id="sma20Val" style="font-size:14px;color:#e2e8f0;">--</div></div>
-            <div class="tech-item"><div class="tech-lbl">SMA 50</div><div class="tech-val" id="sma50Val" style="font-size:14px;color:#e2e8f0;">--</div></div>
-            <div class="tech-item"><div class="tech-lbl">BB Upper</div><div class="tech-val" id="bbUpperVal" style="font-size:14px;color:#10b981;">--</div></div>
-            <div class="tech-item"><div class="tech-lbl">BB Lower</div><div class="tech-val" id="bbLowerVal" style="font-size:14px;color:#ef4444;">--</div></div>
+            <div class="tech-item"><div class="tech-lbl">RSI (14)</div><div class="tech-val" id="rsiVal" style="color:var(--border);">--</div><div class="tech-sig" id="rsiSig">--</div></div>
+            <div class="tech-item"><div class="tech-lbl">MACD</div><div class="tech-val" id="macdVal" style="font-size:14px;color:var(--border);">--</div><div class="tech-sig" id="macdSig">--</div></div>
+            <div class="tech-item"><div class="tech-lbl">SMA 20</div><div class="tech-val" id="sma20Val" style="font-size:14px;color:var(--border);">--</div></div>
+            <div class="tech-item"><div class="tech-lbl">SMA 50</div><div class="tech-val" id="sma50Val" style="font-size:14px;color:var(--border);">--</div></div>
+            <div class="tech-item"><div class="tech-lbl">BB Upper</div><div class="tech-val" id="bbUpperVal" style="font-size:14px;color:var(--primary);">--</div></div>
+            <div class="tech-item"><div class="tech-lbl">BB Lower</div><div class="tech-val" id="bbLowerVal" style="font-size:14px;color:var(--danger);">--</div></div>
           </div>
-          <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,.06);padding-top:12px;">
+          <div style="margin-top:16px;border-top:1px solid var(--surface-2);padding-top:12px;">
             <div class="tech-lbl" style="margin-bottom:8px;">Company Fundamentals</div>
-            <div id="overviewMini" style="font-size:12px;color:#94a3b8;line-height:1.8;">
+            <div id="overviewMini" style="font-size:12px;color:var(--muted);line-height:1.8;">
               <div class="skel" style="height:12px;width:90%;margin-bottom:6px;"></div>
               <div class="skel" style="height:12px;width:75%;margin-bottom:6px;"></div>
               <div class="skel" style="height:12px;width:80%;"></div>
@@ -294,7 +188,7 @@
             <table class="earn-table">
               <thead><tr><th>Quarter</th><th>Reported EPS</th><th>Estimated EPS</th><th>Surprise %</th></tr></thead>
               <tbody id="earningsBody">
-                <tr><td colspan="4" style="color:#6b7280;text-align:center;padding:20px;">Loading earnings...</td></tr>
+                <tr><td colspan="4" style="color:var(--muted);text-align:center;padding:20px;">Loading earnings...</td></tr>
               </tbody>
             </table>
           </div>
@@ -425,11 +319,11 @@
       const topMover = [...d.stocks].sort((a,b) => Math.abs(b.changePercent||0) - Math.abs(a.changePercent||0))[0];
       document.getElementById('marketOverviewMini').innerHTML = `
         <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:#10b981;">Gainers: ${gainers}</span>
-          <span style="color:#ef4444;">Losers: ${losers}</span>
+          <span style="color:var(--primary);">Gainers: ${gainers}</span>
+          <span style="color:var(--danger);">Losers: ${losers}</span>
         </div>
-        <div style="font-size:12px;color:#94a3b8;margin-top:4px;">Top: <b style="color:#e2e8f0">${topMover?.symbol || '--'}</b> ${topMover?.changePercent >= 0 ? '+' : ''}${topMover?.changePercent?.toFixed(2) || '0'}%</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:4px;">USD/INR: \u20b9${parseFloat(d.usdToInr).toFixed(2)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">Top: <b style="color:var(--border)">${topMover?.symbol || '--'}</b> ${topMover?.changePercent >= 0 ? '+' : ''}${topMover?.changePercent?.toFixed(2) || '0'}%</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">USD/INR: \u20b9${parseFloat(d.usdToInr).toFixed(2)}</div>
       `;
     };
 
@@ -445,8 +339,8 @@
           <td>${s.low  ? fmt(s.low)  : '--'}</td>
           <td class="chg-cell ${up ? 'up' : 'down'}">${up ? '+' : ''}${fmt(s.change || 0)}</td>
           <td class="chg-cell ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(s.changePercent || 0).toFixed(2)}%</td>
-          <td style="font-size:11px;color:#6b7280;">${(s.volume || 0).toLocaleString('en-IN')}</td>
-          <td><span class="source-dot ${srcClass}" title="${s.source}"></span> <span style="font-size:10px;color:#6b7280;">${(s.source || '').replace('ALPHA_VANTAGE', 'AV')}</span><div style="margin-top:4px;">${provBadge(statusOf(s))}</div></td>
+          <td style="font-size:11px;color:var(--muted);">${(s.volume || 0).toLocaleString('en-IN')}</td>
+          <td><span class="source-dot ${srcClass}" title="${s.source}"></span> <span style="font-size:10px;color:var(--muted);">${(s.source || '').replace('ALPHA_VANTAGE', 'AV')}</span><div style="margin-top:4px;">${provBadge(statusOf(s))}</div></td>
           <td><button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();selectSymbol('${s.symbol}')"><i class="ri-line-chart-line"></i></button></td>
         </tr>`;
       }).join('');
@@ -475,7 +369,7 @@
         const q = quoteRes.data;
         const upDown = (q.changePercent || 0) >= 0;
         document.getElementById('chartTitle').innerHTML =
-          `<i class="ri-line-chart-line"></i> ${q.name || sym} (${sym}) &mdash; ${fmt(q.price)} <span style="font-size:12px;color:${upDown ? '#10b981' : '#ef4444'}">${upDown ? '▲' : '▼'} ${Math.abs(q.changePercent || 0).toFixed(2)}%</span>`;
+          `<i class="ri-line-chart-line"></i> ${q.name || sym} (${sym}) &mdash; ${fmt(q.price)} <span style="font-size:12px;color:${upDown ? 'var(--primary)' : 'var(--danger)'}">${upDown ? '▲' : '▼'} ${Math.abs(q.changePercent || 0).toFixed(2)}%</span>`;
         document.getElementById('chartMeta').textContent = `Source: ${q.provider || q.source} · ${q.timestamp}`;
 
         // Provenance for the selected symbol, taken from this exact response.
@@ -507,12 +401,12 @@
             type: 'category',
             data: pts.map(p => p.time ? `${p.date} ${p.time}` : p.date),
             axisLabel: { color: '#6b7280', fontSize: 10, rotate: pts.length > 50 ? 30 : 0 },
-            axisLine: { lineStyle: { color: 'rgba(255,255,255,.06)' } },
+            axisLine: { lineStyle: { color: 'rgba(148,163,184,0.22)' } },
           },
           yAxis: {
             type: 'value', scale: true,
             axisLabel: { color: '#6b7280', fontSize: 10, formatter: v => '\u20b9' + v.toLocaleString('en-IN') },
-            splitLine: { lineStyle: { color: 'rgba(255,255,255,.05)' } },
+            splitLine: { lineStyle: { color: 'rgba(148,163,184,0.22)' } },
           },
           series: [{
             name: sym, type: 'line', data: pts.map(p => p.price),
@@ -538,7 +432,7 @@
       const d = res.data;
       const rsi = d.rsi?.rsi;
       document.getElementById('rsiVal').textContent = rsi ? rsi.toFixed(1) : '--';
-      document.getElementById('rsiVal').style.color = rsi ? (rsi < 30 ? '#10b981' : rsi > 70 ? '#ef4444' : '#f59e0b') : '#e2e8f0';
+      document.getElementById('rsiVal').style.color = rsi ? (rsi < 30 ? 'var(--success)' : rsi > 70 ? 'var(--danger)' : 'var(--warning)') : 'var(--text)';
       if (rsi) {
         const sig = document.getElementById('rsiSig');
         if (rsi < 30) { sig.textContent = 'OVERSOLD'; sig.className = 'tech-sig sig-buy'; }
@@ -563,16 +457,16 @@
       const res = await get(`/market/overview?symbol=${sym}`);
       const el = document.getElementById('overviewMini');
       if (!res?.success || !res.data) {
-        el.innerHTML = '<span style="color:#6b7280;font-size:11px;">Company overview not available (AV BSE coverage).</span>';
+        el.innerHTML = '<span style="color:var(--muted);font-size:11px;">Company overview not available (AV BSE coverage).</span>';
         return;
       }
       const d = res.data;
       el.innerHTML = `
-        <div><b style="color:#e2e8f0;">${d.name || sym}</b> &middot; ${d.sector || ''} &middot; ${d.country || ''}</div>
+        <div><b style="color:var(--border);">${d.name || sym}</b> &middot; ${d.sector || ''} &middot; ${d.country || ''}</div>
         <div>P/E: <b>${d.peRatio || '--'}</b> &middot; EPS: <b>${d.eps || '--'}</b> &middot; Beta: <b>${d.beta || '--'}</b></div>
         <div>Div Yield: <b>${d.dividendYield || '0'}%</b> &middot; Profit Margin: <b>${d.profitMargin || '--'}</b></div>
-        <div>52W High: <b style="color:#10b981">${d.week52High || '--'}</b> &middot; Low: <b style="color:#ef4444">${d.week52Low || '--'}</b></div>
-        <div>Analyst Target: <b style="color:#10b981">${d.analystTarget || '--'}</b></div>
+        <div>52W High: <b style="color:var(--primary)">${d.week52High || '--'}</b> &middot; Low: <b style="color:var(--danger)">${d.week52Low || '--'}</b></div>
+        <div>Analyst Target: <b style="color:var(--primary)">${d.analystTarget || '--'}</b></div>
       `;
     };
 
@@ -616,10 +510,10 @@
 
     const loadEarnings = async (sym) => {
       const tbody = document.getElementById('earningsBody');
-      tbody.innerHTML = '<tr><td colspan="4" style="color:#6b7280;text-align:center;padding:16px;">Loading...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px;">Loading...</td></tr>';
       const res = await get(`/market/earnings?symbol=${sym}`);
       if (!res?.success || !Array.isArray(res.data)) {
-        tbody.innerHTML = '<tr><td colspan="4" style="color:#6b7280;text-align:center;padding:16px;">Not available (try IBM or AAPL for AV free tier)</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px;">Not available (try IBM or AAPL for AV free tier)</td></tr>';
         return;
       }
       tbody.innerHTML = res.data.map(e => {

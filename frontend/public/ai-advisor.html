@@ -7,74 +7,10 @@
   <meta name="description" content="AI-powered financial decision support with What-If simulations, Voice assistant, OCR receipt scanner, and Risk Radar.">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
-  <style>
-    .chat-layout { display: grid; grid-template-columns: 1fr 340px; height: calc(100vh - 65px); }
-    .chat-container { display: flex; flex-direction: column; height: 100%; border-right: 1px solid var(--border); }
-    .chat-header { padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-    .ai-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; font-size: 18px; color: white; }
-    .ai-status { font-size: 11px; color: #10b981; }
-    .chat-snapshot { padding: 10px 24px; border-bottom: 1px solid var(--border); background: rgba(16,185,129,.04); display: flex; gap: 12px; overflow-x: auto; flex-shrink: 0; }
-    .snapshot-item { flex-shrink: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px 12px; font-size: 11px; white-space: nowrap; box-shadow: var(--shadow-sm); }
-    .snapshot-val { font-weight: 700; color: var(--text, #0f172a); display: block; font-size: 12px; }
-    .snapshot-lbl { color: var(--muted, #64748b); font-size: 9px; font-weight: 600; text-transform: uppercase; }
-    
-    .messages-area { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
-    .msg { display: flex; gap: 10px; max-width: 80%; }
-    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-    .msg-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: linear-gradient(135deg, #10b981, #059669); color: white; }
-    .msg.user .msg-avatar { background: linear-gradient(135deg, #10b981, #059669); }
-    .msg-bubble { padding: 12px 14px; border-radius: 14px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
-    .msg.ai .msg-bubble { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px 14px 14px 14px; box-shadow: var(--shadow-sm); }
-    .msg.user .msg-bubble { background: var(--primary); color: #ffffff; border-radius: 14px 4px 14px 14px; box-shadow: var(--shadow-sm); }
-    .msg-time { font-size: 10px; color: var(--muted); margin-top: 4px; text-align: right; }
-    .msg-feedback { display: flex; gap: 6px; margin-top: 8px; font-size: 11px; }
-    .feedback-btn { padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; transition: all 0.2s; }
-    .feedback-btn:hover { background: var(--primary-light); color: var(--primary); }
-
-    .input-area { padding: 16px 24px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
-    .input-row { display: flex; gap: 10px; align-items: flex-end; }
-    .chat-input { flex: 1; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; color: var(--text); font-size: 13px; font-family: 'Inter', sans-serif; outline: none; resize: none; min-height: 42px; max-height: 120px; line-height: 1.5; }
-    .chat-input:focus { border-color: var(--primary); }
-    .send-btn { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #10b981, #059669); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-    .voice-btn { width: 40px; height: 40px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); color: var(--primary); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; transition: all 0.2s; }
-    .voice-btn.recording { background: #ef4444; color: white; animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-
-    .quick-btns { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px; }
-    .quick-btn { flex-shrink: 0; padding: 5px 10px; background: var(--primary-light); border: 1px solid var(--primary-border); border-radius: 20px; color: var(--primary-dark); font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-
-    /* Side Tools Panel */
-    .tools-panel { padding: 20px; background: var(--surface); overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
-    .tool-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: var(--shadow-sm); }
-    .tool-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; color: var(--text, #0f172a); }
-    .tool-desc { font-size: 11px; color: var(--muted, #64748b); margin-bottom: 12px; line-height: 1.4; }
-    .tool-btn { width: 100%; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--primary-border); background: var(--primary-light); color: var(--primary); transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .tool-btn:hover { background: var(--primary); color: white; }
-
-    /* Modals */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
-    .modal-overlay.show { display: flex; }
-    .modal-box { background: var(--surface, #ffffff); border: 1px solid var(--border, #cbd5e1); border-radius: 16px; padding: 24px; width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto; color: var(--text, #0f172a); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
-    .modal-box-wide { background: var(--surface, #ffffff); border: 1px solid var(--border, #cbd5e1); border-radius: 16px; padding: 24px; width: 980px; max-width: 96vw; max-height: 90vh; overflow-y: auto; color: var(--text, #0f172a); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
-    .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
-    .modal-h3 { font-size: 16px; font-weight: 700; color: var(--text, #0f172a); }
-    .modal-x { background: none; border: none; color: var(--muted, #64748b); font-size: 20px; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
-    .modal-x:hover { color: var(--text); background: var(--surface-2); }
-
-    .typing { display: flex; gap: 4px; align-items: center; padding: 8px; }
-    .dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; animation: bounce .8s infinite; opacity: .7; }
-    .dot:nth-child(2) { animation-delay: .15s; }
-    .dot:nth-child(3) { animation-delay: .3s; }
-    @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-
-    @media (max-width: 900px) {
-      .chat-layout { grid-template-columns: 1fr; }
-      .tools-panel { display: none; }
-    }
-  </style>
 </head>
-<body>
+<body class="page-ai-advisor app-layout">
   <div id="sidebarRoot"></div>
   <main class="main-content">
     <div class="chat-layout">
@@ -158,21 +94,21 @@ How can I assist you today? You can ask about your spending, run a what-if finan
 
         <!-- Credit Health & CIBIL Indicator -->
         <div class="tool-card">
-          <div class="tool-title"><i class="ri-shield-check-line" style="color:#0284c7;"></i> Credit Health & CIBIL</div>
+          <div class="tool-title"><i class="ri-shield-check-line" style="color:var(--info);"></i> Credit Health & CIBIL</div>
           <div class="tool-desc">FinPro Credit Health Indicator (300-900 score) & bureau integration telemetry.</div>
           <button class="tool-btn" id="openCreditModalBtn"><i class="ri-dashboard-3-line"></i> View Credit Score</button>
         </div>
 
         <!-- GST Information & Calculator -->
         <div class="tool-card">
-          <div class="tool-title"><i class="ri-bank-card-line" style="color:#7c3aed;"></i> GST Information & Tax</div>
+          <div class="tool-title"><i class="ri-bank-card-line" style="color:var(--accent-purple);"></i> GST Information & Tax</div>
           <div class="tool-desc">Verify GSTIN format, legal jurisdiction, and calculate CGST/SGST/IGST tax breakdowns.</div>
           <button class="tool-btn" id="openGstModalBtn"><i class="ri-search-eye-line"></i> GST Lookup</button>
         </div>
 
         <!-- Retirement & Risk Radar -->
         <div class="tool-card">
-          <div class="tool-title"><i class="ri-shield-star-line" style="color:#ec4899;"></i> Financial Risk Radar</div>
+          <div class="tool-title"><i class="ri-shield-star-line" style="color:var(--accent-pink);"></i> Financial Risk Radar</div>
           <div class="tool-desc">Analyze debt, emergency buffer, and insurance protection gaps.</div>
           <button class="tool-btn" id="openRiskRadarBtn"><i class="ri-radar-line"></i> View Risk Radar</button>
         </div>
@@ -189,7 +125,7 @@ How can I assist you today? You can ask about your spending, run a what-if finan
       </div>
       <div style="display:flex;flex-direction:column;gap:12px;">
         <div>
-          <label style="font-size:11px;color:#64748b;font-weight:600;">Preset Scenarios</label>
+          <label style="font-size:11px;color:var(--muted);font-weight:600;">Preset Scenarios</label>
           <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">
             <button class="quick-btn" onclick="setSimPreset(10, 0, 0, 0, 0, 'Salary +10%')">Salary +10%</button>
             <button class="quick-btn" onclick="setSimPreset(0, 0, 5000, 0, 0, 'Extra SIP ₹5k/mo')">Invest +₹5k/mo</button>
@@ -198,23 +134,23 @@ How can I assist you today? You can ask about your spending, run a what-if finan
           </div>
         </div>
         <div>
-          <label style="font-size:11px;color:#64748b;font-weight:600;">Salary Change (%)</label>
+          <label style="font-size:11px;color:var(--muted);font-weight:600;">Salary Change (%)</label>
           <input type="number" id="simSalary" class="form-input" value="0" placeholder="e.g. 10">
         </div>
         <div>
-          <label style="font-size:11px;color:#64748b;font-weight:600;">Expense Change (%)</label>
+          <label style="font-size:11px;color:var(--muted);font-weight:600;">Expense Change (%)</label>
           <input type="number" id="simExpense" class="form-input" value="0" placeholder="e.g. 15">
         </div>
         <div>
-          <label style="font-size:11px;color:#64748b;font-weight:600;">Extra Monthly Investment (₹)</label>
+          <label style="font-size:11px;color:var(--muted);font-weight:600;">Extra Monthly Investment (₹)</label>
           <input type="number" id="simInvest" class="form-input" value="0" placeholder="e.g. 5000">
         </div>
         <div>
-          <label style="font-size:11px;color:#64748b;font-weight:600;">Loan Prepayment Lump Sum (₹)</label>
+          <label style="font-size:11px;color:var(--muted);font-weight:600;">Loan Prepayment Lump Sum (₹)</label>
           <input type="number" id="simPrepay" class="form-input" value="0" placeholder="e.g. 100000">
         </div>
         <div>
-          <label style="font-size:11px;color:#64748b;font-weight:600;">Major One-Time Purchase (₹)</label>
+          <label style="font-size:11px;color:var(--muted);font-weight:600;">Major One-Time Purchase (₹)</label>
           <input type="number" id="simPurchase" class="form-input" value="0" placeholder="e.g. 800000">
         </div>
         <button class="btn btn-primary" id="runSimulationBtn" style="width:100%;">Calculate Impact</button>
@@ -224,84 +160,93 @@ How can I assist you today? You can ask about your spending, run a what-if finan
   </div>
 
   <!-- OCR Receipt Modal -->
-  <div class="modal-overlay" id="ocrModal">
-    <div class="modal-box">
+  <div class="modal-overlay" id="ocrModal" role="dialog" aria-modal="true" aria-labelledby="ocrModalTitle">
+    <div class="modal-box modal-box-wide ocr-modal">
       <div class="modal-head">
-        <span class="modal-h3"><i class="ri-scan-2-line" style="color:var(--success);"></i> OCR Receipt Scanner</span>
-        <button class="modal-x" id="closeOcrModal">✕</button>
+        <span class="modal-h3" id="ocrModalTitle"><i class="ri-scan-2-line"></i> Receipt Scanner</span>
+        <button class="modal-x" id="closeOcrModal" aria-label="Close receipt scanner">✕</button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <label style="font-size:11px;color:#64748b;font-weight:600;">Upload Receipt Photo (PNG / JPEG / WebP)</label>
-        <input type="file" id="receiptFileInput" class="form-input" accept="image/png,image/jpeg,image/webp" style="padding:6px;">
-        <div id="receiptImagePreviewContainer" style="display:none;text-align:center;">
-          <img id="receiptImagePreview" style="max-height:150px;max-width:100%;border-radius:8px;border:1px solid var(--border);object-fit:contain;">
-        </div>
-        <div style="font-size:11px;color:#64748b;text-align:center;">— or paste receipt text —</div>
-        <textarea id="receiptInput" class="form-input" rows="2" placeholder="e.g. STARBUCKS COFFEE Total: Rs 450.00 Date: 2026-08-16"></textarea>
-        <button class="btn btn-primary" id="scanReceiptBtn" style="width:100%;">
-          <span id="scanReceiptBtnText"><i class="ri-camera-lens-line"></i> Scan & Extract with OCR</span>
-          <span id="scanReceiptSpinner" style="display:none;"><i class="ri-loader-4-line" style="animation:spin 1s infinite linear;display:inline-block;"></i> Processing OCR...</span>
+
+      <p class="ocr-lead">
+        Add up to five receipt photos. Each receipt is read on its own, and nothing is saved until you review and confirm it.
+      </p>
+
+      <div class="ocr-dropzone" id="ocrDropzone" role="button" tabindex="0" aria-label="Add receipt images">
+        <i class="ri-upload-cloud-2-line" aria-hidden="true"></i>
+        <span class="ocr-dropzone-title">Drop receipt photos here, or click to browse</span>
+        <span class="ocr-dropzone-hint">PNG, JPEG or WebP · up to 5 images · 10 MB each</span>
+        <input type="file" id="receiptFileInput" accept="image/png,image/jpeg,image/webp" multiple hidden>
+      </div>
+
+      <div class="ocr-queue" id="ocrQueue" aria-live="polite"></div>
+
+      <div class="ocr-toolbar">
+        <button class="btn btn-primary" id="scanReceiptBtn" type="button">
+          <i class="ri-camera-lens-line" aria-hidden="true"></i> Scan receipts
         </button>
-
-        <div id="ocrPreviewBox" style="display:none;background:rgba(5,150,105,0.06);border:1px solid rgba(5,150,105,0.3);padding:14px;border-radius:10px;font-size:12px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span style="font-weight:700;color:var(--success);">Review & Edit Extracted Details:</span>
-            <span id="ocrConfidenceBadge" style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(5,150,105,0.15);color:var(--success);font-weight:700;">Confidence: 100%</span>
-          </div>
-
-          <!-- GST Breakdown Box -->
-          <div id="ocrGstBreakdownBox" style="display:none;background:#f8fafc;border:1px solid #cbd5e1;padding:12px;border-radius:8px;margin-bottom:10px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-              <span style="font-weight:700;color:#0f172a;font-size:11px;"><i class="ri-shield-check-line" style="color:var(--success);"></i> GST Tax Breakdown Detected</span>
-              <span id="ocrGstinBadge" style="font-size:10px;font-family:monospace;background:#e0f2fe;color:#0369a1;padding:2px 6px;border-radius:4px;font-weight:700;">GSTIN: -</span>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px;text-align:center;">
-              <div style="background:#ffffff;border:1px solid #e2e8f0;padding:4px;border-radius:6px;">
-                <div style="color:#64748b;font-size:9px;">Taxable</div>
-                <div id="ocrGstTaxable" style="font-weight:700;color:#0f172a;">₹0</div>
-              </div>
-              <div style="background:#ffffff;border:1px solid #e2e8f0;padding:4px;border-radius:6px;">
-                <div style="color:#64748b;font-size:9px;">CGST</div>
-                <div id="ocrGstCgst" style="font-weight:700;color:#0f172a;">₹0</div>
-              </div>
-              <div style="background:#ffffff;border:1px solid #e2e8f0;padding:4px;border-radius:6px;">
-                <div style="color:#64748b;font-size:9px;">SGST</div>
-                <div id="ocrGstSgst" style="font-weight:700;color:#0f172a;">₹0</div>
-              </div>
-              <div style="background:#ffffff;border:1px solid #e2e8f0;padding:4px;border-radius:6px;">
-                <div style="color:#64748b;font-size:9px;">Total GST</div>
-                <div id="ocrGstTotal" style="font-weight:700;color:var(--success);">₹0</div>
-              </div>
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-size:10px;color:#64748b;display:block;margin-bottom:2px;font-weight:600;">Merchant</label>
-              <input type="text" id="ocrEditMerchant" class="form-input" style="padding:6px;font-size:12px;width:100%;">
-            </div>
-            <div>
-              <label style="font-size:10px;color:#64748b;display:block;margin-bottom:2px;font-weight:600;">Amount (₹)</label>
-              <input type="number" step="0.01" id="ocrEditAmount" class="form-input" style="padding:6px;font-size:12px;width:100%;">
-            </div>
-            <div>
-              <label style="font-size:10px;color:#64748b;display:block;margin-bottom:2px;font-weight:600;">Category</label>
-              <input type="text" id="ocrEditCategory" class="form-input" style="padding:6px;font-size:12px;width:100%;">
-            </div>
-            <div>
-              <label style="font-size:10px;color:#64748b;display:block;margin-bottom:2px;font-weight:600;">Date</label>
-              <input type="date" id="ocrEditDate" class="form-input" style="padding:6px;font-size:12px;width:100%;">
-            </div>
-          </div>
-          <div id="ocrExtractedLineItems" style="font-size:11px;color:#64748b;margin-bottom:10px;"></div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-primary" id="confirmOcrBtn" style="background:var(--success);border-color:var(--success);flex:1;">Confirm & Add Expense</button>
-            <button class="btn btn-secondary" id="cancelOcrBtn" style="flex:1;">Cancel</button>
-          </div>
-        </div>
+        <button class="btn btn-secondary" id="clearOcrBtn" type="button">Clear all</button>
       </div>
+
+      <details class="ocr-text-fallback">
+        <summary>Or paste receipt text instead</summary>
+        <textarea id="receiptInput" class="form-input" rows="3" placeholder="e.g. STARBUCKS COFFEE&#10;Date: 16/08/2026&#10;Grand Total: 450.00"></textarea>
+        <button class="btn btn-secondary" id="scanTextBtn" type="button">
+          <i class="ri-text" aria-hidden="true"></i> Extract from text
+        </button>
+      </details>
     </div>
   </div>
+
+  <template id="ocrCardTemplate">
+    <article class="ocr-card" data-state="queued">
+      <div class="ocr-card-top">
+        <img class="ocr-thumb" alt="" hidden>
+        <div class="ocr-thumb ocr-thumb-text" hidden><i class="ri-text" aria-hidden="true"></i></div>
+        <div class="ocr-card-meta">
+          <div class="ocr-file-name"></div>
+          <div class="ocr-status">
+            <span class="ocr-status-dot" aria-hidden="true"></span>
+            <span class="ocr-status-text">Queued</span>
+          </div>
+          <div class="ocr-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span class="ocr-progress-bar"></span>
+          </div>
+          <div class="ocr-progress-label" aria-hidden="true"></div>
+        </div>
+        <button class="ocr-remove" type="button" aria-label="Remove receipt">✕</button>
+      </div>
+
+      <div class="ocr-result" hidden>
+        <div class="ocr-field-grid">
+          <div class="ocr-field" data-field="merchant">
+            <span class="ocr-field-label">Merchant <span class="ocr-conf" data-conf="merchant">—</span></span>
+            <input type="text" class="form-input ocr-input-merchant" autocomplete="off" placeholder="Not detected">
+          </div>
+          <div class="ocr-field" data-field="amount">
+            <span class="ocr-field-label">Amount (₹) <span class="ocr-conf" data-conf="amount">—</span></span>
+            <input type="number" step="0.01" min="0.01" class="form-input ocr-input-amount" inputmode="decimal" placeholder="Not detected">
+          </div>
+          <div class="ocr-field" data-field="date">
+            <span class="ocr-field-label">Date <span class="ocr-conf" data-conf="date">—</span></span>
+            <input type="date" class="form-input ocr-input-date">
+          </div>
+          <div class="ocr-field" data-field="category">
+            <span class="ocr-field-label">Category <span class="ocr-conf" data-conf="category">—</span></span>
+            <input type="text" class="form-input ocr-input-category" autocomplete="off" placeholder="General">
+          </div>
+        </div>
+        <div class="ocr-warnings" hidden></div>
+        <div class="ocr-gst" hidden></div>
+        <div class="ocr-items" hidden></div>
+        <div class="ocr-result-actions">
+          <button class="btn btn-primary ocr-confirm" type="button">Confirm expense</button>
+          <button class="btn btn-secondary ocr-retry" type="button" hidden>Retry scan</button>
+          <button class="btn btn-secondary ocr-discard" type="button">Discard</button>
+        </div>
+        <div class="ocr-message" role="status"></div>
+      </div>
+    </article>
+  </template>
 
   <!-- Bank Statement Analyzer Modal (PDF / CSV / XLSX) -->
   <div class="modal-overlay" id="importModal">
@@ -318,7 +263,7 @@ How can I assist you today? You can ask about your spending, run a what-if finan
         <!-- Input Selector Options -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <!-- Option A: File Upload -->
-          <div style="border:1px dashed var(--border-dark, #cbd5e1);border-radius:12px;padding:16px;background:var(--surface-2, #f8fafc);text-align:center;">
+          <div style="border:1px dashed var(--border-dark, var(--text-secondary));border-radius:12px;padding:16px;background:var(--surface-2, var(--surface-2));text-align:center;">
             <i class="ri-upload-cloud-2-line" style="font-size:28px;color:var(--primary);display:block;margin-bottom:6px;"></i>
             <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">Upload Statement File</div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Supported formats: <b>PDF</b> (Text / Scanned OCR), <b>CSV</b>, <b>XLSX</b></div>
@@ -362,15 +307,15 @@ How can I assist you today? You can ask about your spending, run a what-if finan
               <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600;">Detected Rows</div>
               <div id="summaryTotal" style="font-weight:700;font-size:14px;color:var(--text);margin-top:2px;">0</div>
             </div>
-            <div style="background:rgba(5,150,105,0.08);border:1px solid rgba(5,150,105,0.25);border-radius:8px;padding:10px;text-align:center;">
+            <div style="background:var(--primary-faint);border:1px solid var(--primary-border);border-radius:8px;padding:10px;text-align:center;">
               <div style="font-size:10px;color:var(--success);text-transform:uppercase;font-weight:600;">Valid & Ready</div>
               <div id="summaryValid" style="font-weight:700;font-size:14px;color:var(--success);margin-top:2px;">0</div>
             </div>
-            <div style="background:rgba(217,119,6,0.08);border:1px solid rgba(217,119,6,0.25);border-radius:8px;padding:10px;text-align:center;">
+            <div style="background:var(--warning-light);border:1px solid var(--warning-border);border-radius:8px;padding:10px;text-align:center;">
               <div style="font-size:10px;color:var(--warning);text-transform:uppercase;font-weight:600;">Duplicates Guarded</div>
               <div id="summaryDuplicates" style="font-weight:700;font-size:14px;color:var(--warning);margin-top:2px;">0</div>
             </div>
-            <div style="background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);border-radius:8px;padding:10px;text-align:center;">
+            <div style="background:var(--danger-light);border:1px solid var(--danger-border);border-radius:8px;padding:10px;text-align:center;">
               <div style="font-size:10px;color:var(--danger);text-transform:uppercase;font-weight:600;">Invalid / Skipped</div>
               <div id="summaryInvalid" style="font-weight:700;font-size:14px;color:var(--danger);margin-top:2px;">0</div>
             </div>
@@ -425,7 +370,7 @@ How can I assist you today? You can ask about your spending, run a what-if finan
     <div class="modal-box" style="width:580px;">
       <div class="modal-head">
         <div>
-          <span class="modal-h3"><i class="ri-shield-check-line" style="color:#0284c7;"></i> FinPro Credit Health & CIBIL</span>
+          <span class="modal-h3"><i class="ri-shield-check-line" style="color:var(--info);"></i> FinPro Credit Health & CIBIL</span>
           <div style="font-size:11px;color:var(--muted);margin-top:2px;">Layer 1 Internal Financial Telemetry & Layer 2 Credit Bureau Architecture</div>
         </div>
         <button class="modal-x" id="closeCreditModal">✕</button>
@@ -442,7 +387,7 @@ How can I assist you today? You can ask about your spending, run a what-if finan
     <div class="modal-box" style="width:580px;">
       <div class="modal-head">
         <div>
-          <span class="modal-h3"><i class="ri-bank-card-line" style="color:#7c3aed;"></i> GST Information & Tax Calculator</span>
+          <span class="modal-h3"><i class="ri-bank-card-line" style="color:var(--accent-purple);"></i> GST Information & Tax Calculator</span>
           <div style="font-size:11px;color:var(--muted);margin-top:2px;">GSTIN Verification, Jurisdiction & Tax Breakdown Calculation</div>
         </div>
         <button class="modal-x" id="closeGstModal">✕</button>
@@ -507,8 +452,8 @@ How can I assist you today? You can ask about your spending, run a what-if finan
       </div>
       <div style="font-size:13px;line-height:1.6;margin-bottom:16px;" id="voiceConfirmMessage"></div>
       <div style="display:flex;gap:10px;">
-        <button class="btn-primary" id="voiceConfirmYesBtn" style="background:#10b981;">Confirm</button>
-        <button class="btn-primary" id="voiceConfirmNoBtn" style="background:rgba(255,255,255,0.1);">Cancel</button>
+        <button class="btn-primary" id="voiceConfirmYesBtn" style="background:var(--primary);">Confirm</button>
+        <button class="btn-primary" id="voiceConfirmNoBtn" style="background:var(--border);">Cancel</button>
       </div>
     </div>
   </div>
@@ -558,10 +503,10 @@ How can I assist you today? You can ask about your spending, run a what-if finan
           }
         } else {
           if (inTable && tableRows.length > 0) {
-            let tableHtml = '<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;background:rgba(0,0,0,0.04);border-radius:8px;overflow:hidden;border:1px solid var(--border);">';
+            let tableHtml = '<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;background:var(--surface-2);border-radius:8px;overflow:hidden;border:1px solid var(--border);">';
             tableRows.forEach((row, rIdx) => {
               const tag = rIdx === 0 ? 'th' : 'td';
-              const bg = rIdx === 0 ? 'background:rgba(16,185,129,0.12);color:var(--primary);font-weight:700;' : 'border-top:1px solid var(--border);';
+              const bg = rIdx === 0 ? 'background:var(--primary-light);color:var(--primary);font-weight:700;' : 'border-top:1px solid var(--border);';
               tableHtml += '<tr>' + row.map(cell => `<${tag} style="padding:7px 10px;text-align:left;${bg}">${cell}</${tag}>`).join('') + '</tr>';
             });
             tableHtml += '</table>';
@@ -573,10 +518,10 @@ How can I assist you today? You can ask about your spending, run a what-if finan
         }
       }
       if (inTable && tableRows.length > 0) {
-        let tableHtml = '<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;background:rgba(0,0,0,0.04);border-radius:8px;overflow:hidden;border:1px solid var(--border);">';
+        let tableHtml = '<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;background:var(--surface-2);border-radius:8px;overflow:hidden;border:1px solid var(--border);">';
         tableRows.forEach((row, rIdx) => {
           const tag = rIdx === 0 ? 'th' : 'td';
-          const bg = rIdx === 0 ? 'background:rgba(16,185,129,0.12);color:var(--primary);font-weight:700;' : 'border-top:1px solid var(--border);';
+          const bg = rIdx === 0 ? 'background:var(--primary-light);color:var(--primary);font-weight:700;' : 'border-top:1px solid var(--border);';
           tableHtml += '<tr>' + row.map(cell => `<${tag} style="padding:7px 10px;text-align:left;${bg}">${cell}</${tag}>`).join('') + '</tr>';
         });
         tableHtml += '</table>';
@@ -586,9 +531,9 @@ How can I assist you today? You can ask about your spending, run a what-if finan
       html = processedLines.join('\n');
       html = html
         .replace(/^### (.*$)/gim, '<div style="font-size:14px;font-weight:700;margin:8px 0 4px 0;color:var(--primary);">$1</div>')
-        .replace(/^#### (.*$)/gim, '<div style="font-size:13px;font-weight:700;margin:6px 0 2px 0;color:#0284c7;">$1</div>')
+        .replace(/^#### (.*$)/gim, '<div style="font-size:13px;font-weight:700;margin:6px 0 2px 0;color:var(--info);">$1</div>')
         .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-        .replace(/`([^`]+)`/g, '<code style="background:rgba(16,185,129,0.1);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:11px;color:var(--primary);">$1</code>')
+        .replace(/`([^`]+)`/g, '<code style="background:var(--primary-light);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:11px;color:var(--primary);">$1</code>')
         .replace(/^> (.*$)/gim, '<div style="border-left:3px solid var(--primary);margin:6px 0;padding-left:8px;color:var(--muted);font-style:italic;">$1</div>')
         .replace(/\n\n/g, '<br><br>')
         .replace(/\n/g, '<br>');
@@ -606,12 +551,12 @@ How can I assist you today? You can ask about your spending, run a what-if finan
         let sourcesHtml = '';
         if (sources && sources.length > 0) {
           sourcesHtml = `
-            <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.12);font-size:11px;">
-              <div style="font-weight:600;color:#6ee7b7;margin-bottom:4px;display:flex;align-items:center;gap:4px;">
+            <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;">
+              <div style="font-weight:600;color:var(--primary-bright);margin-bottom:4px;display:flex;align-items:center;gap:4px;">
                 <i class="ri-database-2-line"></i> Grounded RAG Sources & Telemetry:
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:4px;">
-                ${sources.map(s => `<span style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.25);padding:2px 7px;border-radius:4px;color:#a7f3d0;font-size:10px;">${escapeHtml(s)}</span>`).join('')}
+                ${sources.map(s => `<span style="background:var(--primary-light);border:1px solid var(--primary-border);padding:2px 7px;border-radius:4px;color:var(--success-border);font-size:10px;">${escapeHtml(s)}</span>`).join('')}
               </div>
             </div>
           `;
@@ -656,8 +601,8 @@ How can I assist you today? You can ask about your spending, run a what-if finan
       div.innerHTML = `
         <div class="msg-avatar"><i class="ri-shield-check-line"></i></div>
         <div>
-          <div class="msg-bubble" style="border:1px solid rgba(245,158,11,.45);background:rgba(245,158,11,.06);">
-            <div style="font-size:12px;font-weight:700;color:#f59e0b;margin-bottom:4px;">
+          <div class="msg-bubble" style="border:1px solid var(--warning-border);background:var(--warning-light);">
+            <div style="font-size:12px;font-weight:700;color:var(--warning);margin-bottom:4px;">
               <i class="ri-error-warning-line"></i> Action not applied yet
             </div>
             <div style="font-size:12px;margin-bottom:8px;">${label}</div>
@@ -665,7 +610,7 @@ How can I assist you today? You can ask about your spending, run a what-if finan
               Confirm to apply it once. The request expires in about ${Math.round(seconds / 60)} minute(s).
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button type="button" data-action="confirm" style="padding:7px 14px;border-radius:8px;border:none;background:var(--primary);color:#062018;font-weight:700;font-size:12px;cursor:pointer;">Confirm</button>
+              <button type="button" data-action="confirm" style="padding:7px 14px;border-radius:8px;border:none;background:var(--primary);color:var(--on-primary);font-weight:700;font-size:12px;cursor:pointer;">Confirm</button>
               <button type="button" data-action="cancel" style="padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-weight:600;font-size:12px;cursor:pointer;">Cancel</button>
             </div>
           </div>
@@ -930,156 +875,531 @@ How can I assist you today? You can ask about your spending, run a what-if finan
         const box = document.getElementById('simResultBox');
         box.style.display = 'block';
         box.innerHTML = `
-          <div style="font-weight:700;color:#6ee7b7;margin-bottom:6px;">${d.summary}</div>
-          <div>• Monthly Cash Flow: <b>${d.comparison.monthlyCashFlow.formattedCurrent}</b> → <b style="color:#10b981;">${d.comparison.monthlyCashFlow.formattedScenario}</b></div>
-          <div>• Estimated Net Worth: <b>${d.comparison.netWorth.formattedCurrent}</b> → <b style="color:#10b981;">${d.comparison.netWorth.formattedScenario}</b></div>
-          <div>• 5-Year Projection: <b style="color:#6ee7b7;">${d.comparison.fiveYearProjection.formattedScenario}</b></div>
+          <div style="font-weight:700;color:var(--primary-bright);margin-bottom:6px;">${d.summary}</div>
+          <div>• Monthly Cash Flow: <b>${d.comparison.monthlyCashFlow.formattedCurrent}</b> → <b style="color:var(--primary);">${d.comparison.monthlyCashFlow.formattedScenario}</b></div>
+          <div>• Estimated Net Worth: <b>${d.comparison.netWorth.formattedCurrent}</b> → <b style="color:var(--primary);">${d.comparison.netWorth.formattedScenario}</b></div>
+          <div>• 5-Year Projection: <b style="color:var(--primary-bright);">${d.comparison.fiveYearProjection.formattedScenario}</b></div>
         `;
       }
     });
 
-    // OCR Modal
-    let pendingScanId = null;
-    let pendingScanData = null;
-    let currentReceiptImageBase64 = null;
+    // ===== OCR Receipt Scanner =====
+    // Each photo is scanned on its own so the progress and the result belong to
+    // that specific receipt. Nothing is saved until the user confirms a card;
+    // a missing amount or date is surfaced for manual entry and is never filled
+    // in with a guessed value (in particular, never with today's date).
+    const MAX_OCR_IMAGES = 5;
+    const MAX_OCR_BYTES = 10 * 1024 * 1024;
+    const OCR_STAGES = [
+      'Enhancing contrast and lighting…',
+      'Straightening and sharpening…',
+      'Reading the printed text…',
+      'Finding the merchant and total…',
+    ];
 
-    document.getElementById('openOcrBtn').addEventListener('click', () => {
-      document.getElementById('ocrModal').classList.add('show');
-    });
-    document.getElementById('closeOcrModal').addEventListener('click', () => {
-      document.getElementById('ocrModal').classList.remove('show');
-    });
-    document.getElementById('cancelOcrBtn').addEventListener('click', () => {
-      document.getElementById('ocrModal').classList.remove('show');
-    });
+    let ocrItems = [];
+    let ocrSeq = 0;
+    let ocrScanning = false;
 
-    // Image file selection & preview
+    const ocrModal = document.getElementById('ocrModal');
+    const ocrQueueEl = document.getElementById('ocrQueue');
+    const ocrTemplate = document.getElementById('ocrCardTemplate');
+    const ocrDropzone = document.getElementById('ocrDropzone');
     const receiptFileInput = document.getElementById('receiptFileInput');
-    const previewContainer = document.getElementById('receiptImagePreviewContainer');
-    const previewImg = document.getElementById('receiptImagePreview');
+    const scanReceiptBtn = document.getElementById('scanReceiptBtn');
+    const clearOcrBtn = document.getElementById('clearOcrBtn');
+    const scanTextBtn = document.getElementById('scanTextBtn');
+    const receiptInput = document.getElementById('receiptInput');
 
-    receiptFileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) {
-        currentReceiptImageBase64 = null;
-        previewContainer.style.display = 'none';
-        return;
-      }
-      if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type)) {
-        alert('Please select a PNG, JPEG, or WebP image file.');
-        receiptFileInput.value = '';
-        currentReceiptImageBase64 = null;
-        previewContainer.style.display = 'none';
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        currentReceiptImageBase64 = event.target.result;
-        previewImg.src = currentReceiptImageBase64;
-        previewContainer.style.display = 'block';
-      };
-      reader.readAsDataURL(file);
+    const openOcrModal = () => {
+      ocrModal.classList.add('show');
+      updateOcrToolbar();
+    };
+    const closeOcrModal = () => ocrModal.classList.remove('show');
+
+    document.getElementById('openOcrBtn').addEventListener('click', openOcrModal);
+    document.getElementById('closeOcrModal').addEventListener('click', closeOcrModal);
+    ocrModal.addEventListener('click', (event) => {
+      if (event.target === ocrModal) closeOcrModal();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && ocrModal.classList.contains('show')) closeOcrModal();
     });
 
-    document.getElementById('scanReceiptBtn').addEventListener('click', async () => {
-      const text = document.getElementById('receiptInput').value.trim();
-      if (!text && !currentReceiptImageBase64) {
-        alert('Please select an image file or paste receipt text.');
+    const readFileAsDataUrl = (file) =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      });
+
+    const updateOcrToolbar = () => {
+      const hasItems = ocrItems.length > 0;
+      scanReceiptBtn.disabled = ocrScanning || !hasItems;
+      clearOcrBtn.disabled = ocrScanning || !hasItems;
+      scanTextBtn.disabled = ocrScanning;
+    };
+
+    const confidenceClass = (value, present) => {
+      if (!present) return 'low';
+      if (value >= 80) return 'high';
+      if (value >= 55) return 'mid';
+      return 'low';
+    };
+
+    const setOcrMessage = (item, text, tone) => {
+      item.refs.message.textContent = text || '';
+      item.refs.message.className = `ocr-message${tone ? ` ${tone}` : ''}`;
+    };
+
+    const setFieldNote = (item, field, text) => {
+      const wrapper = item.refs.fields[field];
+      wrapper.classList.toggle('is-missing', Boolean(text));
+      let note = wrapper.querySelector('.ocr-field-note');
+      if (!text) {
+        if (note) note.remove();
         return;
       }
+      if (!note) {
+        note = document.createElement('span');
+        note.className = 'ocr-field-note';
+        wrapper.appendChild(note);
+      }
+      note.textContent = text;
+    };
 
-      const btnText = document.getElementById('scanReceiptBtnText');
-      const spinner = document.getElementById('scanReceiptSpinner');
-      const scanBtn = document.getElementById('scanReceiptBtn');
-      scanBtn.disabled = true;
-      btnText.style.display = 'none';
-      spinner.style.display = 'inline';
+    const setConfidenceChip = (item, field, value, present) => {
+      const chip = item.refs.confs[field];
+      chip.textContent = present ? `${Math.round(value || 0)}%` : 'not found';
+      chip.className = `ocr-conf ${confidenceClass(value || 0, present)}`;
+    };
+
+    const stopOcrProgress = (item) => {
+      if (item.progressTimer) {
+        clearInterval(item.progressTimer);
+        item.progressTimer = null;
+      }
+    };
+
+    const startOcrProgress = (item) => {
+      stopOcrProgress(item);
+      let pct = 6;
+      let stage = 0;
+      item.refs.progressBar.style.width = `${pct}%`;
+      item.refs.progress.setAttribute('aria-valuenow', String(pct));
+      item.refs.progressLabel.textContent = OCR_STAGES[0];
+      item.progressTimer = setInterval(() => {
+        pct = Math.min(92, pct + Math.max(2, (92 - pct) * 0.14));
+        item.refs.progressBar.style.width = `${pct}%`;
+        item.refs.progress.setAttribute('aria-valuenow', String(Math.round(pct)));
+        stage = Math.min(OCR_STAGES.length - 1, stage + 1);
+        item.refs.progressLabel.textContent = OCR_STAGES[stage];
+      }, 1500);
+    };
+
+    const finishOcrProgress = (item, ok) => {
+      stopOcrProgress(item);
+      item.refs.progressBar.style.width = ok ? '100%' : '100%';
+      item.refs.progress.setAttribute('aria-valuenow', '100');
+      item.refs.progressLabel.textContent = ok ? 'Extraction complete' : 'Extraction failed';
+    };
+
+    const setOcrCardState = (item) => {
+      const node = item.element;
+      if (!node) return;
+      node.dataset.state = item.state;
+
+      const labels = {
+        queued: 'Queued',
+        scanning: 'Scanning…',
+        review: 'Ready to confirm',
+        saved: 'Saved as expense',
+        error: 'Could not read this receipt',
+      };
+      let label = labels[item.state] || 'Queued';
+      if (item.state === 'review') {
+        const amountMissing = !item.refs.inputs.amount.value;
+        const dateMissing = !item.refs.inputs.date.value;
+        if (amountMissing || dateMissing) label = 'Needs your input';
+        const overall = item.data?.confidence?.overall;
+        if (overall) label += ` · ${Math.round(overall)}% match`;
+      }
+      item.refs.statusText.textContent = label;
+
+      const showResult = item.state !== 'queued' && item.state !== 'scanning';
+      item.refs.result.hidden = !showResult;
+      item.refs.retry.hidden = item.state !== 'error';
+      item.refs.confirm.hidden = item.state !== 'review';
+      item.refs.discard.hidden = item.state === 'saved';
+
+      const lock = item.state === 'saved' || item.state === 'scanning';
+      Object.values(item.refs.inputs).forEach((input) => {
+        input.disabled = lock;
+      });
+    };
+
+    const renderOcrWarnings = (item, data) => {
+      const warnings = [];
+      const dup = data.duplicates || {};
+      if (dup.image) {
+        const when = dup.image.date || (dup.image.scannedAt ? String(dup.image.scannedAt).slice(0, 10) : 'earlier');
+        warnings.push(
+          `This exact photo was scanned before on ${escapeHtml(when)}. Save it only if it is a different receipt.`
+        );
+      }
+      if (dup.transaction) {
+        const amount = formatINR(dup.transaction.amount || 0);
+        const when = dup.transaction.date || 'that date';
+        const merchant = dup.transaction.merchant ? ` from ${escapeHtml(dup.transaction.merchant)}` : '';
+        warnings.push(
+          `A ${amount} expense${merchant} already exists on ${escapeHtml(when)}. Check for a duplicate before saving.`
+        );
+      }
+      if (!warnings.length) {
+        item.refs.warnings.hidden = true;
+        item.refs.warnings.innerHTML = '';
+        return;
+      }
+      item.refs.warnings.hidden = false;
+      item.refs.warnings.innerHTML = warnings
+        .map((text) => `<div class="ocr-warning"><i class="ri-error-warning-line" aria-hidden="true"></i> ${text}</div>`)
+        .join('');
+    };
+
+    const renderOcrGst = (item, data) => {
+      const gst = data.gst;
+      if (!gst || !gst.detected) {
+        item.refs.gst.hidden = true;
+        item.refs.gst.innerHTML = '';
+        return;
+      }
+      const parts = [];
+      if (gst.gstin) parts.push(`GSTIN ${escapeHtml(gst.gstin)}`);
+      if (gst.cgst) parts.push(`CGST ${formatINR(gst.cgst)}`);
+      if (gst.sgst) parts.push(`SGST ${formatINR(gst.sgst)}`);
+      if (gst.igst) parts.push(`IGST ${formatINR(gst.igst)}`);
+      if (gst.totalGst) parts.push(`Total GST ${formatINR(gst.totalGst)}`);
+      item.refs.gst.hidden = false;
+      item.refs.gst.innerHTML = `<i class="ri-shield-check-line" aria-hidden="true"></i> ${parts.join(' · ')}`;
+    };
+
+    const renderOcrItems = (item, data) => {
+      if (!Array.isArray(data.items) || !data.items.length) {
+        item.refs.items.hidden = true;
+        item.refs.items.textContent = '';
+        return;
+      }
+      item.refs.items.hidden = false;
+      item.refs.items.textContent = `Line items: ${data.items.join(' · ')}`;
+    };
+
+    const renderOcrResult = (item, data) => {
+      item.data = data;
+      const confidence = data.confidence || {};
+      const values = {
+        merchant: data.merchant || '',
+        amount: data.amount === null || data.amount === undefined ? '' : String(data.amount),
+        date: data.date || '',
+        category: data.category || 'General',
+      };
+      Object.entries(values).forEach(([field, value]) => {
+        item.refs.inputs[field].value = value;
+        setConfidenceChip(item, field, confidence[field], Boolean(value));
+      });
+
+      setFieldNote(item, 'merchant', '');
+      setFieldNote(item, 'amount', values.amount ? '' : 'Amount could not be read — enter it to continue.');
+      setFieldNote(item, 'date', values.date ? '' : 'Date could not be read — choose it before confirming.');
+      setFieldNote(item, 'category', '');
+
+      renderOcrWarnings(item, data);
+      renderOcrGst(item, data);
+      renderOcrItems(item, data);
+
+      const missing = !values.amount || !values.date;
+      setOcrMessage(
+        item,
+        data.message || (missing ? 'Some details could not be read. Fill them in before confirming.' : ''),
+        missing ? 'warning' : ''
+      );
+      item.state = 'review';
+      setOcrCardState(item);
+    };
+
+    const scanSingleOcrItem = async (item) => {
+      if (item.removed || item.state === 'scanning' || item.state === 'saved') return;
+      item.data = null;
+      item.state = 'scanning';
+      item.refs.result.hidden = true;
+      setOcrCardState(item);
+      startOcrProgress(item);
 
       try {
-        const payload = {};
-        if (currentReceiptImageBase64) payload.imageData = currentReceiptImageBase64;
-        if (text) payload.receiptText = text;
-
+        const payload = item.isText ? { receiptText: item.text } : { imageData: item.dataUrl };
         const res = await api.receiptsAPI.scan(payload);
-        if (res?.success) {
-          const d = res.data;
-          pendingScanId = d.scanId;
-          pendingScanData = d;
-          document.getElementById('ocrPreviewBox').style.display = 'block';
-          document.getElementById('ocrEditMerchant').value = d.merchant || '';
-          document.getElementById('ocrEditAmount').value = d.amount || '';
-          document.getElementById('ocrEditCategory').value = d.category || 'General';
-          document.getElementById('ocrEditDate').value = d.date ? d.date.slice(0, 10) : new Date().toISOString().slice(0, 10);
-          document.getElementById('ocrConfidenceBadge').textContent = `Confidence: ${d.ocrConfidence || 100}%`;
-
-          // GST breakdown
-          const gstBox = document.getElementById('ocrGstBreakdownBox');
-          if (d.gstBreakdown && d.gstBreakdown.hasGst) {
-            gstBox.style.display = 'block';
-            document.getElementById('ocrGstinBadge').textContent = `GSTIN: ${d.gstBreakdown.gstin || 'Detected'}`;
-            document.getElementById('ocrGstTaxable').textContent = formatINR(d.gstBreakdown.taxableAmount || 0);
-            document.getElementById('ocrGstCgst').textContent = formatINR(d.gstBreakdown.cgst || 0);
-            document.getElementById('ocrGstSgst').textContent = formatINR(d.gstBreakdown.sgst || 0);
-            document.getElementById('ocrGstTotal').textContent = formatINR(d.gstBreakdown.totalGst || 0);
-          } else {
-            gstBox.style.display = 'none';
-          }
-
-          const lineItemsDiv = document.getElementById('ocrExtractedLineItems');
-          if (d.items && d.items.length) {
-            lineItemsDiv.innerHTML = `Line items: <i>${d.items.join(', ')}</i>`;
-            lineItemsDiv.style.display = 'block';
-          } else {
-            lineItemsDiv.style.display = 'none';
-          }
-        } else {
-          alert(res?.error?.message || 'OCR processing could not recognize receipt details.');
+        if (item.removed) return;
+        if (!res || !res.success || !res.data) {
+          throw { message: res?.error?.message || 'OCR could not read this receipt.' };
         }
-      } catch (err) {
-        alert('OCR processing failed: ' + (err.message || 'Please verify the receipt image.'));
-      } finally {
-        scanBtn.disabled = false;
-        btnText.style.display = 'inline';
-        spinner.style.display = 'none';
+        finishOcrProgress(item, true);
+        renderOcrResult(item, res.data);
+      } catch (error) {
+        if (item.removed) return;
+        finishOcrProgress(item, false);
+        item.state = 'error';
+        item.refs.result.hidden = false;
+        item.refs.warnings.hidden = true;
+        item.refs.gst.hidden = true;
+        item.refs.items.hidden = true;
+        setOcrMessage(
+          item,
+          error?.message ||
+            'This receipt could not be read. Try a brighter, straighter photo, or paste the receipt text instead.',
+          'error'
+        );
+        setOcrCardState(item);
       }
-    });
+    };
 
-    document.getElementById('cancelOcrBtn').addEventListener('click', () => {
-      document.getElementById('ocrPreviewBox').style.display = 'none';
-      pendingScanId = null;
-      pendingScanData = null;
-    });
+    const confirmOcrItem = async (item) => {
+      if (!item.data?.scanId) return;
+      const amount = parseFloat(item.refs.inputs.amount.value);
+      const date = item.refs.inputs.date.value;
+      const merchant = item.refs.inputs.merchant.value.trim();
+      const category = item.refs.inputs.category.value.trim() || 'General';
 
-    document.getElementById('confirmOcrBtn').addEventListener('click', async () => {
-      const finalMerchant = document.getElementById('ocrEditMerchant').value.trim();
-      const finalAmount = parseFloat(document.getElementById('ocrEditAmount').value);
-      const finalCategory = document.getElementById('ocrEditCategory').value.trim() || 'General';
-      const finalDate = document.getElementById('ocrEditDate').value;
-
-      if (!finalAmount || isNaN(finalAmount) || finalAmount <= 0) {
-        alert('Please enter a valid positive expense amount.');
+      if (!Number.isFinite(amount) || amount <= 0) {
+        setOcrMessage(item, 'Enter the expense amount read from the receipt.', 'error');
+        item.refs.inputs.amount.focus();
+        return;
+      }
+      if (!date) {
+        setOcrMessage(item, 'Choose the receipt date. It is never assumed to be today.', 'error');
+        item.refs.inputs.date.focus();
         return;
       }
 
-      const res = await api.receiptsAPI.confirm({
-        scanId: pendingScanId,
-        amount: finalAmount,
-        merchant: finalMerchant || 'Receipt Merchant',
-        category: finalCategory,
-        date: finalDate || new Date().toISOString(),
-      });
-      if (res?.success) {
-        alert(`✅ ${res.data.message}`);
-        document.getElementById('ocrModal').classList.remove('show');
-        receiptFileInput.value = '';
-        currentReceiptImageBase64 = null;
-        previewContainer.style.display = 'none';
-        document.getElementById('receiptInput').value = '';
-        document.getElementById('ocrPreviewBox').style.display = 'none';
-        loadSnapshot();
-      } else {
-        alert(res?.error?.message || 'Failed to confirm transaction.');
+      const button = item.refs.confirm;
+      const originalLabel = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Saving…';
+      setOcrMessage(item, '');
+
+      try {
+        const res = await api.receiptsAPI.confirm({
+          scanId: item.data.scanId,
+          amount,
+          merchant: merchant || undefined,
+          category,
+          date,
+        });
+        if (res?.success) {
+          item.state = 'saved';
+          setOcrCardState(item);
+          setOcrMessage(item, res.data?.message || 'Expense saved.', 'success');
+          loadSnapshot();
+        } else {
+          setOcrMessage(item, res?.error?.message || 'Could not save this expense.', 'error');
+        }
+      } catch (error) {
+        setOcrMessage(item, error?.message || 'Could not save this expense.', 'error');
+      } finally {
+        button.disabled = false;
+        button.textContent = originalLabel;
       }
+    };
+
+    const removeOcrItem = (item) => {
+      item.removed = true;
+      stopOcrProgress(item);
+      if (item.element) item.element.remove();
+      ocrItems = ocrItems.filter((entry) => entry !== item);
+      updateOcrToolbar();
+    };
+
+    const addOcrCard = (item) => {
+      const node = ocrTemplate.content.firstElementChild.cloneNode(true);
+      item.element = node;
+
+      const inputs = {
+        merchant: node.querySelector('.ocr-input-merchant'),
+        amount: node.querySelector('.ocr-input-amount'),
+        date: node.querySelector('.ocr-input-date'),
+        category: node.querySelector('.ocr-input-category'),
+      };
+      const fields = {};
+      node.querySelectorAll('.ocr-field').forEach((field) => {
+        fields[field.dataset.field] = field;
+      });
+
+      item.refs = {
+        thumb: node.querySelector('img.ocr-thumb'),
+        thumbText: node.querySelector('.ocr-thumb-text'),
+        name: node.querySelector('.ocr-file-name'),
+        statusText: node.querySelector('.ocr-status-text'),
+        progress: node.querySelector('.ocr-progress'),
+        progressBar: node.querySelector('.ocr-progress-bar'),
+        progressLabel: node.querySelector('.ocr-progress-label'),
+        result: node.querySelector('.ocr-result'),
+        inputs,
+        fields,
+        confs: {
+          merchant: node.querySelector('[data-conf="merchant"]'),
+          amount: node.querySelector('[data-conf="amount"]'),
+          date: node.querySelector('[data-conf="date"]'),
+          category: node.querySelector('[data-conf="category"]'),
+        },
+        warnings: node.querySelector('.ocr-warnings'),
+        gst: node.querySelector('.ocr-gst'),
+        items: node.querySelector('.ocr-items'),
+        confirm: node.querySelector('.ocr-confirm'),
+        retry: node.querySelector('.ocr-retry'),
+        discard: node.querySelector('.ocr-discard'),
+        message: node.querySelector('.ocr-message'),
+        remove: node.querySelector('.ocr-remove'),
+      };
+
+      item.refs.name.textContent = item.name;
+
+      if (item.dataUrl) {
+        item.refs.thumb.src = item.dataUrl;
+        item.refs.thumb.alt = `Receipt preview: ${item.name}`;
+        item.refs.thumb.hidden = false;
+      } else {
+        item.refs.thumbText.hidden = false;
+      }
+
+      item.refs.remove.addEventListener('click', () => removeOcrItem(item));
+      item.refs.discard.addEventListener('click', () => removeOcrItem(item));
+      item.refs.retry.addEventListener('click', () => {
+        item.state = 'queued';
+        setOcrCardState(item);
+        scanSingleOcrItem(item);
+      });
+      item.refs.confirm.addEventListener('click', () => confirmOcrItem(item));
+
+      setOcrCardState(item);
+      ocrQueueEl.appendChild(node);
+    };
+
+    const addOcrItem = (item) => {
+      if (ocrItems.length >= MAX_OCR_IMAGES) {
+        alert(`You can add up to ${MAX_OCR_IMAGES} receipts at a time.`);
+        return null;
+      }
+      const entry = {
+        id: `ocr-${++ocrSeq}`,
+        name: item.name || 'Receipt',
+        dataUrl: item.dataUrl || null,
+        isText: Boolean(item.isText),
+        text: item.text || '',
+        state: 'queued',
+        data: null,
+        removed: false,
+        progressTimer: null,
+        element: null,
+        refs: null,
+      };
+      ocrItems.push(entry);
+      addOcrCard(entry);
+      updateOcrToolbar();
+      return entry;
+    };
+
+    const addOcrFiles = async (fileList) => {
+      const files = Array.from(fileList || []);
+      for (const file of files) {
+        if (ocrItems.length >= MAX_OCR_IMAGES) {
+          alert(`You can add up to ${MAX_OCR_IMAGES} receipts at a time.`);
+          break;
+        }
+        const supported = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type);
+        if (!supported) {
+          alert(`${file.name}: only PNG, JPEG or WebP images are supported.`);
+          continue;
+        }
+        if (file.size > MAX_OCR_BYTES) {
+          alert(`${file.name} is larger than 10 MB. Please use a smaller photo.`);
+          continue;
+        }
+        const dataUrl = await readFileAsDataUrl(file);
+        if (!dataUrl) {
+          alert(`${file.name} could not be read. Please try another file.`);
+          continue;
+        }
+        addOcrItem({ name: file.name, dataUrl });
+      }
+      receiptFileInput.value = '';
+    };
+
+    const scanQueuedOcrItems = async () => {
+      if (ocrScanning) return;
+      const queue = ocrItems.filter((item) => item.state === 'queued' || item.state === 'error');
+      if (!queue.length) {
+        if (ocrItems.length) {
+          setOcrMessage(ocrItems[0], 'All receipts have been scanned. Review the extracted details below.', '');
+        } else {
+          alert('Add a receipt photo or paste receipt text first.');
+        }
+        return;
+      }
+      ocrScanning = true;
+      updateOcrToolbar();
+      try {
+        for (const item of queue) {
+          if (item.removed) continue;
+          await scanSingleOcrItem(item);
+        }
+      } finally {
+        ocrScanning = false;
+        updateOcrToolbar();
+      }
+    };
+
+    ocrDropzone.addEventListener('click', () => receiptFileInput.click());
+    ocrDropzone.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        receiptFileInput.click();
+      }
+    });
+    receiptFileInput.addEventListener('change', (event) => addOcrFiles(event.target.files));
+    ['dragenter', 'dragover'].forEach((name) => {
+      ocrDropzone.addEventListener(name, (event) => {
+        event.preventDefault();
+        ocrDropzone.classList.add('dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach((name) => {
+      ocrDropzone.addEventListener(name, (event) => {
+        event.preventDefault();
+        ocrDropzone.classList.remove('dragover');
+      });
+    });
+    ocrDropzone.addEventListener('drop', (event) => {
+      if (event.dataTransfer?.files?.length) addOcrFiles(event.dataTransfer.files);
+    });
+
+    scanReceiptBtn.addEventListener('click', scanQueuedOcrItems);
+
+    clearOcrBtn.addEventListener('click', () => {
+      ocrItems.slice().forEach((item) => removeOcrItem(item));
+      receiptInput.value = '';
+      updateOcrToolbar();
+    });
+
+    scanTextBtn.addEventListener('click', async () => {
+      const text = receiptInput.value.trim();
+      if (text.length < 10) {
+        alert('Paste a little more receipt text (at least 10 characters).');
+        receiptInput.focus();
+        return;
+      }
+      const entry = addOcrItem({ name: 'Pasted receipt text', isText: true, text });
+      if (!entry) return;
+      receiptInput.value = '';
+      await scanSingleOcrItem(entry);
     });
 
     // ===== Bank Statement Analyzer (PDF / CSV / XLSX) =====
@@ -1188,10 +1508,10 @@ How can I assist you today? You can ask about your spending, run a what-if finan
             const isDup = row.status === 'DUPLICATE';
             const isInv = row.status === 'INVALID';
             const confPct = Math.round((row.confidence || 0.8) * 100);
-            const confColor = confPct >= 75 ? '#059669' : confPct >= 50 ? '#d97706' : '#dc2626';
+            const confColor = confPct >= 75 ? 'var(--success)' : confPct >= 50 ? 'var(--warning)' : 'var(--danger)';
 
             return `
-              <tr style="border-bottom:1px solid var(--border);background:${isDup ? 'rgba(217,119,6,0.04)' : isInv ? 'rgba(220,38,38,0.04)' : '#ffffff'};">
+              <tr style="border-bottom:1px solid var(--border);background:${isDup ? 'var(--warning-light)' : isInv ? 'var(--danger-light)' : 'var(--surface)'};">
                 <td style="padding:8px 10px;">
                   <input type="checkbox" class="statement-row-cb" data-idx="${idx}" ${row.approved ? 'checked' : ''} ${isInv ? 'disabled' : ''}>
                 </td>
@@ -1201,25 +1521,25 @@ How can I assist you today? You can ask about your spending, run a what-if finan
                 <td style="padding:8px 10px;">
                   <input type="text" class="form-input" style="padding:4px 6px;font-size:11px;min-width:140px;" value="${row.description || ''}" onchange="allExtractedRows[${idx}].description=this.value">
                 </td>
-                <td style="padding:8px 10px;font-weight:700;color:${row.type==='INCOME'?'#059669':'#0f172a'};">
+                <td style="padding:8px 10px;font-weight:700;color:${row.type==='INCOME'?'var(--primary-dark)':'var(--text)'};">
                   ₹${parseFloat(row.amount || 0).toLocaleString('en-IN', {minimumFractionDigits:2})}
                 </td>
                 <td style="padding:8px 10px;">
-                  <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:${row.type==='INCOME'?'#ecfdf5':'#fef2f2'};color:${row.type==='INCOME'?'#059669':'#dc2626'};">${row.type}</span>
+                  <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:${row.type==='INCOME'?'var(--success-light)':'var(--danger-light)'};color:${row.type==='INCOME'?'var(--primary-dark)':'var(--danger)'};">${row.type}</span>
                 </td>
                 <td style="padding:8px 10px;">
                   <input type="text" class="form-input" style="padding:4px 6px;font-size:11px;width:110px;" value="${row.category || 'General'}" onchange="handleCategoryCorrection(${idx}, this.value)">
                 </td>
                 <td style="padding:8px 10px;">
-                  <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,0.1);color:${confColor};">
+                  <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--primary-light);color:${confColor};">
                     ${confPct}% ${row.mlStatus === 'NEEDS_REVIEW' ? '⚠ Review' : 'ML'}
                   </span>
                 </td>
                 <td style="padding:8px 10px;font-size:10px;color:var(--muted);">${row.source || 'Statement'}</td>
                 <td style="padding:8px 10px;">
-                  ${isDup ? `<span style="font-size:10px;color:#d97706;font-weight:600;" title="${row.duplicateReason}">Duplicate Guard</span>`
-                    : isInv ? `<span style="font-size:10px;color:#dc2626;font-weight:600;">${row.reason || 'Invalid'}</span>`
-                    : `<span style="font-size:10px;color:#059669;font-weight:600;">Ready</span>`}
+                  ${isDup ? `<span style="font-size:10px;color:var(--warning-dark);font-weight:600;" title="${row.duplicateReason}">Duplicate Guard</span>`
+                    : isInv ? `<span style="font-size:10px;color:var(--danger);font-weight:600;">${row.reason || 'Invalid'}</span>`
+                    : `<span style="font-size:10px;color:var(--primary-dark);font-weight:600;">Ready</span>`}
                 </td>
               </tr>
             `;
@@ -1340,21 +1660,21 @@ How can I assist you today? You can ask about your spending, run a what-if finan
         if (res?.success) {
           const d = res.data;
           const score = d.score || 720;
-          const scoreColor = score >= 750 ? '#059669' : score >= 650 ? '#0284c7' : score >= 550 ? '#d97706' : '#dc2626';
+          const scoreColor = score >= 750 ? 'var(--success)' : score >= 650 ? 'var(--info)' : score >= 550 ? 'var(--warning)' : 'var(--danger)';
 
           container.innerHTML = `
             <!-- Score Gauge Card -->
             <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">FinPro Credit Health Indicator</div>
               <div style="font-size:42px;font-weight:800;color:${scoreColor};margin:6px 0;">${score} <span style="font-size:18px;color:var(--muted);font-weight:500;">/ 900</span></div>
-              <div style="display:inline-block;padding:3px 12px;border-radius:12px;background:rgba(2,132,199,0.1);color:${scoreColor};font-weight:700;font-size:12px;">
+              <div style="display:inline-block;padding:3px 12px;border-radius:12px;background:var(--info-light);color:${scoreColor};font-weight:700;font-size:12px;">
                 ${d.rating || 'Good'} · Percentile: ${d.percentile || '75th'}
               </div>
               <div style="font-size:11px;color:var(--muted);margin-top:6px;">Calculated from your verified transactions, EMI obligations & cash flow stability.</div>
             </div>
 
             <!-- Layer 2 Bureau Architecture Disclaimer -->
-            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;font-size:11px;color:#92400e;line-height:1.5;">
+            <div style="background:var(--warning-light);border:1px solid var(--warning-border);border-radius:8px;padding:12px;font-size:11px;color:var(--warning-dark);line-height:1.5;">
               <div style="font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:2px;">
                 <i class="ri-information-line"></i> Official CIBIL / Experian Bureau Status: ${d.bureauIntegration?.status || 'UNCONFIGURED'}
               </div>
@@ -1365,21 +1685,21 @@ How can I assist you today? You can ask about your spending, run a what-if finan
             <div>
               <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">Score Factor Evaluation</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                <div style="background:#ffffff;border:1px solid var(--border);padding:10px;border-radius:8px;">
+                <div style="background:var(--surface);border:1px solid var(--border);padding:10px;border-radius:8px;">
                   <div style="font-size:10px;color:var(--muted);">Payment Regularity</div>
-                  <div style="font-size:13px;font-weight:700;color:#059669;">${d.factors?.paymentConsistency || 'Consistent'} (96%)</div>
+                  <div style="font-size:13px;font-weight:700;color:var(--primary-dark);">${d.factors?.paymentConsistency || 'Consistent'} (96%)</div>
                 </div>
-                <div style="background:#ffffff;border:1px solid var(--border);padding:10px;border-radius:8px;">
+                <div style="background:var(--surface);border:1px solid var(--border);padding:10px;border-radius:8px;">
                   <div style="font-size:10px;color:var(--muted);">Debt-to-Income (DTI)</div>
-                  <div style="font-size:13px;font-weight:700;color:#0284c7;">${d.factors?.debtToIncomeRatio || 'Healthy (18%)'}</div>
+                  <div style="font-size:13px;font-weight:700;color:var(--info);">${d.factors?.debtToIncomeRatio || 'Healthy (18%)'}</div>
                 </div>
-                <div style="background:#ffffff;border:1px solid var(--border);padding:10px;border-radius:8px;">
+                <div style="background:var(--surface);border:1px solid var(--border);padding:10px;border-radius:8px;">
                   <div style="font-size:10px;color:var(--muted);">EMI & Loan Burden</div>
-                  <div style="font-size:13px;font-weight:700;color:#0f172a;">${d.factors?.emiBurden || 'Low'}</div>
+                  <div style="font-size:13px;font-weight:700;color:var(--text);">${d.factors?.emiBurden || 'Low'}</div>
                 </div>
-                <div style="background:#ffffff;border:1px solid var(--border);padding:10px;border-radius:8px;">
+                <div style="background:var(--surface);border:1px solid var(--border);padding:10px;border-radius:8px;">
                   <div style="font-size:10px;color:var(--muted);">Credit Mix & Accounts</div>
-                  <div style="font-size:13px;font-weight:700;color:#0f172a;">${d.factors?.creditMix || 'Balanced'}</div>
+                  <div style="font-size:13px;font-weight:700;color:var(--text);">${d.factors?.creditMix || 'Balanced'}</div>
                 </div>
               </div>
             </div>
@@ -1447,8 +1767,8 @@ How can I assist you today? You can ask about your spending, run a what-if finan
           const d = res.data;
           box.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <span style="font-weight:700;font-size:13px;color:#0f172a;">GSTIN: <span style="font-family:monospace;color:var(--primary);">${d.gstin}</span></span>
-              <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:${d.isValid ? 'rgba(5,150,105,0.15)' : 'rgba(220,38,38,0.15)'};color:${d.isValid ? '#059669' : '#dc2626'};">
+              <span style="font-weight:700;font-size:13px;color:var(--text);">GSTIN: <span style="font-family:monospace;color:var(--primary);">${d.gstin}</span></span>
+              <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:${d.isValid ? 'var(--primary-light)' : 'var(--danger-light)'};color:${d.isValid ? 'var(--primary-dark)' : 'var(--danger)'};">
                 ${d.isValid ? '✓ Valid Format' : '✗ Invalid Format'}
               </span>
             </div>
@@ -1456,9 +1776,9 @@ How can I assist you today? You can ask about your spending, run a what-if finan
               <div>• State Jurisdiction: <b>${d.state || 'Maharashtra (27)'}</b></div>
               <div>• Legal Entity Type: <b>${d.taxpayerType || 'Company / Private Limited'}</b></div>
               <div>• Embedded PAN: <b style="font-family:monospace;">${d.pan || 'AAPFU0939F'}</b></div>
-              <div>• Status: <b style="color:#059669;">ACTIVE</b></div>
+              <div>• Status: <b style="color:var(--primary-dark);">ACTIVE</b></div>
             </div>
-            <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:8px;font-size:11px;color:#92400e;">
+            <div style="background:var(--warning-light);border:1px solid var(--warning-border);border-radius:6px;padding:8px;font-size:11px;color:var(--warning-dark);">
               <i class="ri-shield-keyhole-line"></i> <b>Live Provider Status:</b> ${d.providerStatus || 'UNCONFIGURED (Authorized GSTN GSP API Required)'}
             </div>
           `;
@@ -1484,37 +1804,37 @@ How can I assist you today? You can ask about your spending, run a what-if finan
         const box = document.getElementById('gstCalcResultBox');
         box.style.display = 'block';
         box.innerHTML = `
-          <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:8px;">Tax Invoice Computation Breakdown</div>
+          <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;">Tax Invoice Computation Breakdown</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div style="background:#ffffff;border:1px solid var(--border);padding:8px;border-radius:6px;">
+            <div style="background:var(--surface);border:1px solid var(--border);padding:8px;border-radius:6px;">
               <div style="color:var(--muted);font-size:10px;">Taxable Base Value</div>
               <div style="font-size:14px;font-weight:700;">${formatINR(d.taxableAmount)}</div>
             </div>
-            <div style="background:#ffffff;border:1px solid var(--border);padding:8px;border-radius:6px;">
+            <div style="background:var(--surface);border:1px solid var(--border);padding:8px;border-radius:6px;">
               <div style="color:var(--muted);font-size:10px;">Applicable GST Rate</div>
               <div style="font-size:14px;font-weight:700;color:var(--primary);">${d.rate}% (${isInterState ? 'IGST' : 'CGST+SGST'})</div>
             </div>
           </div>
           <div style="display:grid;grid-template-columns:${isInterState ? '1fr' : '1fr 1fr'};gap:8px;margin-bottom:8px;">
             ${!isInterState ? `
-              <div style="background:#ffffff;border:1px solid var(--border);padding:8px;border-radius:6px;">
+              <div style="background:var(--surface);border:1px solid var(--border);padding:8px;border-radius:6px;">
                 <div style="color:var(--muted);font-size:10px;">Central GST (CGST ${d.rate / 2}%)</div>
-                <div style="font-size:13px;font-weight:700;color:#0f172a;">${formatINR(d.cgst)}</div>
+                <div style="font-size:13px;font-weight:700;color:var(--text);">${formatINR(d.cgst)}</div>
               </div>
-              <div style="background:#ffffff;border:1px solid var(--border);padding:8px;border-radius:6px;">
+              <div style="background:var(--surface);border:1px solid var(--border);padding:8px;border-radius:6px;">
                 <div style="color:var(--muted);font-size:10px;">State GST (SGST ${d.rate / 2}%)</div>
-                <div style="font-size:13px;font-weight:700;color:#0f172a;">${formatINR(d.sgst)}</div>
+                <div style="font-size:13px;font-weight:700;color:var(--text);">${formatINR(d.sgst)}</div>
               </div>
             ` : `
-              <div style="background:#ffffff;border:1px solid var(--border);padding:8px;border-radius:6px;">
+              <div style="background:var(--surface);border:1px solid var(--border);padding:8px;border-radius:6px;">
                 <div style="color:var(--muted);font-size:10px;">Integrated GST (IGST ${d.rate}%)</div>
-                <div style="font-size:13px;font-weight:700;color:#0f172a;">${formatINR(d.igst)}</div>
+                <div style="font-size:13px;font-weight:700;color:var(--text);">${formatINR(d.igst)}</div>
               </div>
             `}
           </div>
-          <div style="background:#ecfdf5;border:1px solid #a7f3d0;padding:10px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-weight:700;color:#065f46;font-size:13px;">Total Invoice Payable:</span>
-            <span style="font-weight:800;color:#059669;font-size:16px;">${formatINR(d.totalAmount)}</span>
+          <div style="background:var(--success-light);border:1px solid var(--success-border);padding:10px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-weight:700;color:var(--primary-dark);font-size:13px;">Total Invoice Payable:</span>
+            <span style="font-weight:800;color:var(--primary-dark);font-size:16px;">${formatINR(d.totalAmount)}</span>
           </div>
         `;
       }

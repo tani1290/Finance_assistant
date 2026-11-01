@@ -2,7 +2,13 @@ const { test, expect } = require('../fixtures/auth.fixture');
 
 test.describe('Dashboard Visual Regression Tests', () => {
 
+  // The topbar renders a time-of-day greeting and the current date, so the
+  // snapshot would change every morning/afternoon and every day. Freezing the
+  // page clock keeps the header deterministic without weakening the assertion.
+  const FIXED_NOW = new Date('2026-11-01T09:00:00');
+
   test('Dashboard Header & Overview — Dark Mode Visual Snapshot', async ({ authenticatedPage: page }) => {
+    await page.clock.setFixedTime(FIXED_NOW);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/dashboard.html');
 
@@ -18,6 +24,7 @@ test.describe('Dashboard Visual Regression Tests', () => {
   });
 
   test('Dashboard Header & Overview — Light Mode Visual Snapshot', async ({ authenticatedPage: page }) => {
+    await page.clock.setFixedTime(FIXED_NOW);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/dashboard.html');
 

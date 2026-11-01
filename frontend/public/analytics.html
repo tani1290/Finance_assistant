@@ -6,40 +6,11 @@
   <title>Analytics — FinPro</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
-  <style>
-    .analytics-two-col { display:grid; grid-template-columns:3fr 2fr; gap:16px; margin-bottom:16px; }
-    .analytics-panels { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
-    @media (max-width: 980px) {
-      .analytics-two-col, .analytics-panels { grid-template-columns:1fr; }
-    }
-    .metric-delta { font-size:11px; margin-top:4px; color:#6b7280; min-height:14px; }
-    .metric-delta.up { color:#10b981; }
-    .metric-delta.down { color:#ef4444; }
-    .chart-empty { text-align:center; padding:36px 12px; color:#6b7280; font-size:13px; }
-    .forecast-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:12px; }
-    @media (max-width: 640px) { .forecast-grid { grid-template-columns:1fr; } }
-    .stat-label { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#6b7280; }
-    .stat-value { font-size:20px; font-weight:700; margin-top:2px; }
-    .stat-sub { font-size:11px; color:#6b7280; margin-top:2px; }
-    .forecast-note { font-size:12px; color:#6b7280; line-height:1.5; margin:12px 0 0; }
-    .insight-list { display:flex; flex-direction:column; gap:10px; }
-    .insight-item { display:flex; gap:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.06); border-radius:10px; background:rgba(255,255,255,.02); }
-    .insight-dot { width:8px; height:8px; border-radius:50%; margin-top:6px; flex:0 0 8px; background:#6b7280; }
-    .insight-dot.critical { background:#ef4444; }
-    .insight-dot.warning { background:#f59e0b; }
-    .insight-dot.info { background:#3b82f6; }
-    .insight-title { font-weight:600; font-size:13px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-    .insight-explanation { font-size:12px; color:#9ca3af; margin-top:3px; line-height:1.45; }
-    .insight-values { font-size:12px; margin-top:4px; color:#d1d5db; }
-    .insight-period { font-size:11px; color:#6b7280; margin-top:3px; }
-    .card-sub { font-size:11px; color:#6b7280; }
-    .panel-error { text-align:center; padding:28px 12px; color:#ef4444; font-size:13px; }
-    .panel-loading { text-align:center; padding:28px 12px; color:#6b7280; font-size:13px; }
-  </style>
 </head>
-<body>
+<body class="page-analytics app-layout">
   <div id="sidebarRoot"></div>
   <main class="main-content">
     <div class="topbar">
@@ -91,7 +62,7 @@
 
       <div class="card">
         <div class="card-header"><span class="card-title">Category Breakdown</span><span class="card-sub" id="categoryCaption"></span></div>
-        <div id="categoryTable"><div style="text-align:center;padding:30px;color:#6b7280">Loading...</div></div>
+        <div id="categoryTable"><div style="text-align:center;padding:30px;color:var(--muted)">Loading...</div></div>
       </div>
     </div>
   </main>
@@ -210,7 +181,7 @@
         legend: { bottom: 0, textStyle: { color: '#6b7280', fontSize: 11 } },
         grid: { top: 10, right: 10, bottom: 40, left: 70 },
         xAxis: { type: 'category', data: labels, axisLabel: { color: '#6b7280', fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
-        yAxis: { type: 'value', axisLabel: { color: '#6b7280', fontSize: 10, formatter: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) }, splitLine: { lineStyle: { color: 'rgba(255,255,255,.05)' } } },
+        yAxis: { type: 'value', axisLabel: { color: '#6b7280', fontSize: 10, formatter: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.22)' } } },
         series,
       }, true);
     };

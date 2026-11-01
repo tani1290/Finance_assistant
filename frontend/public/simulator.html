@@ -6,9 +6,10 @@
   <title>Payment Simulator — FinPro</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
-<body>
+<body class="page-simulator app-layout">
   <div id="sidebarRoot"></div>
 
   <main class="main-content">
@@ -24,9 +25,9 @@
     </div>
 
     <div class="content">
-      <div class="card" style="border-color:#f59e0b;background:rgba(245,158,11,0.08);margin-bottom:20px;">
+      <div class="card" style="border-color:var(--warning);background:var(--warning-light);margin-bottom:20px;">
         <div style="display:flex;gap:14px;align-items:flex-start;">
-          <i class="ri-flask-line" style="font-size:22px;color:#f59e0b;margin-top:2px;"></i>
+          <i class="ri-flask-line" style="font-size:22px;color:var(--warning);margin-top:2px;"></i>
           <div>
             <div style="font-weight:700;font-size:14px;margin-bottom:4px;">This is a simulator, not a payment processor</div>
             <div id="disclaimer" style="font-size:13px;line-height:1.6;color:var(--muted);">
@@ -37,9 +38,9 @@
         </div>
       </div>
 
-      <div id="disabledNotice" class="card" style="display:none;border-color:#ef4444;margin-bottom:20px;">
+      <div id="disabledNotice" class="card" style="display:none;border-color:var(--danger);margin-bottom:20px;">
         <div style="display:flex;gap:12px;align-items:flex-start;">
-          <i class="ri-lock-line" style="font-size:22px;color:#ef4444;margin-top:2px;"></i>
+          <i class="ri-lock-line" style="font-size:22px;color:var(--danger);margin-top:2px;"></i>
           <div>
             <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Simulator is disabled in this environment</div>
             <div id="disabledReason" style="font-size:13px;color:var(--muted);line-height:1.6;"></div>
@@ -190,10 +191,10 @@
 
     function toast(message, type = 'success') {
       const el = document.createElement('div');
-      el.style.cssText = 'position:fixed;bottom:24px;right:24px;max-width:360px;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:500;font-family:Inter,sans-serif;z-index:9999;line-height:1.5;box-shadow:0 8px 32px rgba(0,0,0,.4);';
+      el.style.cssText = 'position:fixed;bottom:24px;right:24px;max-width:360px;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:500;font-family:Inter,sans-serif;z-index:9999;line-height:1.5;box-shadow:var(--shadow-lg);';
       el.style.cssText += type === 'success'
-        ? 'background:#065f46;border:1px solid #10b981;color:#6ee7b7;'
-        : 'background:#7f1d1d;border:1px solid #ef4444;color:#fecaca;';
+        ? 'background:var(--surface);border:1px solid var(--success);color:var(--success);'
+        : 'background:var(--surface);border:1px solid var(--danger);color:var(--danger);';
       el.textContent = message;
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 4500);
@@ -313,7 +314,7 @@
         document.getElementById('paginationNote').textContent =
           `Showing ${payments.length} of ${pagination.total} simulated payment${pagination.total === 1 ? '' : 's'}.`;
       } catch (err) {
-        body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444;">${escapeHtml(failureMessage(err))}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--danger);">${escapeHtml(failureMessage(err))}</td></tr>`;
       }
     }
 

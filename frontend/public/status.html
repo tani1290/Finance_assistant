@@ -7,95 +7,10 @@
   <meta name="description" content="FinPro Real-time Cloud Computing Architecture and Subsystem Status">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
-  <style>
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px;
-      border-radius: 9999px;
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-    }
-    .status-online {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-    .status-degraded {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.3);
-    }
-    .status-offline {
-      background: rgba(239, 68, 68, 0.15);
-      color: #f87171;
-      border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-    .status-unknown {
-      background: rgba(100, 116, 139, 0.15);
-      color: #94a3b8;
-      border: 1px solid rgba(100, 116, 139, 0.3);
-    }
-    .pulse-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: currentColor;
-      box-shadow: 0 0 8px currentColor;
-    }
-    .metric-mono {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
-      color: #6ee7b7;
-    }
-    .arch-card {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 24px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      transition: all 0.2s ease;
-    }
-    .arch-card:hover {
-      border-color: #cbd5e1;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-    }
-    .table-container {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      overflow: hidden;
-      margin-top: 24px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    }
-    .status-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-      text-align: left;
-    }
-    .status-table th {
-      background: #f8fafc;
-      padding: 14px 20px;
-      color: #334155;
-      font-weight: 700;
-      border-bottom: 1px solid #e2e8f0;
-    }
-    .status-table td {
-      padding: 14px 20px;
-      border-bottom: 1px solid #f1f5f9;
-      color: #0f172a;
-    }
-    .status-table tr:last-child td {
-      border-bottom: none;
-    }
-  </style>
 </head>
-<body>
+<body class="page-status app-layout">
   <div id="sidebarRoot"></div>
   <main class="main-content">
     <div class="topbar">
@@ -115,25 +30,25 @@
 
     <div class="content">
       <!-- Master Banner -->
-      <div class="card" id="overallCard" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.06)); border-color: rgba(16,185,129,0.25);">
+      <div class="card" id="overallCard" style="margin-bottom: 24px; background: linear-gradient(135deg, var(--primary-light), var(--primary-faint)); border-color: var(--primary-border);">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
           <div>
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
               <span id="overallBadge" class="status-badge status-online">
                 <span class="pulse-dot"></span><span id="overallText">CHECKING STATUS...</span>
               </span>
-              <span style="font-size:12px; color:#475569; font-weight:500;" id="lastCheckedText">Probing subsystems...</span>
+              <span style="font-size:12px; color:var(--text-secondary); font-weight:500;" id="lastCheckedText">Probing subsystems...</span>
             </div>
-            <h2 style="font-size:22px; font-weight:800; color:#0f172a; margin-bottom:4px;">
+            <h2 style="font-size:22px; font-weight:800; color:var(--text); margin-bottom:4px;">
               FinPro Cloud Computing Environment
             </h2>
-            <p style="font-size:13px; color:#334155; margin:0; font-weight:500;">
+            <p style="font-size:13px; color:var(--text-secondary); margin:0; font-weight:500;">
               Active Architecture: Node.js 22 LTS + Prisma ORM + Cloud PostgreSQL + Cloud Object Storage
             </p>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:11px; color:#475569; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Auto Refresh</div>
-            <div style="font-size:14px; font-weight:800; color:#10b981;" id="countdownText">30s</div>
+            <div style="font-size:11px; color:var(--text-secondary); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Auto Refresh</div>
+            <div style="font-size:14px; font-weight:800; color:var(--primary);" id="countdownText">30s</div>
           </div>
         </div>
       </div>
@@ -199,18 +114,18 @@
           </thead>
           <tbody id="telemetryRows">
             <tr>
-              <td colspan="5" style="text-align:center; color:#9ca3af; padding:32px;">Loading live telemetry...</td>
+              <td colspan="5" style="text-align:center; color:var(--muted); padding:32px;">Loading live telemetry...</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <!-- Cloud Verification Proof Box -->
-      <div class="card" style="margin-top:24px; border:1px solid #e2e8f0;">
-        <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin-bottom:8px;">
-          <i class="ri-check-double-line" style="color:#059669; margin-right:8px;"></i>Academic Cloud Architecture Verification
+      <div class="card" style="margin-top:24px; border:1px solid var(--border);">
+        <h3 style="font-size:16px; font-weight:700; color:var(--text); margin-bottom:8px;">
+          <i class="ri-check-double-line" style="color:var(--primary-dark); margin-right:8px;"></i>Academic Cloud Architecture Verification
         </h3>
-        <p style="font-size:13px; color:#334155; line-height:1.6; margin-bottom:16px; font-weight:500;">
+        <p style="font-size:13px; color:var(--text-secondary); line-height:1.6; margin-bottom:16px; font-weight:500;">
           All metrics rendered on this dashboard reflect live HTTP probe responses against the FinPro backend API.
           No synthetic timers or fake cloud metrics are displayed. The database status is measured via an actual <code class="metric-mono">SELECT 1</code> execution through the Prisma query engine, and storage availability is validated through an active read/write check against the configured storage provider.
         </p>
@@ -377,7 +292,7 @@
             <tr>
               <td colspan="5" style="text-align:center; padding:32px;">
                 <span class="status-badge status-unknown"><span class="pulse-dot"></span>UNKNOWN</span>
-                <div style="color:#64748b; font-size:13px; margin-top:10px;">Subsystem telemetry unavailable — the /health/cloud-detailed probe could not be reached. States below are unknown, not healthy.</div>
+                <div style="color:var(--muted); font-size:13px; margin-top:10px;">Subsystem telemetry unavailable — the /health/cloud-detailed probe could not be reached. States below are unknown, not healthy.</div>
               </td>
             </tr>`;
         } else {
@@ -400,10 +315,10 @@
             const badge = badgeFor(r.sub?.status, isUnverified(r.sub));
             return `
             <tr>
-              <td style="font-weight:700; color:#0f172a;">${r.subsystem}</td>
-              <td><code class="metric-mono" style="color:#10b981;font-weight:600;">${r.probe}</code></td>
-              <td style="color:#475569;font-size:12px;">${r.config}</td>
-              <td class="metric-mono" style="color:#0f172a;font-weight:600;">${r.latency}</td>
+              <td style="font-weight:700; color:var(--text);">${r.subsystem}</td>
+              <td><code class="metric-mono" style="color:var(--primary);font-weight:600;">${r.probe}</code></td>
+              <td style="color:var(--text-secondary);font-size:12px;">${r.config}</td>
+              <td class="metric-mono" style="color:var(--text);font-weight:600;">${r.latency}</td>
               <td>
                 <span class="status-badge ${badge.cls}">
                   <span class="pulse-dot"></span>${badge.label}

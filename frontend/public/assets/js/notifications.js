@@ -133,16 +133,16 @@ const showInAppBanner = (title, message, type = 'info') => {
     position: fixed;
     top: 24px;
     right: 24px;
-    background: rgba(17, 24, 39, 0.95);
+    background: var(--surface);
     backdrop-filter: blur(12px);
-    border: 1px solid ${type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#6366f1'};
+    border: 1px solid ${type === 'error' ? 'var(--danger)' : type === 'success' ? 'var(--success)' : 'var(--info)'};
     border-radius: 12px;
     padding: 14px 20px;
-    color: #f8fafc;
+    color: var(--text);
     font-family: 'Inter', sans-serif;
     font-size: 13px;
     z-index: 10000;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: var(--shadow-xl);
     max-width: 360px;
     display: flex;
     flex-direction: column;
@@ -151,13 +151,13 @@ const showInAppBanner = (title, message, type = 'info') => {
   `;
   b.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      <div style="font-weight:700;color:${type === 'error' ? '#f87171' : type === 'success' ? '#34d399' : '#a5b4fc'};display:flex;align-items:center;gap:6px;">
+      <div style="font-weight:700;color:${type === 'error' ? 'var(--danger)' : type === 'success' ? 'var(--success)' : 'var(--info)'};display:flex;align-items:center;gap:6px;">
         <i class="ri-${type === 'error' ? 'alarm-warning-line' : type === 'success' ? 'checkbox-circle-line' : 'notification-3-line'}"></i>
         ${title || 'FinPro Alert'}
       </div>
-      <button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:14px;">✕</button>
+      <button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;">✕</button>
     </div>
-    <div style="color:#cbd5e1;line-height:1.4;">${message}</div>
+    <div style="color:var(--text-secondary);line-height:1.4;">${message}</div>
   `;
 
   document.body.appendChild(b);

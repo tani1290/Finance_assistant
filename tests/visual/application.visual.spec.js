@@ -15,7 +15,7 @@ test.describe('Application Settings & Profile Visual Regression Tests', () => {
     const main = page.locator('.main-content');
     await expect(main).toBeVisible();
     await expect(main).toHaveScreenshot('profile-main-dark.png', {
-      mask: [page.locator('#profileFullName, #profileEmail, #inputFirstName, #inputLastName, #inputEmail, #inputUsername')],
+      mask: [page.locator('#profileFullName, #profileEmail, #profileUsername, #profileMemberSince, #inputFirstName, #inputLastName, #inputEmail, #inputUsername')],
     });
   });
 
@@ -32,7 +32,7 @@ test.describe('Application Settings & Profile Visual Regression Tests', () => {
     const main = page.locator('.main-content');
     await expect(main).toBeVisible();
     await expect(main).toHaveScreenshot('profile-main-light.png', {
-      mask: [page.locator('#profileFullName, #profileEmail, #inputFirstName, #inputLastName, #inputEmail, #inputUsername')],
+      mask: [page.locator('#profileFullName, #profileEmail, #profileUsername, #profileMemberSince, #inputFirstName, #inputLastName, #inputEmail, #inputUsername')],
     });
   });
 });

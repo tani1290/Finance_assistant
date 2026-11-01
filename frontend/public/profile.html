@@ -8,246 +8,15 @@
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/app.css">
   <script src="/assets/js/theme.js"></script>
-  <style>
-    .profile-container {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-    .profile-hero {
-      background: linear-gradient(135deg, rgba(30,27,75,0.85), rgba(15,23,42,0.95));
-      border: 1px solid rgba(16,185,129,0.25);
-      border-radius: 16px;
-      padding: 28px;
-      display: flex;
-      align-items: center;
-      gap: 24px;
-      backdrop-filter: blur(12px);
-    }
-    :root.light-mode .profile-hero {
-      background: linear-gradient(135deg, #ffffff, #f1f5f9);
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm);
-    }
-    .profile-avatar-lg {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #10b981, #059669);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 32px;
-      font-weight: 700;
-      color: #ffffff;
-      box-shadow: 0 0 24px rgba(16,185,129,0.4);
-      flex-shrink: 0;
-    }
-    .profile-meta h2 {
-      font-size: 22px;
-      font-weight: 700;
-      margin-bottom: 4px;
-      color: var(--text, #f8fafc);
-    }
-    .profile-meta p {
-      font-size: 13px;
-      color: var(--muted, #94a3b8);
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    .badge-verified {
-      background: rgba(16,185,129,0.15);
-      color: #059669;
-      border: 1px solid rgba(16,185,129,0.3);
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-    :root:not(.light-mode) .badge-verified {
-      color: #34d399;
-    }
-    .grid-2col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-    @media (max-width: 768px) {
-      .grid-2col { grid-template-columns: 1fr; }
-      .profile-hero { flex-direction: column; text-align: center; }
-    }
-    .card-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--text, #f8fafc);
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .form-row {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 14px;
-    }
-    .form-group {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .form-group label {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--muted, #94a3b8);
-    }
-    .form-control {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      color: var(--text);
-      font-size: 13px;
-      font-family: inherit;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .form-control:focus {
-      border-color: #10b981;
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-    }
-    .form-control:disabled {
-      background: var(--surface-2);
-      color: var(--muted);
-      border-color: var(--border);
-      cursor: not-allowed;
-      opacity: 0.85;
-    }
-    .form-control::placeholder {
-      color: var(--muted-light);
-    }
-    .btn-save {
-      background: linear-gradient(135deg, #10b981, #059669);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 12px 24px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.2s;
-    }
-    .btn-save:hover {
-      box-shadow: 0 0 20px rgba(16,185,129,0.4);
-      transform: translateY(-1px);
-    }
-    .account-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 13px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .account-row:last-child { border-bottom: none; }
-    .account-row-icon {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(16,185,129,0.12);
-      color: var(--primary);
-      flex-shrink: 0;
-    }
-    .account-row-main { flex: 1; min-width: 0; }
-    .account-row-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text, #f8fafc);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .account-row-meta {
-      font-size: 11.5px;
-      color: var(--muted, #94a3b8);
-      margin-top: 3px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .account-type-pill {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      padding: 2px 7px;
-      border-radius: 5px;
-      color: var(--primary-dark, #059669);
-      background: var(--primary-light, rgba(16,185,129,0.12));
-      border: 1px solid var(--primary-border, rgba(16,185,129,0.25));
-    }
-    :root:not(.light-mode) .account-type-pill {
-      color: #34d399;
-    }
-    .account-row-balance {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text, #f8fafc);
-      white-space: nowrap;
-    }
-    .account-row-actions { display: flex; gap: 4px; }
-    .account-icon-btn {
-      background: transparent;
-      border: 1px solid transparent;
-      color: var(--muted, #94a3b8);
-      border-radius: 7px;
-      width: 30px;
-      height: 30px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .account-icon-btn:hover {
-      color: var(--text, #f8fafc);
-      border-color: var(--border);
-      background: var(--surface-2);
-    }
-    .account-form {
-      display: none;
-      margin-top: 16px;
-      padding-top: 16px;
-      border-top: 1px solid var(--border);
-    }
-    .account-form.open { display: block; }
-    .account-empty {
-      padding: 20px 0 8px;
-      text-align: center;
-      color: var(--muted, #94a3b8);
-      font-size: 13px;
-    }
-    @media (max-width: 640px) {
-      .account-row { flex-wrap: wrap; }
-      .account-row-balance { width: 100%; padding-left: 52px; }
-    }
-  </style>
 </head>
-<body class="app-layout">
+<body class="app-layout page-profile">
   <div id="sidebarRoot"></div>
 
   <main class="main-content">
     <div class="topbar">
       <div>
-        <h1 style="font-size:20px;font-weight:700;color:var(--text, #0f172a)">User Profile & Account</h1>
-        <p style="font-size:12px;color:#64748b">Verified PostgreSQL Data & Financial Profile</p>
+        <h1 style="font-size:20px;font-weight:700;color:var(--text, var(--text))">User Profile & Account</h1>
+        <p style="font-size:12px;color:var(--muted)">Verified PostgreSQL Data & Financial Profile</p>
       </div>
       <div>
         <button class="btn btn-secondary" onclick="window.location.href='/dashboard.html'"><i class="ri-dashboard-line"></i> Dashboard</button>
@@ -267,14 +36,14 @@
             <span>·</span>
             <span class="badge-verified"><i class="ri-shield-check-line"></i> Verified Account</span>
           </p>
-          <div style="margin-top:8px;font-size:12px;color:#64748b;" id="profileMemberSince">Member Since: ...</div>
+          <div style="margin-top:8px;font-size:12px;color:var(--muted);" id="profileMemberSince">Member Since: ...</div>
         </div>
       </div>
 
       <div class="grid-2col">
         <!-- Personal Identity Card -->
         <div class="card">
-          <div class="card-title"><i class="ri-user-settings-line" style="color:#10b981"></i> Personal Identity</div>
+          <div class="card-title"><i class="ri-user-settings-line" style="color:var(--primary)"></i> Personal Identity</div>
 
           <div class="form-row">
             <div class="form-group">
@@ -313,7 +82,7 @@
 
         <!-- Financial Context Card -->
         <div class="card">
-          <div class="card-title"><i class="ri-bank-line" style="color:#10b981"></i> Financial Demographics</div>
+          <div class="card-title"><i class="ri-bank-line" style="color:var(--primary)"></i> Financial Demographics</div>
 
           <div class="form-row">
             <div class="form-group">
@@ -353,10 +122,10 @@
           </div>
 
           <!-- Notification & Audio Controls -->
-          <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);">
-            <div class="card-title" style="font-size:14px;margin-bottom:8px;"><i class="ri-notification-line" style="color:#f59e0b"></i> Audio & Notification Engine</div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+            <div class="card-title" style="font-size:14px;margin-bottom:8px;"><i class="ri-notification-line" style="color:var(--warning)"></i> Audio & Notification Engine</div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
-              <span id="notifStatusText" style="font-size:12px;color:#94a3b8;">Permission: Checking...</span>
+              <span id="notifStatusText" style="font-size:12px;color:var(--muted);">Permission: Checking...</span>
               <div style="display:flex;gap:8px;">
                 <button type="button" class="btn btn-secondary" id="enableNotifBtn" style="padding:6px 12px;font-size:12px"><i class="ri-notification-3-line"></i> Enable Notifications</button>
                 <button type="button" class="btn btn-secondary" id="testAudioBtn" style="padding:6px 12px;font-size:12px"><i class="ri-volume-up-line"></i> Test Audio Chime</button>
@@ -369,13 +138,13 @@
       <!-- Assets & Accounts -->
       <div class="card" id="accountsCard">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-          <div class="card-title" style="margin-bottom:0;"><i class="ri-wallet-3-line" style="color:#10b981"></i> Assets & Accounts</div>
+          <div class="card-title" style="margin-bottom:0;"><i class="ri-wallet-3-line" style="color:var(--primary)"></i> Assets & Accounts</div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <span id="accountsTotal" style="font-size:12px;color:#94a3b8;">Total liquid assets: —</span>
+            <span id="accountsTotal" style="font-size:12px;color:var(--muted);">Total liquid assets: —</span>
             <button type="button" class="btn btn-secondary" id="addAccountBtn" style="padding:7px 12px;font-size:12px;"><i class="ri-add-line"></i> Add Account</button>
           </div>
         </div>
-        <div id="accountsStatus" style="font-size:12px;color:#94a3b8;margin:8px 0 2px;"></div>
+        <div id="accountsStatus" style="font-size:12px;color:var(--muted);margin:8px 0 2px;"></div>
         <div id="accountsList"></div>
 
         <form id="accountForm" class="account-form" autocomplete="off">
@@ -412,13 +181,13 @@
       </div>
 
       <!-- Account Deletion (separate from removing a financial account) -->
-      <div class="card" id="deleteAccountCard" style="border:1px solid rgba(239,68,68,0.45);background:var(--danger-light, rgba(127,29,29,0.12));">
-        <div class="card-title" style="color:var(--danger, #dc2626);"><i class="ri-error-warning-line"></i> Delete FinPro Account</div>
-        <p style="font-size:13px;color:var(--muted, #64748b);line-height:1.65;margin:0 0 14px;">
+      <div class="card" id="deleteAccountCard" style="border:1px solid var(--danger-border);background:var(--danger-light, var(--danger-light));">
+        <div class="card-title" style="color:var(--danger, var(--danger));"><i class="ri-error-warning-line"></i> Delete FinPro Account</div>
+        <p style="font-size:13px;color:var(--muted, var(--muted));line-height:1.65;margin:0 0 14px;">
           This permanently deletes your FinPro account and every record linked to it, including financial accounts,
           transactions, budgets, goals, investments, loans, insurance policies, AI conversations, receipts, exports,
           devices, and pending SMS suggestions. This is not the same as removing one financial account above.
-          <strong style="color:var(--danger, #dc2626);">Deletion cannot be undone.</strong>
+          <strong style="color:var(--danger, var(--danger));">Deletion cannot be undone.</strong>
         </p>
         <form id="deleteAccountForm" autocomplete="off">
           <div class="form-row">
@@ -431,12 +200,12 @@
               <input type="text" id="deleteConfirmation" class="form-control" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="DELETE">
             </div>
           </div>
-          <label style="display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:var(--muted, #64748b);margin:4px 0 14px;">
-            <input type="checkbox" id="deleteUnderstand" style="margin-top:3px;accent-color:#dc2626;">
+          <label style="display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:var(--muted, var(--muted));margin:4px 0 14px;">
+            <input type="checkbox" id="deleteUnderstand" style="margin-top:3px;accent-color:var(--danger);">
             <span>I understand that my FinPro account and all associated data will be permanently deleted.</span>
           </label>
-          <div id="deleteAccountError" role="alert" style="display:none;background:rgba(127,29,29,0.35);border:1px solid rgba(248,113,113,0.5);color:#fecaca;border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:12px;"></div>
-          <button type="submit" id="deleteAccountBtn" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;">
+          <div id="deleteAccountError" role="alert" style="display:none;background:var(--danger-border);border:1px solid var(--danger-border);color:var(--danger-border);border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:12px;"></div>
+          <button type="submit" id="deleteAccountBtn" style="background:var(--danger);color:var(--on-primary);border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;">
             <i class="ri-delete-bin-6-line"></i> Permanently Delete Account
           </button>
         </form>
@@ -444,7 +213,7 @@
 
       <!-- Action Footer -->
       <div style="display:flex;justify-content:flex-end;gap:14px;align-items:center;">
-        <span id="saveStatus" style="font-size:13px;color:#34d399;display:none;"></span>
+        <span id="saveStatus" style="font-size:13px;color:var(--accent-green);display:none;"></span>
         <button class="btn-save" id="saveProfileBtn">
           <i class="ri-save-line"></i> Save Profile Changes
         </button>

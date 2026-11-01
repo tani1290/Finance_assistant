@@ -45,7 +45,17 @@ module.exports = defineConfig({
   webServer: {
     command: 'node node-backend/src/server.js',
     url: 'http://127.0.0.1:5001/api/v1/health',
-    reuseExistingServer: true,
-    timeout: 30000,
+    // The suite drives dozens of auth flows plus every page's API calls from one
+    // IP, which exceeds the development rate-limit budget (1000 API / 100 failed
+    // auth requests per 15 minutes) part-way through a run. Results therefore
+    // depended on how much traffic the machine had already generated, so the
+    // suite always starts its own server in test mode, where rate limiting is
+    // disabled. That means an existing server on port 5001 must be stopped first
+    // (Playwright reports the port conflict instead of silently reusing it).
+    reuseExistingServer: false,
+    timeout: 60000,
+    env: {
+      NODE_ENV: 'test',
+    },
   },
 });

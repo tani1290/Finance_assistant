@@ -6,9 +6,10 @@
   <title>Budgets — FinPro</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
-<body>
+<body class="page-budget app-layout">
   <div id="sidebarRoot"></div>
   <main class="main-content">
     <div class="topbar">
@@ -46,7 +47,7 @@
 
       <!-- Budget Cards -->
       <div id="budgetList">
-        <div class="card"><div style="text-align:center;padding:40px;color:#6b7280">Loading budgets...</div></div>
+        <div class="card"><div style="text-align:center;padding:40px;color:var(--muted)">Loading budgets...</div></div>
       </div>
     </div>
   </main>
@@ -79,7 +80,7 @@
         <label class="form-label">Year</label>
         <input type="number" id="budgetYear" class="form-input" value="2025" min="2024">
       </div>
-      <div id="budgetError" style="color:#fca5a5;font-size:12px;margin-bottom:8px;display:none;"></div>
+      <div id="budgetError" style="color:var(--danger);font-size:12px;margin-bottom:8px;display:none;"></div>
       <button class="btn btn-primary" style="width:100%" onclick="saveBudget()">
         <i class="ri-check-line"></i> Save Budget
       </button>
@@ -114,7 +115,7 @@
     const loadBudgets = async () => {
       const data = await apiFetch(`/budgets?month=${month}&year=${year}`);
       if (!data?.success) {
-        document.getElementById('budgetList').innerHTML = '<div class="card"><div style="text-align:center;padding:30px;color:#ef4444">Failed to load budgets. Check server.</div></div>';
+        document.getElementById('budgetList').innerHTML = '<div class="card"><div style="text-align:center;padding:30px;color:var(--danger)">Failed to load budgets. Check server.</div></div>';
         return;
       }
 
@@ -142,20 +143,20 @@
             return `<div class="card">
               <div class="card-header" style="margin-bottom:10px">
                 <span style="font-size:14px;font-weight:600">${b.categoryName}</span>
-                <span style="font-size:12px;color:${pct>=100?'#ef4444':pct>=90?'#f59e0b':'#6b7280'}">${pct}%</span>
+                <span style="font-size:12px;color:${pct>=100?'var(--danger)':pct>=90?'var(--warning)':'var(--muted)'}">${pct}%</span>
               </div>
               <div class="progress-bar" style="margin-bottom:10px">
                 <div class="progress-fill ${progressClass}" style="width:${pct}%;background:${color}"></div>
               </div>
-              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted,#6b7280);margin-bottom:10px">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted,var(--muted));margin-bottom:10px">
                 <span>Spent: <strong style="color:var(--text)">${fmt(b.spent)}</strong></span>
                 <span>Limit: <strong style="color:var(--text)">${fmt(b.monthlyLimit)}</strong></span>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:center">
-                <span style="font-size:12px;color:${pct>=100?'#ef4444':'#10b981'}">
+                <span style="font-size:12px;color:${pct>=100?'var(--danger)':'var(--primary)'}">
                   ${pct>=100?`Over by ${fmt(b.spent-b.monthlyLimit)}`:`${fmt(b.monthlyLimit-b.spent)} remaining`}
                 </span>
-                <button class="btn-icon-only" onclick="deleteBudget('${b.id}')" style="color:#ef4444;width:28px;height:28px" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                <button class="btn-icon-only" onclick="deleteBudget('${b.id}')" style="color:var(--danger);width:28px;height:28px" title="Delete"><i class="ri-delete-bin-line"></i></button>
               </div>
             </div>`;
           }).join('')}
@@ -226,10 +227,10 @@
 
     function showToast(msg,type='success'){
       const t=document.createElement('div');
-      t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;font-family:Inter,sans-serif;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);`;
-      if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';
-      else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';
-      else t.style.cssText+='background:#1e1b4b;border:1px solid #10b981;color:#6ee7b7;';
+      t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;font-family:Inter,sans-serif;z-index:9999;box-shadow:var(--shadow-lg);`;
+      if(type==='success')t.style.cssText+='background:var(--surface);border:1px solid var(--success);color:var(--success);';
+      else if(type==='error')t.style.cssText+='background:var(--surface);border:1px solid var(--danger);color:var(--danger);';
+      else t.style.cssText+='background:var(--surface);border:1px solid var(--info);color:var(--info);';
       t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),3500);
     }
 

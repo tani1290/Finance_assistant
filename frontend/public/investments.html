@@ -8,35 +8,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js" defer></script>
+  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
-  <style>
-    .metals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .metal-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 18px; position: relative; overflow: hidden; }
-    .metal-card.gold { border-color: rgba(245, 158, 11, 0.3); background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), transparent); }
-    .metal-card.silver { border-color: rgba(148, 163, 184, 0.3); background: linear-gradient(135deg, rgba(148, 163, 184, 0.05), transparent); }
-    .metal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .metal-title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-    .metal-rates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; }
-    .rate-item { background: rgba(0, 0, 0, 0.25); padding: 10px 12px; border-radius: 8px; }
-    .rate-val { font-size: 15px; font-weight: 700; color: #fff; margin-top: 2px; }
-    
-    .status-badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 9999px; text-transform: uppercase; letter-spacing: .5px; }
-    .status-live { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
-    .status-cached { background: rgba(99, 102, 241, 0.2); color: #6ee7b7; border: 1px solid #10b981; }
-    .status-stale { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
-    .status-unavailable { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
-    
-    /* Stock Chart Card */
-    .market-search-row { display: flex; gap: 10px; margin-bottom: 16px; }
-    .timeframe-btns { display: flex; gap: 6px; }
-    .tf-btn { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; }
-    .tf-btn.active { background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #6ee7b7; }
-    #stockChart { width: 100%; height: 280px; }
-    .chart-empty { display: flex; align-items: center; justify-content: center; height: 280px; color: #94a3b8; font-size: 13px; text-align: center; }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
-  </style>
 </head>
-<body>
+<body class="page-investments app-layout">
   <div id="sidebarRoot"></div>
   <main class="main-content">
     <div class="topbar">
@@ -56,60 +31,60 @@
       <div class="metals-grid">
         <div class="metal-card gold">
           <div class="metal-header">
-            <div class="metal-title" style="color:#fbbf24"><i class="ri-copper-diamond-line"></i> 24K & 22K Gold (COMEX Continuous Futures · INR Converted)</div>
+            <div class="metal-title" style="color:var(--warning)"><i class="ri-copper-diamond-line"></i> 24K & 22K Gold (COMEX Continuous Futures · INR Converted)</div>
             <span class="status-badge status-cached" id="goldStatus">CHECKING...</span>
           </div>
           <div class="metal-rates">
             <div class="rate-item">
-              <span style="color:#94a3b8">24K (per gram)</span>
+              <span style="color:var(--muted)">24K (per gram)</span>
               <div class="rate-val" id="gold24kGram">Loading...</div>
             </div>
             <div class="rate-item">
-              <span style="color:#94a3b8">24K (10 grams)</span>
+              <span style="color:var(--muted)">24K (10 grams)</span>
               <div class="rate-val" id="gold24k10Gram">Loading...</div>
             </div>
             <div class="rate-item">
-              <span style="color:#94a3b8">22K (per gram)</span>
+              <span style="color:var(--muted)">22K (per gram)</span>
               <div class="rate-val" id="gold22kGram">Loading...</div>
             </div>
             <div class="rate-item">
-              <span style="color:#94a3b8">24K (per oz)</span>
+              <span style="color:var(--muted)">24K (per oz)</span>
               <div class="rate-val" id="gold24kOz">Loading...</div>
             </div>
           </div>
-          <div style="margin-top:8px;font-size:11px;color:#fcd34d;background:rgba(245,158,11,0.08);padding:6px 10px;border-radius:6px;border:1px solid rgba(245,158,11,0.2);">
+          <div style="margin-top:8px;font-size:11px;color:var(--warning);background:var(--warning-light);padding:6px 10px;border-radius:6px;border:1px solid var(--warning-light);">
             <strong>Provenance Distinction:</strong> International COMEX Futures (GC=F) converted at live USD/INR FX. Domestic Indian retail jewellery rates typically include ~6% basic customs duties + 3% GST.
           </div>
-          <div style="margin-top:8px;font-size:11px;color:#94a3b8;" id="goldUpdated">Fetching verified spot rates...</div>
+          <div style="margin-top:8px;font-size:11px;color:var(--muted);" id="goldUpdated">Fetching verified spot rates...</div>
         </div>
 
         <div class="metal-card silver">
           <div class="metal-header">
-            <div class="metal-title" style="color:#cbd5e1"><i class="ri-coin-line"></i> Silver (COMEX Continuous Futures · INR Converted)</div>
+            <div class="metal-title" style="color:var(--text-secondary)"><i class="ri-coin-line"></i> Silver (COMEX Continuous Futures · INR Converted)</div>
             <span class="status-badge status-cached" id="silverStatus">CHECKING...</span>
           </div>
           <div class="metal-rates">
             <div class="rate-item">
-              <span style="color:#94a3b8">Per Gram (g)</span>
+              <span style="color:var(--muted)">Per Gram (g)</span>
               <div class="rate-val" id="silverGram">Loading...</div>
             </div>
             <div class="rate-item">
-              <span style="color:#94a3b8">Per Kilogram (1000g)</span>
+              <span style="color:var(--muted)">Per Kilogram (1000g)</span>
               <div class="rate-val" id="silverKg">Loading...</div>
             </div>
             <div class="rate-item">
-              <span style="color:#94a3b8">Per Ounce (oz)</span>
+              <span style="color:var(--muted)">Per Ounce (oz)</span>
               <div class="rate-val" id="silverOz">Loading...</div>
             </div>
             <div class="rate-item">
-              <span style="color:#94a3b8">Unit Conversion</span>
-              <div class="rate-val" style="font-size:12px;padding-top:4px;color:#6ee7b7;">1 kg = 1000 g | 1 oz = 31.1035g</div>
+              <span style="color:var(--muted)">Unit Conversion</span>
+              <div class="rate-val" style="font-size:12px;padding-top:4px;color:var(--primary-bright);">1 kg = 1000 g | 1 oz = 31.1035g</div>
             </div>
           </div>
-          <div style="margin-top:8px;font-size:11px;color:#cbd5e1;background:rgba(148,163,184,0.08);padding:6px 10px;border-radius:6px;border:1px solid rgba(148,163,184,0.2);">
+          <div style="margin-top:8px;font-size:11px;color:var(--text-secondary);background:var(--card-bg);padding:6px 10px;border-radius:6px;border:1px solid var(--border);">
             <strong>Provenance Distinction:</strong> International COMEX Continuous Futures (SI=F in USD/oz) converted at live FX. Units: 1 kg = 1000 g | 1 troy oz = 31.1035 g.
           </div>
-          <div style="margin-top:8px;font-size:11px;color:#94a3b8;" id="silverUpdated">Fetching verified spot rates...</div>
+          <div style="margin-top:8px;font-size:11px;color:var(--muted);" id="silverUpdated">Fetching verified spot rates...</div>
         </div>
       </div>
 
@@ -134,7 +109,7 @@
           <button class="btn btn-secondary" id="searchStockBtn"><i class="ri-search-line"></i> Search Stock</button>
         </div>
         <div id="stockChart"></div>
-        <div style="margin-top:8px;font-size:11px;color:#6b7280;" id="chartMeta">Provider: Loading...</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--muted);" id="chartMeta">Provider: Loading...</div>
       </div>
 
       <!-- Portfolio Summary -->
@@ -164,7 +139,7 @@
               </tr>
             </thead>
             <tbody id="holdingsBody">
-              <tr><td colspan="9" style="text-align:center;padding:40px;color:#6b7280">Loading portfolio holdings...</td></tr>
+              <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">Loading portfolio holdings...</td></tr>
             </tbody>
           </table>
         </div>
@@ -208,7 +183,7 @@
         <label class="form-label">Buy Price per Unit / Gram (₹)</label>
         <input type="number" id="investPrice" class="form-input" placeholder="e.g. 1320" min="0.01" step="0.01">
       </div>
-      <div id="investError" style="color:#fca5a5;font-size:12px;margin-bottom:8px;display:none;"></div>
+      <div id="investError" style="color:var(--danger);font-size:12px;margin-bottom:8px;display:none;"></div>
       <button class="btn btn-primary" style="width:100%" id="saveInvestBtn"><i class="ri-check-line"></i> Save Holding</button>
     </div>
   </div>
@@ -300,7 +275,7 @@
           const q = quoteRes.data;
           const up = (q.changePercent || 0) >= 0;
           document.getElementById('chartStockTitle').innerHTML =
-            `${q.name || q.symbol} (${q.symbol}) &mdash; ${formatINR(q.price)} <span style="font-size:12px;color:${up?'#10b981':'#ef4444'};">${up?'+':''}${q.changePercent?.toFixed(2)||'0'}%</span>`;
+            `${q.name || q.symbol} (${q.symbol}) &mdash; ${formatINR(q.price)} <span style="font-size:12px;color:${up?'var(--primary)':'var(--danger)'};">${up?'+':''}${q.changePercent?.toFixed(2)||'0'}%</span>`;
           setBadge('chartMarketStatus', q.data_status || 'LIVE');
           document.getElementById('chartMeta').innerHTML =
             `<b>Provider:</b> ${q.provider || q.source} &middot; <b>Instrument:</b> ${q.provider_symbol || q.symbol} &middot; <b>Exchange:</b> ${q.exchange || 'NSE'} &middot; <b>Currency:</b> ${q.currency || 'INR'} &middot; <b>Market:</b> ${q.market_status || q.marketStatus || 'CLOSED'} &middot; <b>Data:</b> ${q.data_status || 'LIVE'} &middot; <b>Fetched:</b> ${q.fetched_at ? new Date(q.fetched_at).toLocaleTimeString('en-IN') : '-'}`;
@@ -340,7 +315,7 @@
               type: 'value',
               scale: true,
               axisLabel: { color: '#6b7280', fontSize: 10, formatter: (v) => '₹' + v.toLocaleString('en-IN') },
-              splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+              splitLine: { lineStyle: { color: 'rgba(148,163,184,0.22)' } },
             },
             series: [{
               name: symbol,
@@ -393,23 +368,23 @@
       document.getElementById('totalInvested').textContent = formatINR(d.totalInvested);
       document.getElementById('totalPnl').textContent = formatINR(d.totalPnl);
       document.getElementById('pnlPct').textContent = `${d.totalPnlPercent >= 0 ? '+' : ''}${d.totalPnlPercent}%`;
-      document.getElementById('pnlPct').style.color = d.totalPnlPercent >= 0 ? '#10b981' : '#ef4444';
+      document.getElementById('pnlPct').style.color = d.totalPnlPercent >= 0 ? 'var(--success)' : 'var(--danger)';
       document.getElementById('holdingsCount').textContent = d.holdings.length;
 
       const tbody = document.getElementById('holdingsBody');
       if (d.holdings.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:#94a3b8">No holdings recorded yet. Click "Add Investment" to track stocks, gold, or funds.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted)">No holdings recorded yet. Click "Add Investment" to track stocks, gold, or funds.</td></tr>';
       } else {
         tbody.innerHTML = d.holdings.map(h => `
           <tr>
-            <td><b>${h.name}</b> <span style="font-size:11px;color:#94a3b8">(${h.symbol})</span></td>
-            <td><span class="status-badge" style="background:rgba(16,185,129,0.15);color:#6ee7b7;">${h.assetType}</span></td>
+            <td><b>${h.name}</b> <span style="font-size:11px;color:var(--muted)">(${h.symbol})</span></td>
+            <td><span class="status-badge" style="background:var(--primary-light);color:var(--primary-bright);">${h.assetType}</span></td>
             <td>${h.quantity}</td>
             <td>${formatINR(h.averageBuyPrice)}</td>
             <td><b>${formatINR(h.currentPrice)}</b></td>
             <td>${formatINR(h.totalCost)}</td>
             <td><b>${formatINR(h.currentValue)}</b></td>
-            <td style="color:${h.pnl >= 0 ? '#10b981' : '#ef4444'};font-weight:600;">
+            <td style="color:${h.pnl >= 0 ? 'var(--primary)' : 'var(--danger)'};font-weight:600;">
               ${h.pnl >= 0 ? '+' : ''}${formatINR(h.pnl)} (${h.pnlPercent}%)
             </td>
             <td>

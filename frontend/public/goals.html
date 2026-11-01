@@ -6,9 +6,10 @@
   <title>Goals — FinPro</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
-<body>
+<body class="page-goals app-layout">
   <div id="sidebarRoot"></div>
   <main class="main-content">
     <div class="topbar">
@@ -44,7 +45,7 @@
       </div>
 
       <div id="goalsList">
-        <div class="card"><div style="text-align:center;padding:40px;color:#6b7280">Loading goals...</div></div>
+        <div class="card"><div style="text-align:center;padding:40px;color:var(--muted)">Loading goals...</div></div>
       </div>
     </div>
   </main>
@@ -98,7 +99,7 @@
           <option value="LOW">Low</option>
         </select>
       </div>
-      <div id="goalError" style="color:#fca5a5;font-size:12px;margin-bottom:8px;display:none;"></div>
+      <div id="goalError" style="color:var(--danger);font-size:12px;margin-bottom:8px;display:none;"></div>
       <button class="btn btn-primary" style="width:100%" onclick="saveGoal()">
         <i class="ri-check-line"></i> Create Goal
       </button>
@@ -112,7 +113,7 @@
         <span class="modal-title">Add Contribution</span>
         <button class="modal-close" onclick="closeModal('contributeModal')">✕</button>
       </div>
-      <p id="contributeGoalName" style="font-size:13px;color:#6ee7b7;margin-bottom:16px;font-weight:600"></p>
+      <p id="contributeGoalName" style="font-size:13px;color:var(--primary-bright);margin-bottom:16px;font-weight:600"></p>
       <div class="form-group">
         <label class="form-label">Amount to Add (₹)</label>
         <input type="number" id="contributeAmount" class="form-input" placeholder="5000" min="1">
@@ -147,7 +148,7 @@
     const loadGoals = async () => {
       const data = await apiFetch('/goals');
       if (!data?.success) {
-        document.getElementById('goalsList').innerHTML = '<div class="card"><div style="text-align:center;padding:30px;color:#ef4444">Failed to load goals.</div></div>';
+        document.getElementById('goalsList').innerHTML = '<div class="card"><div style="text-align:center;padding:30px;color:var(--danger)">Failed to load goals.</div></div>';
         return;
       }
 
@@ -171,13 +172,13 @@
             const pct = Math.min(g.progress || 0, 100);
             const remaining = parseFloat(g.targetAmount) - parseFloat(g.currentAmount);
             const isCompleted = g.status === 'COMPLETED' || pct >= 100;
-            return `<div class="card" style="border:1px solid ${isCompleted?'rgba(16,185,129,.3)':g.status==='PAUSED'?'rgba(245,158,11,.2)':g.priority==='HIGH'?'rgba(239,68,68,.2)':'var(--border)'}">
+            return `<div class="card" style="border:1px solid ${isCompleted?'var(--primary-border)':g.status==='PAUSED'?'var(--warning-light)':g.priority==='HIGH'?'var(--danger-light)':'var(--border)'}">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
                 <div style="display:flex;align-items:center;gap:10px">
                   <div style="font-size:24px">${goalIcons[g.goalType]||'🎯'}</div>
                   <div>
                     <div style="font-size:14px;font-weight:700;color:var(--text)">${g.name}</div>
-                    <div style="font-size:11px;color:var(--muted,#6b7280)">${g.goalType.replace(/_/g,' ')} · <span style="color:${priorityColors[g.priority]}">${g.priority}</span></div>
+                    <div style="font-size:11px;color:var(--muted,var(--muted))">${g.goalType.replace(/_/g,' ')} · <span style="color:${priorityColors[g.priority]}">${g.priority}</span></div>
                   </div>
                 </div>
                 <span class="badge ${isCompleted?'badge-green':g.status==='PAUSED'?'badge-amber':'badge-blue'}">${isCompleted?'✅ Done':g.status}</span>
@@ -187,19 +188,19 @@
                 <div class="progress-fill ${isCompleted?'green':''}" style="width:${pct}%"></div>
               </div>
               
-              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted,#6b7280);margin-bottom:10px">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted,var(--muted));margin-bottom:10px">
                 <span>Saved: <strong style="color:var(--text)">${fmt(g.currentAmount)}</strong></span>
                 <span>Target: <strong style="color:var(--text)">${fmt(g.targetAmount)}</strong></span>
               </div>
               
               <div style="font-size:12px;margin-bottom:12px">
-                ${isCompleted ? '<span style="color:#10b981">🎉 Goal completed!</span>' : `<span style="color:var(--muted,#6b7280)">Remaining: <strong style="color:var(--text)">${fmt(remaining)}</strong></span>`}
-                ${g.targetDate ? `<span style="color:var(--muted,#6b7280);margin-left:8px">· Due: ${new Date(g.targetDate).toLocaleDateString('en-IN',{month:'short',year:'numeric'})}</span>` : ''}
+                ${isCompleted ? '<span style="color:var(--primary)">🎉 Goal completed!</span>' : `<span style="color:var(--muted,var(--muted))">Remaining: <strong style="color:var(--text)">${fmt(remaining)}</strong></span>`}
+                ${g.targetDate ? `<span style="color:var(--muted,var(--muted));margin-left:8px">· Due: ${new Date(g.targetDate).toLocaleDateString('en-IN',{month:'short',year:'numeric'})}</span>` : ''}
               </div>
               
               <div style="display:flex;gap:8px">
                 ${!isCompleted ? `<button class="btn btn-secondary" style="flex:1;padding:7px 10px;font-size:12px" onclick="openContribute('${g.id}','${g.name.replace(/'/g,"\\'")}')"><i class="ri-add-line"></i>Add Savings</button>` : ''}
-                <button class="btn-icon-only" onclick="deleteGoal('${g.id}')" style="color:#ef4444" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                <button class="btn-icon-only" onclick="deleteGoal('${g.id}')" style="color:var(--danger)" title="Delete"><i class="ri-delete-bin-line"></i></button>
               </div>
             </div>`;
           }).join('')}
@@ -269,7 +270,7 @@
     function showModal(id){document.getElementById(id).classList.add('show');}
     function closeModal(id){document.getElementById(id).classList.remove('show');}
     document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
-    function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);`;if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';else t.style.cssText+='background:#1e1b4b;border:1px solid #10b981;color:#6ee7b7;';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
+    function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:var(--shadow-lg);`;if(type==='success')t.style.cssText+='background:var(--surface);border:1px solid var(--success);color:var(--success);';else if(type==='error')t.style.cssText+='background:var(--surface);border:1px solid var(--danger);color:var(--danger);';else t.style.cssText+='background:var(--surface);border:1px solid var(--info);color:var(--info);';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
 
     loadGoals();
 

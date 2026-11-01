@@ -12,6 +12,10 @@ test.describe('Homepage Visual Regression Tests', () => {
     });
     await page.waitForTimeout(400);
 
+    // The branded welcome overlay covers the viewport for ~2s. Wait for it to
+    // finish so it can never land on top of an element screenshot.
+    await expect(page.locator('#welcomeOverlay')).toHaveCount(0, { timeout: 8000 });
+
     // Capture showcase card
     const showcase = page.locator('.showcase-card');
     await expect(showcase).toBeVisible();
@@ -32,6 +36,10 @@ test.describe('Homepage Visual Regression Tests', () => {
       window.FinProTheme.apply(false);
     });
     await page.waitForTimeout(400);
+
+    // The branded welcome overlay covers the viewport for ~2s. Wait for it to
+    // finish so it can never land on top of an element screenshot.
+    await expect(page.locator('#welcomeOverlay')).toHaveCount(0, { timeout: 8000 });
 
     // Capture showcase card
     const showcase = page.locator('.showcase-card');

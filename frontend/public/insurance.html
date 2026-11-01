@@ -6,13 +6,10 @@
   <title>Insurance & Subscriptions — FinPro</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
-  <style>
-    .split-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media(max-width: 900px) { .split-grid { grid-template-columns: 1fr; } }
-  </style>
 </head>
-<body>
+<body class="page-insurance app-layout">
   <div id="sidebarRoot"></div>
   <main class="main-content">
     <div class="topbar">
@@ -36,9 +33,9 @@
       </div>
 
       <!-- AI Insurance Review Banner -->
-      <div class="card" style="margin-bottom:24px;border-left:4px solid #10b981;background:rgba(16,185,129,0.06);">
-        <div class="card-header"><span class="card-title"><i class="ri-robot-line" style="color:#6ee7b7"></i> AI Insurance & Coverage Review</span></div>
-        <div id="insuranceReviewContent" style="font-size:13px;color:#cbd5e1;line-height:1.6">
+      <div class="card" style="margin-bottom:24px;border-left:4px solid var(--primary);background:var(--primary-faint);">
+        <div class="card-header"><span class="card-title"><i class="ri-robot-line" style="color:var(--primary-bright)"></i> AI Insurance & Coverage Review</span></div>
+        <div id="insuranceReviewContent" style="font-size:13px;color:var(--text-secondary);line-height:1.6">
           Analyzing your protection portfolio and debt coverage...
         </div>
       </div>
@@ -54,7 +51,7 @@
           <div class="table-wrapper">
             <table>
               <thead><tr><th>Policy</th><th>Type</th><th>Coverage</th><th>Premium</th><th>Renewal</th><th>Action</th></tr></thead>
-              <tbody id="policiesBody"><tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7280">Loading policies...</td></tr></tbody>
+              <tbody id="policiesBody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">Loading policies...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -68,7 +65,7 @@
           <div class="table-wrapper">
             <table>
               <thead><tr><th>Service</th><th>Category</th><th>Cost</th><th>Cycle</th><th>Next Bill</th><th>Action</th></tr></thead>
-              <tbody id="subsBody"><tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7280">Loading subscriptions...</td></tr></tbody>
+              <tbody id="subsBody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">Loading subscriptions...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -103,7 +100,7 @@
         </select>
       </div>
       <div class="form-group"><label class="form-label">Renewal Date</label><input type="date" id="policyRenewal" class="form-input"></div>
-      <div id="policyError" style="color:#fca5a5;font-size:12px;margin-bottom:8px;display:none;"></div>
+      <div id="policyError" style="color:var(--danger);font-size:12px;margin-bottom:8px;display:none;"></div>
       <button class="btn btn-primary" style="width:100%" onclick="savePolicy()"><i class="ri-check-line"></i> Save Policy</button>
     </div>
   </div>
@@ -123,7 +120,7 @@
         </select>
       </div>
       <div class="form-group"><label class="form-label">Next Billing Date</label><input type="date" id="subNextDate" class="form-input"></div>
-      <div id="subError" style="color:#fca5a5;font-size:12px;margin-bottom:8px;display:none;"></div>
+      <div id="subError" style="color:var(--danger);font-size:12px;margin-bottom:8px;display:none;"></div>
       <button class="btn btn-primary" style="width:100%" onclick="saveSubscription()"><i class="ri-check-line"></i> Save Subscription</button>
     </div>
   </div>
@@ -164,15 +161,15 @@
         const tbody = document.getElementById('policiesBody');
         if (d.policies.length) {
           tbody.innerHTML = d.policies.map(p => `<tr>
-            <td><div style="font-weight:600">${p.policyName}</div><div style="font-size:11px;color:#6b7280">${p.insurer||'Insurer'}</div></td>
+            <td><div style="font-weight:600">${p.policyName}</div><div style="font-size:11px;color:var(--muted)">${p.insurer||'Insurer'}</div></td>
             <td><span class="badge badge-blue">${p.policyType}</span></td>
             <td style="font-weight:600">${p.formattedCoverage}</td>
-            <td>${p.formattedPremium} <span style="font-size:10px;color:#6b7280">(${p.premiumCycle})</span></td>
+            <td>${p.formattedPremium} <span style="font-size:10px;color:var(--muted)">(${p.premiumCycle})</span></td>
             <td>${new Date(p.renewalDate).toLocaleDateString('en-IN')}</td>
-            <td><button class="btn-icon-only" style="color:#ef4444" title="Delete" onclick="deletePolicy('${p.id}')"><i class="ri-delete-bin-line"></i></button></td>
+            <td><button class="btn-icon-only" style="color:var(--danger)" title="Delete" onclick="deletePolicy('${p.id}')"><i class="ri-delete-bin-line"></i></button></td>
           </tr>`).join('');
         } else {
-          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7280">No insurance policies added. Protect your family with Term/Health cover.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">No insurance policies added. Protect your family with Term/Health cover.</td></tr>`;
         }
       }
 
@@ -189,10 +186,10 @@
             <td style="font-weight:600">${s.formattedCost}</td>
             <td>${s.billingCycle}</td>
             <td>${new Date(s.nextBillingDate).toLocaleDateString('en-IN')}</td>
-            <td><button class="btn-icon-only" style="color:#ef4444" title="Delete" onclick="deleteSub('${s.id}')"><i class="ri-delete-bin-line"></i></button></td>
+            <td><button class="btn-icon-only" style="color:var(--danger)" title="Delete" onclick="deleteSub('${s.id}')"><i class="ri-delete-bin-line"></i></button></td>
           </tr>`).join('');
         } else {
-          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7280">No subscriptions tracked.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">No subscriptions tracked.</td></tr>`;
         }
       }
 
@@ -201,8 +198,8 @@
         const recs = d.recommendations || [];
         document.getElementById('insuranceReviewContent').innerHTML = `
           <div style="margin-bottom:8px;"><strong>Status:</strong> ${d.totalPolicies} active policies. Recommended Life Cover: <strong>${d.formattedRecommendedLifeCover}</strong> (Total Active Life Cover: ${d.formattedTotalLifeCover}).</div>
-          ${recs.map(r => `<div style="display:flex;gap:6px;align-items:flex-start;margin-top:4px;"><i class="ri-arrow-right-s-line" style="color:#10b981;margin-top:2px"></i><span>${r}</span></div>`).join('')}
-          <div style="margin-top:8px;font-size:11px;color:#64748b"><em>${d.disclaimer}</em></div>
+          ${recs.map(r => `<div style="display:flex;gap:6px;align-items:flex-start;margin-top:4px;"><i class="ri-arrow-right-s-line" style="color:var(--primary);margin-top:2px"></i><span>${r}</span></div>`).join('')}
+          <div style="margin-top:8px;font-size:11px;color:var(--muted)"><em>${d.disclaimer}</em></div>
         `;
       }
     };
@@ -301,7 +298,7 @@
     function showModal(id){document.getElementById(id).classList.add('show');}
     function closeModal(id){document.getElementById(id).classList.remove('show');}
     document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
-    function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);`;if(type==='success')t.style.cssText+='background:#065f46;border:1px solid #10b981;color:#6ee7b7;';else if(type==='error')t.style.cssText+='background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;';else t.style.cssText+='background:#1e1b4b;border:1px solid #10b981;color:#6ee7b7;';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
+    function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:var(--shadow-lg);`;if(type==='success')t.style.cssText+='background:var(--surface);border:1px solid var(--success);color:var(--success);';else if(type==='error')t.style.cssText+='background:var(--surface);border:1px solid var(--danger);color:var(--danger);';else t.style.cssText+='background:var(--surface);border:1px solid var(--info);color:var(--info);';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
 
 
     loadInsuranceData();

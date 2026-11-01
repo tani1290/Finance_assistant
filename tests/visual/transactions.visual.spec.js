@@ -6,6 +6,11 @@ test.describe('Transactions Visual Regression Tests', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/transactions.html');
 
+    // The page fills its summary cards and table asynchronously. Wait for the
+    // real values before shooting so the snapshot never captures placeholders.
+    await expect(page.locator('#pageInfo')).toHaveText(/^\d+ of \d+ transactions$/);
+    await expect(page.locator('#incomeCount')).toHaveText(/transactions this month$/);
+
     await page.evaluate(() => {
       localStorage.setItem('jf_dark_mode', 'true');
       if (window.FinProTheme?.apply) {
@@ -27,6 +32,9 @@ test.describe('Transactions Visual Regression Tests', () => {
   test('Transactions Page — Light Mode Visual Snapshot', async ({ authenticatedPage: page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/transactions.html');
+
+    await expect(page.locator('#pageInfo')).toHaveText(/^\d+ of \d+ transactions$/);
+    await expect(page.locator('#incomeCount')).toHaveText(/transactions this month$/);
 
     await page.evaluate(() => {
       localStorage.setItem('jf_dark_mode', 'false');
