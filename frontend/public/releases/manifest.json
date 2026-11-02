@@ -1,7 +1,36 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-02T07:45:00.000Z",
+  "updatedAt": "2026-11-02T16:58:00.000Z",
   "releases": [
+    {
+      "version": "1.0.1",
+      "buildNumber": 2,
+      "channel": "production",
+      "releasedAt": "2026-11-02T16:58:00.000Z",
+      "published": true,
+      "critical": false,
+      "minimumSupportedVersion": "1.0.1",
+      "minimumOs": {
+        "android": "8.0",
+        "ios": "15.0"
+      },
+      "installNotes": "Android: allow installation from this browser when prompted, then open the downloaded APK. This build is signed with the new permanent FinPro release identity. If updating from the legacy build, uninstall the previous version before installing.",
+      "releaseNotes": [
+        "Adopted new permanent release signing identity (CN=Tanishq Agrawal, O=FinPro).",
+        "Local-first storage: all financial data is saved to on-device SQLite before syncing.",
+        "Durable sync queue with idempotent push, conflict detection and encrypted cloud backup.",
+        "Offline mode: view, create and edit transactions without internet connectivity.",
+        "In-app update detection with release notes and download progress."
+      ],
+      "artifacts": {
+        "android": {
+          "apkUrl": "/downloads/finpro-finance-ai.apk",
+          "sha256": "c33f3b1542fff2c042c3e91c409d0bc3c0c1f14eda925c2f4a10bb29902bc638",
+          "sizeBytes": 59705025,
+          "fileName": "finpro-finance-ai.apk"
+        }
+      }
+    },
     {
       "version": "1.0.0",
       "buildNumber": 1,
@@ -14,13 +43,9 @@
         "android": "8.0",
         "ios": "15.0"
       },
-      "installNotes": "Android: allow installation from this browser when prompted, then open the downloaded APK. This build is distributed directly as an APK, not through Google Play. iOS distribution requires TestFlight or the App Store; no public iOS build is available yet.",
+      "installNotes": "Android: allow installation from this browser when prompted, then open the downloaded APK. Legacy release signing identity.",
       "releaseNotes": [
-        "Local-first storage: all financial data is saved to on-device SQLite before syncing.",
-        "Durable sync queue with idempotent push, conflict detection and encrypted cloud backup.",
-        "Offline mode: view, create and edit transactions without internet connectivity.",
-        "In-app update detection with release notes and download progress.",
-        "Automated CI/CD pipeline for Android APK and AAB generation."
+        "Baseline Android build distributed from the FinPro website."
       ],
       "artifacts": {
         "android": {
