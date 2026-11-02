@@ -30,6 +30,7 @@ const mobileSync = require('../controllers/mobileSyncController');
 const realtimeCtrl = require('../controllers/realtimeController');
 const notificationRoutes = require('./notificationRoutes');
 const simulatorRoutes = require('./simulatorRoutes');
+const syncRoutes = require('./syncRoutes');
 
 // Apply auth to all routes below
 router.use(authenticate);
@@ -261,6 +262,11 @@ router.get('/training/predictions', training.getPredictionHistory);
 // Mobile Device Management & Sync
 router.post('/mobile/devices', mobileSync.registerDevice);
 router.get('/mobile/sync', mobileSync.getMobileSyncState);
+
+// Local-first sync: durable push queue, authoritative pull snapshot, explicit
+// conflict resolution and encrypted cloud backups. Kept separate from the
+// read-only legacy /mobile/sync endpoint above, which remains for older builds.
+router.use('/sync', syncRoutes);
 
 // Bank SMS Transaction Detection & Ingestion Engine
 router.post('/sms/ingest', sms.ingestSms);

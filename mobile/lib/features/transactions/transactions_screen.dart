@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/local/local_entities.dart';
+import '../../core/local/local_runtime.dart';
 import '../../core/models/transaction_model.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
@@ -131,13 +133,49 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
   }
 
-  void _handleLoadFailure(String message, {required bool reset}) {
+  void _handleLoadFailure(String message, {required bool reset}) async {
+    if (reset) {
+      try {
+        final store = await LocalRuntime.instance.store();
+        final records = await store.listRecords(LocalEntity.transaction);
+        if (records.isNotEmpty) {
+          final localList = records
+              .map((r) => TransactionModel.fromJson(r.data))
+              .where((tx) {
+                if (_filterType != 'ALL' && tx.transactionType != _filterType) {
+                  return false;
+                }
+                if (_searchQuery.isNotEmpty) {
+                  final q = _searchQuery.toLowerCase();
+                  final matchDesc =
+                      tx.description?.toLowerCase().contains(q) ?? false;
+                  final matchMerchant =
+                      tx.merchant?.toLowerCase().contains(q) ?? false;
+                  final matchCat = tx.categoryName.toLowerCase().contains(q);
+                  if (!matchDesc && !matchMerchant && !matchCat) return false;
+                }
+                return true;
+              })
+              .toList();
+
+          if (mounted) {
+            setState(() {
+              _transactions = localList;
+              _isLoading = false;
+              _isLoadingMore = false;
+              _errorMessage = null;
+            });
+            return;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
     setState(() {
       _isLoading = false;
       _isLoadingMore = false;
       if (reset) {
-        // Results from the previous filter/search must not be presented as if
-        // they answered the new query.
         _transactions = const [];
         _hasMore = false;
         _errorMessage = message;

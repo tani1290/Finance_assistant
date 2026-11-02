@@ -42,6 +42,12 @@ dependencies:
   fl_chart: ^1.2.0
   crypto: ^3.0.6
 
+  # Local-first storage (SQLite) and sync operation identity.
+  sqflite: ^2.4.2
+  path_provider: ^2.1.6
+  path: ^1.9.1
+  uuid: ^4.6.0
+
   # Firebase — Cloud Computing integration
   firebase_core: ^4.15.0
   firebase_auth: ^6.7.0

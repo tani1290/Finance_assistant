@@ -75,6 +75,11 @@ model User {
   pendingSmsTransactions PendingSmsTransaction[]
   fcmTokens              FcmToken[]
   simulatedPayments      SimulatedPayment[]
+  syncOperations         SyncOperation[]
+  syncConflicts          SyncConflict[]
+  syncTombstones         SyncTombstone[]
+  syncBackups            SyncBackup[]
+  syncState              SyncState?
 
   @@index([email])
   @@index([googleId])
@@ -202,6 +207,12 @@ model FinancialAccount {
   balance             Decimal     @default(0) @db.Decimal(15, 2)
   currency            String      @default("INR")
   isActive            Boolean     @default(true)
+  // Monotonic audit counter bumped by the sync engine. `updatedAt` remains the
+  // authoritative optimistic-concurrency token because Prisma maintains it on
+  // every write path (including the web app); `version` is additive context.
+  version             Int         @default(0)
+  // Set when the mutation originated on a device that may have been offline.
+  clientUpdatedAt     DateTime?
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
@@ -294,6 +305,8 @@ model Transaction {
   // constraint to an existing table makes `prisma db push` refuse to run
   // without --accept-data-loss, and this project never passes that flag.
   idempotencyKey   String?
+  version          Int               @default(0)
+  clientUpdatedAt  DateTime?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -301,6 +314,7 @@ model Transaction {
   @@index([userId, date])
   @@index([userId, transactionType])
   @@index([userId, isSimulated])
+  @@index([userId, idempotencyKey])
   @@index([toAccountId])
   @@map("transactions")
 }
@@ -421,6 +435,8 @@ model Budget {
   monthlyLimit Decimal   @db.Decimal(15, 2)
   month        Int // 1-12
   year         Int
+  version      Int       @default(0)
+  clientUpdatedAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -445,6 +461,8 @@ model Goal {
   monthlyContribution Decimal    @default(0) @db.Decimal(15, 2)
   priority            Priority   @default(MEDIUM)
   status              GoalStatus @default(ACTIVE)
+  version             Int        @default(0)
+  clientUpdatedAt     DateTime?
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 
@@ -486,6 +504,7 @@ model Portfolio {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   totalInvested Decimal  @default(0) @db.Decimal(15, 2)
   currentValue  Decimal  @default(0) @db.Decimal(15, 2)
+  version       Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -503,6 +522,8 @@ model Investment {
   assetType       AssetType @default(STOCK)
   quantity        Decimal   @db.Decimal(15, 6)
   averageBuyPrice Decimal   @db.Decimal(15, 2)
+  version         Int       @default(0)
+  clientUpdatedAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -554,6 +575,8 @@ model Loan {
   emiAmount          Decimal?   @db.Decimal(15, 2)
   outstandingBalance Decimal    @db.Decimal(15, 2)
   status             LoanStatus @default(ACTIVE)
+  version            Int        @default(0)
+  clientUpdatedAt    DateTime?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
@@ -1051,7 +1074,13 @@ model MobileDevice {
   osVersion   String?
   appVersion  String?
   fcmToken    String?
+  platform    String    @default("android") // android | ios | web
   lastSyncAt  DateTime?
+  lastPulledAt DateTime?
+  lastPushedAt DateTime?
+  /// Highest sync revision this device has acknowledged. Only used for audit
+  /// and status; a pull always returns a full authoritative snapshot.
+  syncCursor  Int       @default(0)
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -1129,4 +1158,125 @@ model AiActionProposal {
   @@index([userId, status])
   @@index([expiresAt])
   @@map("ai_action_proposals")
+}
+
+// ============================================================
+// LOCAL-FIRST SYNC (Phase 2)
+// ============================================================
+//
+// The phone is the primary write target. These tables make the server a
+// durable, idempotent mirror: every accepted device mutation is recorded once,
+// every deletion leaves a tombstone so a full-snapshot pull can still express
+// "this row is gone", and every encrypted backup is stored with the metadata a
+// restore needs to refuse to run blindly.
+
+/// Per-user monotonic revision. Incremented once per accepted push batch (and
+/// once per restore). A pull is always a full snapshot — the revision is an
+/// audit cursor, never the sole basis for deciding what changed — because web
+/// controllers write and hard-delete rows without touching this counter.
+model SyncState {
+  userId       String    @id
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revision     Int       @default(0)
+  lastBackupAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("sync_state")
+}
+
+/// One durable server record per device operation. `(userId, opId)` is unique,
+/// which is what makes a retried HTTP request replay the first result instead
+/// of moving money twice.
+model SyncOperation {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId        String
+  opId            String
+  entityType      String
+  entityId        String
+  operation       String
+  payload         Json?
+  /// `updatedAt` the device based the mutation on. Mismatch ⇒ conflict.
+  baseUpdatedAt   DateTime?
+  baseVersion     Int?
+  status          String    @default("PENDING") // PENDING, SYNCING, SYNCED, FAILED, CONFLICT
+  attempts        Int       @default(0)
+  lastError       String?
+  appliedRevision Int?
+  result          Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, opId])
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@map("sync_operations")
+}
+
+/// A rejected or ambiguous operation. The local value is never discarded:
+/// both sides are stored so the user (or a later UI) can choose.
+model SyncConflict {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType    String
+  entityId      String
+  opId          String?
+  deviceId      String?
+  reason        String
+  localPayload  Json?
+  serverPayload Json?
+  status        String    @default("OPEN") // OPEN, RESOLVED_LOCAL, RESOLVED_SERVER
+  resolution    String?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, entityId])
+  @@map("sync_conflicts")
+}
+
+/// Durable deletion marker. Stores the deleted row snapshot so a restore or
+/// audit can reconstruct what was removed. `revision` orders tombstones.
+model SyncTombstone {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType String
+  entityId   String
+  deletedAt  DateTime @default(now())
+  deletedBy  String   @default("mobile")
+  revision   Int
+  snapshot   Json?
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId, revision])
+  @@map("sync_tombstones")
+}
+
+/// AES-256-GCM encrypted sync snapshot. Only ciphertext, nonce, auth tag and
+/// key-derivation salt are stored — the passphrase itself never reaches the
+/// database or an API response.
+model SyncBackup {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId       String?
+  format         String   @default("finpro-sync-backup-v1")
+  ciphertext     String   @db.Text
+  iv             String
+  authTag        String
+  salt           String
+  checksum       String
+  sizeBytes      Int
+  recordCounts   Json
+  serverRevision Int
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("sync_backups")
 }

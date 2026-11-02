@@ -1,0 +1,617 @@
+name: FinPro Mobile Release
+
+# Builds a signed Android APK + AAB and, when Apple signing material is
+# configured, an iOS IPA. A GitHub Release and the public release manifest are
+# only produced after every build and checksum verification succeeds.
+#
+# Required Android secrets:
+#   ANDROID_KEYSTORE_BASE64      base64 of the .jks (single line)
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+# Optional:
+#   GOOGLE_SERVICES_JSON         overrides mobile/android/app/google-services.json
+#   IOS_CERTIFICATE_BASE64       .p12, base64
+#   IOS_CERTIFICATE_PASSWORD
+#   IOS_PROVISIONING_PROFILE_BASE64
+#   IOS_TEAM_ID
+#   IOS_EXPORT_METHOD            app-store | ad-hoc | development (default app-store)
+#   SLACK_WEBHOOK_URL            failure notification
+# Repository variable:
+#   RELEASE_COMMIT_MANIFEST      "false" to skip committing the updated manifest
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version, e.g. 1.2.0 (no leading v)'
+        required: true
+        type: string
+      channel:
+        description: 'Release channel'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+      publish:
+        description: 'Create a GitHub Release (production tags publish automatically)'
+        required: true
+        default: false
+        type: boolean
+      critical:
+        description: 'Mark this update as critical'
+        required: false
+        default: false
+        type: boolean
+      minimum_supported:
+        description: 'Minimum supported version; older installs are forced to update'
+        required: false
+        default: '1.0.0'
+        type: string
+      release_notes:
+        description: 'One release note per line (optional)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Validate release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      build: ${{ steps.meta.outputs.build }}
+      channel: ${{ steps.meta.outputs.channel }}
+      publish: ${{ steps.meta.outputs.publish }}
+      critical: ${{ steps.meta.outputs.critical }}
+      minimum_supported: ${{ steps.meta.outputs.minimum_supported }}
+      tag: ${{ steps.meta.outputs.tag }}
+      notes_file: ${{ steps.meta.outputs.notes_file }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive version, build number and channel
+        id: meta
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_CHANNEL: ${{ inputs.channel }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          INPUT_CRITICAL: ${{ inputs.critical }}
+          INPUT_MINIMUM: ${{ inputs.minimum_supported }}
+          INPUT_NOTES: ${{ inputs.release_notes }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            # Tag push is the only path that publishes production automatically.
+            VERSION="${REF_NAME#v}"
+            CHANNEL="production"
+            PUBLISH="true"
+            CRITICAL="false"
+            MINIMUM="1.0.0"
+          else
+            VERSION="${INPUT_VERSION}"
+            CHANNEL="${INPUT_CHANNEL}"
+            PUBLISH="${INPUT_PUBLISH}"
+            CRITICAL="${INPUT_CRITICAL}"
+            MINIMUM="${INPUT_MINIMUM}"
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be semver without a leading v (got '$VERSION')"
+            exit 1
+          fi
+          if [[ "$CHANNEL" != "production" && "$CHANNEL" != "staging" ]]; then
+            echo "::error::unsupported channel '$CHANNEL'"
+            exit 1
+          fi
+
+          PUBSPEC_VERSION="$(sed -n 's/^version:[[:space:]]*\([0-9][0-9.]*\).*/\1/p' mobile/pubspec.yaml | head -1)"
+          if [[ -z "$PUBSPEC_VERSION" ]]; then
+            echo "::error::could not read version from mobile/pubspec.yaml"
+            exit 1
+          fi
+          if [[ "$PUBSPEC_VERSION" != "$VERSION" ]]; then
+            echo "::error::mobile/pubspec.yaml is $PUBSPEC_VERSION but release version is $VERSION. Bump pubspec (and the lockstep website copy) in the same PR as the tag."
+            exit 1
+          fi
+
+          # Production must come from main or an annotated release tag whose
+          # commit is already on main. A feature branch cannot publish.
+          git fetch origin main --quiet || true
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            if ! git merge-base --is-ancestor HEAD origin/main; then
+              echo "::error::release tag $REF_NAME points at a commit that is not on main"
+              exit 1
+            fi
+          elif [[ "$CHANNEL" == "production" && "$PUBLISH" == "true" ]]; then
+            if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+              echo "::error::production publishing is only allowed from main (or a v* tag)"
+              exit 1
+            fi
+          fi
+
+          # Store build numbers must increase forever. The run number is
+          # monotonic per repository; the offset leaves room for legacy builds.
+          BUILD=$((1000 + RUN_NUMBER))
+          TAG="v${VERSION}"
+
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+          : > "$NOTES_FILE"
+          if [[ -n "$INPUT_NOTES" ]]; then
+            printf '%s\n' "$INPUT_NOTES" >> "$NOTES_FILE"
+          else
+            PREVIOUS_TAG="$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$TAG" | head -1 || true)"
+            if [[ -n "$PREVIOUS_TAG" ]]; then
+              git log --no-merges --pretty='- %s' "${PREVIOUS_TAG}..HEAD" | head -40 >> "$NOTES_FILE"
+            else
+              git log --no-merges --pretty='- %s' -20 >> "$NOTES_FILE"
+            fi
+          fi
+
+          {
+            echo "version=$VERSION"
+            echo "build=$BUILD"
+            echo "channel=$CHANNEL"
+            echo "publish=$PUBLISH"
+            echo "critical=$CRITICAL"
+            echo "minimum_supported=$MINIMUM"
+            echo "tag=$TAG"
+            echo "notes_file=$NOTES_FILE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Reject an existing release tag
+        if: github.event_name == 'workflow_dispatch' && inputs.publish == true
+        shell: bash
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::tag $TAG already exists; bump the version instead of re-releasing"
+            exit 1
+          fi
+
+      - name: Preserve release notes for the publish job
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: ${{ steps.meta.outputs.notes_file }}
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    name: Android APK + AAB
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter (pinned)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.7'
+          channel: stable
+          cache: true
+
+      - name: Install signing material
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::missing required secret $name"
+              missing=1
+            fi
+          done
+          if [[ "$missing" == "1" ]]; then
+            echo "::error::Android release builds refuse to run without a complete signing identity. Configure the four Android secrets before tagging."
+            exit 1
+          fi
+
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobile/android/release.jks
+          cat > mobile/android/key.properties <<EOF
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          storeFile=release.jks
+          EOF
+
+          if [[ -n "${GOOGLE_SERVICES_JSON:-}" ]]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/android/app/google-services.json
+          fi
+
+      - name: Resolve dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Build signed artifacts
+        working-directory: mobile
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          BUILD: ${{ needs.prepare.outputs.build }}
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+        run: |
+          flutter build apk --release --build-name "$VERSION" --build-number "$BUILD" \
+            --dart-define=APP_VERSION="$VERSION" \
+            --dart-define=APP_BUILD="$BUILD" \
+            --dart-define=APP_CHANNEL="$CHANNEL"
+          flutter build appbundle --release --build-name "$VERSION" --build-number "$BUILD" \
+            --dart-define=APP_VERSION="$VERSION" \
+            --dart-define=APP_BUILD="$BUILD" \
+            --dart-define=APP_CHANNEL="$CHANNEL"
+
+      - name: Verify APK signature and identity
+        shell: bash
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          # A debug certificate is a release blocker, not a warning.
+          if "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | grep -qi 'CN=Android Debug'; then
+            echo "::error::APK is debug-signed"
+            exit 1
+          fi
+          unzip -l "$APK" | grep -q 'AndroidManifest.xml'
+
+      - name: Record checksums
+        shell: bash
+        working-directory: mobile
+        run: |
+          sha256sum build/app/outputs/flutter-apk/app-release.apk | tee apk.sha256
+          sha256sum build/app/outputs/bundle/release/app-release.aab | tee aab.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: |
+            mobile/build/app/outputs/flutter-apk/app-release.apk
+            mobile/apk.sha256
+          if-no-files-found: error
+          retention-days: 90
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: |
+            mobile/build/app/outputs/bundle/release/app-release.aab
+            mobile/aab.sha256
+          if-no-files-found: error
+          retention-days: 90
+
+  ios:
+    name: iOS build (signed only when Apple secrets exist)
+    needs: prepare
+    runs-on: macos-14
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter (pinned)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.7'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: mobile
+        run: |
+          flutter pub get
+          (cd ios && pod install --repo-update)
+
+      - name: Import Apple signing material
+        id: signing
+        shell: bash
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${IOS_CERTIFICATE_BASE64:-}" || -z "${IOS_PROVISIONING_PROFILE_BASE64:-}" ]]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Apple signing secrets are not configured; producing an UNSIGNED build that cannot be installed. TestFlight/App Store upload is skipped."
+            exit 0
+          fi
+
+          KEYCHAIN="$RUNNER_TEMP/finpro-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          CERT="$RUNNER_TEMP/finpro.p12"
+          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > "$CERT"
+          security import "$CERT" -k "$KEYCHAIN" -P "${IOS_CERTIFICATE_PASSWORD:-}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_DIR/finpro.mobileprovision"
+
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "keychain=$KEYCHAIN" >> "$GITHUB_OUTPUT"
+
+      - name: Build unsigned iOS app
+        if: steps.signing.outputs.signed != 'true'
+        working-directory: mobile
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          BUILD: ${{ needs.prepare.outputs.build }}
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+        run: |
+          flutter build ios --release --no-codesign \
+            --build-name "$VERSION" --build-number "$BUILD" \
+            --dart-define=APP_VERSION="$VERSION" \
+            --dart-define=APP_BUILD="$BUILD" \
+            --dart-define=APP_CHANNEL="$CHANNEL"
+          ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app build/ios/iphoneos/Runner-unsigned.zip
+
+      - name: Build signed IPA
+        if: steps.signing.outputs.signed == 'true'
+        working-directory: mobile
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          BUILD: ${{ needs.prepare.outputs.build }}
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_EXPORT_METHOD: ${{ secrets.IOS_EXPORT_METHOD }}
+        run: |
+          set -euo pipefail
+          METHOD="${IOS_EXPORT_METHOD:-app-store}"
+          EXPORT_PLIST="$RUNNER_TEMP/ExportOptions.plist"
+          cat > "$EXPORT_PLIST" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>${METHOD}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>${IOS_TEAM_ID}</string>
+            <key>stripSwiftSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+          </dict>
+          </plist>
+          EOF
+          flutter build ipa --release --build-name "$VERSION" --build-number "$BUILD" --export-options-plist "$EXPORT_PLIST" \
+            --dart-define=APP_VERSION="$VERSION" \
+            --dart-define=APP_BUILD="$BUILD" \
+            --dart-define=APP_CHANNEL="$CHANNEL"
+
+      - name: Checksums
+        shell: bash
+        working-directory: mobile
+        run: |
+          find build/ios/ipa -name '*.ipa' -maxdepth 2 -print -exec sha256sum {} \; 2>/dev/null || true
+          sha256sum build/ios/iphoneos/Runner-unsigned.zip 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ steps.signing.outputs.signed == 'true' && 'ipa' || 'unsigned' }}
+          path: |
+            mobile/build/ios/ipa/*.ipa
+            mobile/build/ios/iphoneos/Runner-unsigned.zip
+          if-no-files-found: warn
+          retention-days: 90
+
+  publish:
+    name: Publish verified release
+    needs: [prepare, android, ios]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: artifacts/android
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-aab
+          path: artifacts/aab
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: artifacts/notes
+
+      - name: Verify downloaded APK before publishing
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          APK="artifacts/android/build/app/outputs/flutter-apk/app-release.apk"
+          AAB="artifacts/aab/build/app/outputs/bundle/release/app-release.aab"
+          test -s "$APK"
+          test -s "$AAB"
+          EXPECTED="$(cut -d' ' -f1 artifacts/android/apk.sha256)"
+          ACTUAL="$(sha256sum "$APK" | cut -d' ' -f1)"
+          if [[ "$EXPECTED" != "$ACTUAL" ]]; then
+            echo "::error::APK checksum changed in transit"
+            exit 1
+          fi
+          cp "$APK" "artifacts/finpro-${VERSION}.apk"
+          cp "$AAB" "artifacts/finpro-${VERSION}.aab"
+
+      - name: Build release notes
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          BUILD: ${{ needs.prepare.outputs.build }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+        run: |
+          set -euo pipefail
+          NOTES_FILE="artifacts/notes/$(basename "${{ needs.prepare.outputs.notes_file }}")"
+          {
+            echo "## FinPro ${VERSION} (build ${BUILD})"
+            echo
+            echo "Channel: ${CHANNEL}"
+            echo
+            echo "### What changed"
+            if [[ -s "$NOTES_FILE" ]]; then cat "$NOTES_FILE"; else echo "- No release notes supplied."; fi
+            echo
+            echo "### Android artifact"
+            echo "- APK: \`finpro-${VERSION}.apk\`"
+            echo "- AAB: \`finpro-${VERSION}.aab\`"
+            echo "- SHA-256: \`$(sha256sum "artifacts/finpro-${VERSION}.apk" | cut -d' ' -f1)\`"
+            echo
+            echo "### Install"
+            echo "1. Download the APK on an Android 8.0+ device."
+            echo "2. Allow installs from this source when prompted."
+            echo "3. Open the file and confirm the update."
+            echo
+            echo "iOS builds are distributed through TestFlight/App Store only."
+          } > release-body.md
+          cp "$NOTES_FILE" release-notes.txt
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          PUBLISH: true
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --title "FinPro ${VERSION}" \
+            --notes-file release-body.md \
+            --target "$GITHUB_SHA" \
+            "artifacts/finpro-${VERSION}.apk" \
+            "artifacts/finpro-${VERSION}.aab"
+
+      - name: Update public release manifest
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          BUILD: ${{ needs.prepare.outputs.build }}
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          CRITICAL: ${{ needs.prepare.outputs.critical }}
+          MINIMUM_SUPPORTED: ${{ needs.prepare.outputs.minimum_supported }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/${REPOSITORY}/releases/download/${TAG}"
+          node scripts/release/update-manifest.js \
+            --version "$VERSION" \
+            --build "$BUILD" \
+            --channel "$CHANNEL" \
+            --apk "artifacts/finpro-${VERSION}.apk" \
+            --aab "artifacts/finpro-${VERSION}.aab" \
+            --apk-url "${BASE}/finpro-${VERSION}.apk" \
+            --aab-url "${BASE}/finpro-${VERSION}.aab" \
+            --notes-file "release-notes.txt" \
+            --critical "$CRITICAL" \
+            --minimum-supported "$MINIMUM_SUPPORTED" \
+            --min-android "8.0" \
+            --min-ios "15.0" \
+            --manifest frontend/public/releases/manifest.json
+          cp frontend/public/releases/manifest.json "$RUNNER_TEMP/manifest.json"
+
+      - name: Commit manifest to main
+        if: vars.RELEASE_COMMIT_MANIFEST != 'false'
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          # The manifest was generated from the tag checkout. Move it aside,
+          # switch to main, then restore it so the commit lands on the branch
+          # the deployed website actually serves.
+          cp frontend/public/releases/manifest.json "$RUNNER_TEMP/manifest.json"
+          git config user.name "finpro-release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          cp "$RUNNER_TEMP/manifest.json" frontend/public/releases/manifest.json
+          git add frontend/public/releases/manifest.json
+          if git diff --cached --quiet; then
+            echo "manifest unchanged"
+            exit 0
+          fi
+          git commit -m "chore(release): publish FinPro ${VERSION} manifest [skip ci]"
+          git push origin main
+
+      - name: Attach manifest to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: gh release upload "$TAG" "$RUNNER_TEMP/manifest.json" --clobber
+
+      - name: Publish summary
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          SHA: ${{ github.sha }}
+        run: |
+          {
+            echo "### FinPro ${VERSION} published"
+            echo
+            echo "- Tag: ${TAG}"
+            echo "- Commit: ${SHA}"
+            echo "- Verified APK and AAB uploaded."
+            echo "- Release manifest updated."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  notify-failure:
+    name: Notify on failure
+    needs: [prepare, android, ios, publish]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Slack (optional)
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -fsS -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"FinPro mobile release failed: ${RUN_URL}\"}" \
+            "$SLACK_WEBHOOK_URL"

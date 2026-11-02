@@ -1,10 +1,13 @@
 import 'dart:math';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/api/api_error.dart';
+import '../../core/local/local_entities.dart';
+import '../../core/local/local_runtime.dart';
 import '../../core/models/account_model.dart';
 import '../../shared/widgets/gradient_button.dart';
 
@@ -150,29 +153,38 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     }
 
     setState(() => _isSaving = true);
+    final txData = <String, dynamic>{
+      'amount': amount,
+      'type': _type,
+      if (_categoryController.text.trim().isNotEmpty)
+        'category': _categoryController.text.trim(),
+      if (_accountId != null) 'accountId': _accountId,
+      if (_isTransfer && _toAccountId != null) 'toAccountId': _toAccountId,
+      if (_isTransfer) 'idempotencyKey': _transferIdempotencyKey,
+      if (_merchantController.text.trim().isNotEmpty)
+        'merchant': _merchantController.text.trim(),
+      if (_descriptionController.text.trim().isNotEmpty)
+        'description': _descriptionController.text.trim(),
+      if (_paymentMethodController.text.trim().isNotEmpty)
+        'paymentMethod': _paymentMethodController.text.trim(),
+      'date': _date.toUtc().toIso8601String(),
+    };
+
     try {
       final res = await apiClient.post(
         ApiEndpoints.transactions,
-        data: {
-          'amount': amount,
-          'type': _type,
-          if (_categoryController.text.trim().isNotEmpty)
-            'category': _categoryController.text.trim(),
-          if (_accountId != null) 'accountId': _accountId,
-          if (_isTransfer && _toAccountId != null) 'toAccountId': _toAccountId,
-          // The backend rejects a key on non-transfers. For a transfer this
-          // key is stable across retries from this sheet, so a timeout or
-          // double tap resolves to the original transfer.
-          if (_isTransfer) 'idempotencyKey': _transferIdempotencyKey,
-          if (_merchantController.text.trim().isNotEmpty)
-            'merchant': _merchantController.text.trim(),
-          if (_descriptionController.text.trim().isNotEmpty)
-            'description': _descriptionController.text.trim(),
-          if (_paymentMethodController.text.trim().isNotEmpty)
-            'paymentMethod': _paymentMethodController.text.trim(),
-          'date': _date.toUtc().toIso8601String(),
-        },
+        data: txData,
       );
+
+      try {
+        if (res.data is Map && res.data['data'] is Map) {
+          final store = await LocalRuntime.instance.store();
+          await store.applyServerRecord(
+            LocalEntity.transaction,
+            Map<String, dynamic>.from(res.data['data']),
+          );
+        }
+      } catch (_) {}
 
       if (!mounted) return;
       final message = serverMessage(res.data) ?? 'Transaction created.';
@@ -180,9 +192,30 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       widget.onCreated(message);
     } catch (error) {
       if (!mounted) return;
+
+      final isNetwork = error is DioException && (
+        error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.response == null
+      );
+
+      if (isNetwork) {
+        try {
+          final store = await LocalRuntime.instance.store();
+          await store.createRecord(
+            entityType: LocalEntity.transaction,
+            data: txData,
+          );
+          if (!mounted) return;
+          Navigator.pop(context);
+          widget.onCreated('Saved offline. Will sync when back online.');
+          return;
+        } catch (_) {}
+      }
+
       setState(() => _isSaving = false);
-      // Dio throws on non-2xx, so the backend's validation message (for
-      // example an unknown account) is read from the thrown response.
       _showError(
         apiErrorMessage(error) ??
             'Transaction could not be saved. Check your connection.',

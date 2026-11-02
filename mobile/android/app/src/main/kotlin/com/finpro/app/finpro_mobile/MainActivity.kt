@@ -5,13 +5,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.annotation.NonNull
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONArray
+import java.io.File
 
 class MainActivity : FlutterActivity() {
 
@@ -105,6 +109,21 @@ class MainActivity : FlutterActivity() {
                         val url = call.argument<String>("url")
                         result.success(openExternalUrl(url))
                     }
+                    "installApk" -> {
+                        // Only files the app itself downloaded into its cache
+                        // are accepted; the path is re-validated here so Dart
+                        // cannot broaden the install surface.
+                        val path = call.argument<String>("filePath")
+                        val error = installApk(path)
+                        if (error == null) {
+                            result.success(true)
+                        } else {
+                            result.error(error.first, error.second, null)
+                        }
+                    }
+                    "openInstallPermissionSettings" -> {
+                        result.success(openInstallPermissionSettings())
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -126,6 +145,80 @@ class MainActivity : FlutterActivity() {
             this,
             Manifest.permission.RECEIVE_SMS
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Starts the Android package installer for an APK in this app's cache.
+     *
+     * Returns `null` on success, or a `(code, message)` pair for a Dart
+     * `PlatformException`. Files outside the cache directory, non-APK names
+     * and missing files are rejected.
+     */
+    private fun installApk(rawPath: String?): Pair<String, String>? {
+        if (rawPath.isNullOrBlank()) {
+            return Pair("INVALID_ARGUMENT", "No APK path was provided.")
+        }
+
+        val file = try {
+            File(rawPath).canonicalFile
+        } catch (e: Exception) {
+            return Pair("INVALID_ARGUMENT", "The APK path could not be resolved.")
+        }
+
+        if (!file.exists() || !file.isFile) {
+            return Pair("FILE_NOT_FOUND", "The downloaded update file no longer exists.")
+        }
+        if (!file.name.endsWith(".apk", ignoreCase = true)) {
+            return Pair("INVALID_ARGUMENT", "Only .apk files can be installed.")
+        }
+
+        val cacheRoot = try {
+            cacheDir.canonicalFile
+        } catch (e: Exception) {
+            return Pair("INVALID_ARGUMENT", "The app cache directory is unavailable.")
+        }
+        if (!file.path.startsWith(cacheRoot.path + File.separator)) {
+            return Pair("INVALID_ARGUMENT", "Updates must be installed from the app cache.")
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !packageManager.canRequestPackageInstalls()
+        ) {
+            return Pair(
+                "PERMISSION_REQUIRED",
+                "Allow FinPro to install unknown apps, then try again."
+            )
+        }
+
+        return try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            null
+        } catch (e: Exception) {
+            Pair("INSTALL_FAILED", e.message ?: "Android could not start the installer.")
+        }
+    }
+
+    /** Opens the per-app "Install unknown apps" settings page. */
+    private fun openInstallPermissionSettings(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+        return try {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName")
+            ).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /**

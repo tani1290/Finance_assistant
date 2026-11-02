@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download FinPro — Android APK, iOS and release notes</title>
+  <meta name="description" content="Download the latest FinPro finance app. Verified Android APK, version history, checksums, minimum OS requirements and installation instructions.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="/assets/js/theme.js"></script>
+  <link rel="stylesheet" href="/assets/css/app.css">
+  <style>
+    /* Hallmark · shape: utility · genre: modern-minimal · theme: brand */
+    .download-page { max-width: 1120px; margin: 0 auto; padding: 0 24px 96px; }
+    .download-hero { padding: 72px 0 40px; text-align: center; }
+    .download-hero h1 { font-family: var(--font-display, 'Outfit', sans-serif); font-size: clamp(2.1rem, 5vw, 3.6rem); line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 16px; }
+    .download-hero p { color: var(--text-secondary); max-width: 640px; margin: 0 auto; font-size: 1.05rem; }
+    .release-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+    @media (max-width: 860px) { .release-grid { grid-template-columns: 1fr; } }
+    .release-card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 28px; box-shadow: 0 18px 50px var(--overlay); }
+    .release-card h2 { font-family: var(--font-display, 'Outfit', sans-serif); font-size: 1.35rem; margin: 0 0 4px; }
+    .release-kicker { display: inline-flex; align-items: center; gap: 8px; font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--primary); margin-bottom: 14px; }
+    .release-meta { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 16px 0 24px; color: var(--text-secondary); font-size: .88rem; }
+    .release-meta span { display: inline-flex; align-items: center; gap: 6px; }
+    .download-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn-download { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; padding: 0 24px; border-radius: 14px; background: var(--primary); color: #fff; font-weight: 700; text-decoration: none; transition: transform .18s ease, box-shadow .18s ease; }
+    .btn-download:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(0,0,0,.16); }
+    .btn-download.secondary { background: var(--surface-alt, rgba(127,127,127,.08)); color: var(--text-primary); border: 1px solid var(--border); }
+    .btn-download[aria-disabled="true"] { opacity: .55; pointer-events: none; }
+    .release-notes { margin: 24px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+    .release-notes li { display: flex; gap: 10px; color: var(--text-secondary); line-height: 1.55; }
+    .release-notes li::before { content: ""; flex: 0 0 6px; width: 6px; height: 6px; margin-top: 9px; border-radius: 50%; background: var(--primary); }
+    .install-steps { counter-reset: step; list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 14px; }
+    .install-steps li { position: relative; padding-left: 40px; color: var(--text-secondary); line-height: 1.55; }
+    .install-steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: -2px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: #fff; font-size: .78rem; font-weight: 700; }
+    .checksum { margin-top: 18px; padding: 14px 16px; border-radius: 12px; border: 1px dashed var(--border); background: var(--surface-alt, rgba(127,127,127,.05)); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; color: var(--text-secondary); word-break: break-all; }
+    .history { margin-top: 40px; }
+    .history-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: .9rem; }
+    .history-table th, .history-table td { text-align: left; padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .history-table th { font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); }
+    .history-table td { color: var(--text-secondary); }
+    .history-table td:first-child { color: var(--text-primary); font-weight: 600; }
+    .status-note { margin-top: 20px; padding: 18px 20px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface-alt, rgba(127,127,127,.05)); color: var(--text-secondary); line-height: 1.6; }
+    .status-note strong { color: var(--text-primary); }
+    .skeleton { border-radius: 10px; background: linear-gradient(90deg, rgba(127,127,127,.12), rgba(127,127,127,.22), rgba(127,127,127,.12)); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } .btn-download { transition: none; } }
+  </style>
+</head>
+<body>
+  <div class="bg-gradient"></div>
+
+  <nav>
+    <div class="nav-container">
+      <a href="/" class="nav-brand">
+        <div class="brand-mark"><i class="ri-wallet-3-line"></i></div>
+        <span class="brand-text">Fin<span>Pro</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="/#features" class="nav-link">Features</a>
+        <a href="/download.html" class="nav-link" aria-current="page">Download</a>
+        <a href="/status.html" class="nav-link">Cloud Status</a>
+      </div>
+      <div class="nav-actions">
+        <button type="button" id="themeToggleBtn" class="landing-theme-toggle" aria-label="Toggle theme" onclick="toggleDarkMode()">
+          <i class="ri-moon-line"></i>
+        </button>
+        <a href="/login.html" class="btn-ghost">Sign In</a>
+        <a href="/signup.html" class="btn-primary">Get Started Free</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="download-page">
+    <header class="download-hero">
+      <h1>Get FinPro on your phone.</h1>
+      <p>Verified builds, honest release notes and a complete version history. Android installs directly; iOS is distributed through TestFlight and the App Store.</p>
+    </header>
+
+    <section class="release-grid" aria-live="polite" aria-busy="true" id="releaseRegion">
+      <article class="release-card">
+        <div class="release-kicker"><i class="ri-shield-check-line" aria-hidden="true"></i> Latest verified release</div>
+        <h2 id="latestVersion">Loading release information…</h2>
+        <div id="latestBody">
+          <div class="skeleton" style="height:16px;width:60%;margin-top:12px"></div>
+          <div class="skeleton" style="height:16px;width:80%;margin-top:10px"></div>
+          <div class="skeleton" style="height:48px;width:100%;margin-top:24px"></div>
+        </div>
+      </article>
+
+      <aside class="release-card" id="installCard">
+        <div class="release-kicker"><i class="ri-information-line" aria-hidden="true"></i> Before you install</div>
+        <h2>Installation &amp; requirements</h2>
+        <ul class="install-steps" id="installSteps">
+          <li>Release metadata is loading.</li>
+        </ul>
+        <div class="status-note" id="platformNote">Loading platform availability…</div>
+      </aside>
+    </section>
+
+    <section class="history" id="historySection" hidden>
+      <h2>Previous versions</h2>
+      <table class="history-table">
+        <thead>
+          <tr><th scope="col">Version</th><th scope="col">Released</th><th scope="col">Channel</th><th scope="col">Download</th></tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </section>
+
+    <div class="status-note" id="errorNote" hidden role="alert"></div>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var region = document.getElementById('releaseRegion');
+      var latestVersion = document.getElementById('latestVersion');
+      var latestBody = document.getElementById('latestBody');
+      var installSteps = document.getElementById('installSteps');
+      var platformNote = document.getElementById('platformNote');
+      var historySection = document.getElementById('historySection');
+      var historyBody = document.getElementById('historyBody');
+      var errorNote = document.getElementById('errorNote');
+
+      function el(tag, className, text) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      function formatDate(value) {
+        if (!value) return 'Date not recorded';
+        var date = new Date(value);
+        if (isNaN(date.getTime())) return 'Date not recorded';
+        return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      }
+
+      function formatBytes(bytes) {
+        if (!bytes) return 'Size unavailable';
+        var units = ['B', 'KB', 'MB', 'GB'];
+        var i = 0;
+        var value = Number(bytes);
+        while (value >= 1024 && i < units.length - 1) { value /= 1024; i += 1; }
+        return value.toFixed(value >= 10 || i === 0 ? 0 : 1) + ' ' + units[i];
+      }
+
+      function showError(message) {
+        region.setAttribute('aria-busy', 'false');
+        latestVersion.textContent = 'Release information unavailable';
+        latestBody.replaceChildren(el('p', 'status-note', message));
+        errorNote.hidden = false;
+        errorNote.textContent = 'We could not load the release manifest. The previously published download remains available at /downloads/finpro-finance-ai.apk. Verify its SHA-256 before installing.';
+      }
+
+      function safeUrl(value) {
+        if (typeof value !== 'string') return null;
+        if (value.charAt(0) === '/' && value.charAt(1) !== '/') return value;
+        try {
+          var parsed = new URL(value, window.location.origin);
+          return parsed.protocol === 'https:' ? parsed.href : null;
+        } catch (e) { return null; }
+      }
+
+      function render(latest, releases) {
+        region.setAttribute('aria-busy', 'false');
+        latestVersion.textContent = 'FinPro ' + latest.version;
+        latestBody.replaceChildren();
+
+        var meta = el('div', 'release-meta');
+        var versionBit = el('span'); versionBit.appendChild(el('i', 'ri-hashtag')); versionBit.appendChild(document.createTextNode(' Build ' + latest.buildNumber));
+        var dateBit = el('span'); dateBit.appendChild(el('i', 'ri-calendar-line')); dateBit.appendChild(document.createTextNode(' ' + formatDate(latest.releasedAt)));
+        var channelBit = el('span'); channelBit.appendChild(el('i', 'ri-git-branch-line')); channelBit.appendChild(document.createTextNode(' ' + latest.channel));
+        meta.append(versionBit, dateBit, channelBit);
+        latestBody.appendChild(meta);
+
+        var android = latest.artifacts && latest.artifacts.android;
+        var apkUrl = android && safeUrl(android.apkUrl);
+        var actions = el('div', 'download-actions');
+
+        if (apkUrl) {
+          var apkLink = el('a', 'btn-download');
+          apkLink.href = apkUrl;
+          apkLink.setAttribute('download', android.fileName || 'finpro.apk');
+          apkLink.rel = 'noopener';
+          apkLink.appendChild(el('i', 'ri-android-fill'));
+          apkLink.appendChild(document.createTextNode('Download APK' + (android.sizeBytes ? ' · ' + formatBytes(android.sizeBytes) : '')));
+          actions.appendChild(apkLink);
+        } else {
+          var unavailable = el('span', 'btn-download');
+          unavailable.setAttribute('aria-disabled', 'true');
+          unavailable.textContent = 'Android build unavailable';
+          actions.appendChild(unavailable);
+        }
+
+        var aabUrl = android && safeUrl(android.aabUrl);
+        if (aabUrl) {
+          var aabLink = el('a', 'btn-download secondary');
+          aabLink.href = aabUrl;
+          aabLink.rel = 'noopener';
+          aabLink.appendChild(el('i', 'ri-google-play-line'));
+          aabLink.appendChild(document.createTextNode('Play Store bundle'));
+          actions.appendChild(aabLink);
+        }
+
+        latestBody.appendChild(actions);
+
+        if (android && android.sha256) {
+          var checksum = el('div', 'checksum');
+          checksum.textContent = 'SHA-256 · ' + android.sha256;
+          latestBody.appendChild(checksum);
+        }
+
+        if (latest.releaseNotes && latest.releaseNotes.length) {
+          var notes = el('ul', 'release-notes');
+          latest.releaseNotes.forEach(function (note) { notes.appendChild(el('li', '', note)); });
+          latestBody.appendChild(notes);
+        }
+
+        installSteps.replaceChildren();
+        var minAndroid = (latest.minimumOs && latest.minimumOs.android) || '8.0';
+        var minIos = (latest.minimumOs && latest.minimumOs.ios) || '15.0';
+        [
+          'Download the APK on an Android ' + minAndroid + '+ device.',
+          'When Android asks, allow installs from this browser. FinPro is not distributed through Google Play in this build.',
+          'Open the downloaded file and confirm the update. Your local data stays on the device.',
+          'Compare the SHA-256 above with the file before installing if you want to verify integrity.'
+        ].forEach(function (text) { installSteps.appendChild(el('li', '', text)); });
+
+        platformNote.replaceChildren();
+        platformNote.appendChild(el('strong', '', 'Android: '));
+        platformNote.appendChild(document.createTextNode('direct APK, minimum Android ' + minAndroid + '. '));
+        if (latest.artifacts && latest.artifacts.ios && (latest.artifacts.ios.testflightUrl || latest.artifacts.ios.appStoreUrl)) {
+          platformNote.appendChild(el('strong', '', 'iOS: '));
+          platformNote.appendChild(document.createTextNode('install through TestFlight or the App Store (minimum iOS ' + minIos + ').'));
+        } else {
+          platformNote.appendChild(el('strong', '', 'iOS: '));
+          platformNote.appendChild(document.createTextNode('no public build is available yet. iOS distribution is TestFlight/App Store only; no IPA is offered for sideloading.'));
+        }
+
+        var previous = (releases || []).slice(1, 8);
+        if (previous.length) {
+          historySection.hidden = false;
+          historyBody.replaceChildren();
+          previous.forEach(function (release) {
+            var row = document.createElement('tr');
+            row.appendChild(el('td', '', release.version + ' (' + release.buildNumber + ')'));
+            row.appendChild(el('td', '', formatDate(release.releasedAt)));
+            row.appendChild(el('td', '', release.channel));
+            var cell = document.createElement('td');
+            var artifact = release.artifacts && release.artifacts.android;
+            var url = artifact && safeUrl(artifact.apkUrl);
+            if (url) {
+              var link = el('a', '', 'APK');
+              link.href = url;
+              link.rel = 'noopener';
+              cell.appendChild(link);
+            } else {
+              cell.textContent = '—';
+            }
+            row.appendChild(cell);
+            historyBody.appendChild(row);
+          });
+        }
+      }
+
+      fetch('/api/v1/releases?channel=production', { headers: { Accept: 'application/json' }, cache: 'no-store' })
+        .then(function (response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return response.json();
+        })
+        .then(function (payload) {
+          if (!payload || payload.success !== true || !payload.data || !payload.data.latest) {
+            throw new Error('No published release');
+          }
+          render(payload.data.latest, payload.data.releases || []);
+        })
+        .catch(function (error) {
+          showError('The release service did not return a published build (' + error.message + ').');
+        });
+    })();
+  </script>
+</body>
+</html>

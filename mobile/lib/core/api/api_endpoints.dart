@@ -37,6 +37,28 @@ class ApiEndpoints {
   // Notifications / FCM
   static String get fcmToken => '$baseUrl/notifications/fcm-token';
 
+  // Public release metadata (no authentication required).
+  static String get releases => '$baseUrl/releases';
+  static String get releaseLatest => '$baseUrl/releases/latest';
+  static String get releaseCheck => '$baseUrl/releases/check';
+  static String release(String version) => '$baseUrl/releases/$version';
+
+  // Public liveness probe used by the online-state monitor.
+  static String get healthLive => '$baseUrl/health/live';
+
+  // Authenticated local-first sync surface.
+  static String get syncBootstrap => '$baseUrl/sync/bootstrap';
+  static String get syncPull => '$baseUrl/sync/pull';
+  static String get syncPush => '$baseUrl/sync/push';
+  static String get syncStatus => '$baseUrl/sync/status';
+  static String get syncConflicts => '$baseUrl/sync/conflicts';
+  static String syncConflictResolve(String id) =>
+      '$baseUrl/sync/conflicts/$id/resolve';
+  static String get syncBackups => '$baseUrl/sync/backups';
+  static String syncBackupRestore(String id) =>
+      '$baseUrl/sync/backups/$id/restore';
+  static String get syncAudit => '$baseUrl/sync/audit';
+
   // Core Financial Modules
   static String get onboarding => '$baseUrl/onboarding';
   static String get dashboard => '$baseUrl/dashboard';

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-02T07:45:00.000Z",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "buildNumber": 1,
+      "channel": "production",
+      "releasedAt": "2026-11-02T07:45:00.000Z",
+      "published": true,
+      "critical": false,
+      "minimumSupportedVersion": "1.0.0",
+      "minimumOs": {
+        "android": "8.0",
+        "ios": "15.0"
+      },
+      "installNotes": "Android: allow installation from this browser when prompted, then open the downloaded APK. This build is distributed directly as an APK, not through Google Play. iOS distribution requires TestFlight or the App Store; no public iOS build is available yet.",
+      "releaseNotes": [
+        "Local-first storage: all financial data is saved to on-device SQLite before syncing.",
+        "Durable sync queue with idempotent push, conflict detection and encrypted cloud backup.",
+        "Offline mode: view, create and edit transactions without internet connectivity.",
+        "In-app update detection with release notes and download progress.",
+        "Automated CI/CD pipeline for Android APK and AAB generation."
+      ],
+      "artifacts": {
+        "android": {
+          "apkUrl": "/downloads/finpro-finance-ai.apk",
+          "sha256": "0e9e7286ed4aeee48f517c6c122b643b3f58fec40a00076fbd1decb861029c07",
+          "sizeBytes": 59246273,
+          "fileName": "finpro-finance-ai.apk"
+        }
+      }
+    }
+  ]
+}

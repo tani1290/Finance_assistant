@@ -16,6 +16,7 @@ const path = require('path');
 
 const authRoutes = require('./routes/authRoutes');
 const apiRoutes = require('./routes/index');
+const releaseRoutes = require('./routes/releaseRoutes');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const requestLogger = require('./middleware/requestLogger');
 const metricsMiddleware = require('./middleware/metricsMiddleware');
@@ -441,6 +442,10 @@ app.get('/api/v1/health/news', async (req, res) => {
 });
 
 // ==================== API ROUTES ====================
+
+// Public release metadata. Mounted before the authenticated router on purpose:
+// the download centre and the pre-login update check must not require a token.
+app.use('/api/v1/releases', releaseRoutes);
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1', apiRoutes);

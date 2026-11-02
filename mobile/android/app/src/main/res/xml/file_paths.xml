@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Only the app cache is shared with the package installer. Updates are written
+  to the cache directory by Dart, then exposed as a content:// URI through the
+  FileProvider declared in AndroidManifest.xml.
+-->
+<paths>
+    <cache-path name="updates" path="." />
+</paths>

@@ -4,7 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/auth/auth_notifier.dart';
+import '../../core/config/app_info.dart';
 import '../../core/config/theme_preference.dart';
+import '../../core/updates/app_update_controller.dart';
+import '../../core/updates/update_models.dart';
+import '../updates/update_dialog.dart';
 import '../../shared/widgets/financial_card.dart';
 import '../../shared/widgets/pressable.dart';
 
@@ -243,6 +247,21 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
 
+            _SectionLabel('About & updates', isDark: isDark),
+            FinancialCard(
+              padding: EdgeInsets.zero,
+              child: _SettingTile(
+                icon: Icons.system_update_alt_rounded,
+                title: 'Check for updates',
+                subtitle: AppInfo.supportsInAppUpdate
+                    ? 'Installed ${AppInfo.displayVersion} · ${AppInfo.channel}'
+                    : 'In-app updates are available on Android and iOS',
+                isDark: isDark,
+                onTap: () => _checkForUpdates(context, ref),
+              ),
+            ),
+            const SizedBox(height: 20),
+
             _SectionLabel('Legal & data', isDark: isDark),
             FinancialCard(
               padding: EdgeInsets.zero,
@@ -306,7 +325,8 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 24),
 
             Text(
-              'FinPro Mobile v1.0.0\nIndian Personal Finance & Decision Support',
+              'FinPro Mobile ${AppInfo.displayVersion}\n'
+              'Indian Personal Finance & Decision Support',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
@@ -317,6 +337,61 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// Manual update check used by the settings tile.
+  ///
+  /// The automatic gate throttles checks; an explicit tap must always reach the
+  /// release API and surface the outcome, including "already up to date".
+  Future<void> _checkForUpdates(BuildContext context, WidgetRef ref) async {
+    HapticFeedback.selectionClick();
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (!AppInfo.supportsInAppUpdate) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('In-app updates are available on Android and iOS.'),
+        ),
+      );
+      return;
+    }
+
+    await ref.read(appUpdateProvider.notifier).check(force: true);
+    if (!context.mounted) return;
+
+    final state = ref.read(appUpdateProvider);
+    final result = state.result;
+    if (result == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not check for updates. Try again.')),
+      );
+      return;
+    }
+    if (result.status == UpdateStatus.error) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result.errorMessage ?? 'Could not check for updates. Try again.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (!state.shouldPrompt || result.latest == null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('FinPro ${AppInfo.displayVersion} is up to date.'),
+        ),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !result.blocksUsage,
+      builder: (_) => UpdateDialog(result: result),
     );
   }
 }
