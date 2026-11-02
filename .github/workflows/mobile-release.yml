@@ -242,11 +242,11 @@ jobs:
 
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobile/android/release.jks
           cat > mobile/android/key.properties <<EOF
-          storePassword=${ANDROID_KEYSTORE_PASSWORD}
-          keyPassword=${ANDROID_KEY_PASSWORD}
-          keyAlias=${ANDROID_KEY_ALIAS}
-          storeFile=release.jks
-          EOF
+storePassword=${ANDROID_KEYSTORE_PASSWORD}
+keyPassword=${ANDROID_KEY_PASSWORD}
+keyAlias=${ANDROID_KEY_ALIAS}
+storeFile=release.jks
+EOF
 
           if [[ -n "${GOOGLE_SERVICES_JSON:-}" ]]; then
             printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/android/app/google-services.json
