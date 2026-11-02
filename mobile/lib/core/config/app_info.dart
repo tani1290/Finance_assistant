@@ -15,13 +15,13 @@ class AppInfo {
 
   static const String version = String.fromEnvironment(
     'APP_VERSION',
-    defaultValue: '1.0.0',
+    defaultValue: '1.0.1',
   );
 
   /// Milliseconds-safe integer used for ordering releases.
   static const String buildName = String.fromEnvironment(
     'APP_BUILD',
-    defaultValue: '1',
+    defaultValue: '2',
   );
 
   static const String channel = String.fromEnvironment(

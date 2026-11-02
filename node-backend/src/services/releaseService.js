@@ -179,8 +179,8 @@ function isNewer(candidate, current) {
   if (!candidate) return false;
   if (!current) return true;
   const byVersion = compareVersions(candidate.version, current.version);
-  if (byVersion !== null) return byVersion > 0;
-  // Unparseable versions fall back to the monotonic build number.
+  if (byVersion !== null && byVersion !== 0) return byVersion > 0;
+  // Identical or unparseable versions fall back to the monotonic build number.
   return Number(candidate.buildNumber) > Number(current.buildNumber || 0);
 }
 

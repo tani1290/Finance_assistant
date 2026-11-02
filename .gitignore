@@ -86,3 +86,11 @@ api_key.txt
 replace_port.py
 .vercel
 .env*
+
+# Android signing keys and properties (never commit)
+*.jks
+*.keystore
+**/*.jks
+**/*.keystore
+key.properties
+**/key.properties

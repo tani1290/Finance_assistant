@@ -44,6 +44,15 @@ describe('releaseService', () => {
         currentBuild: 1,
       });
       expect(['optional', 'critical', 'forced']).toContain(older.status);
+
+      const olderBuild = releaseService.checkForUpdate({
+        platform: 'android',
+        currentVersion: latest.version,
+        currentBuild: Math.max(0, Number(latest.buildNumber) - 1),
+      });
+      if (latest.buildNumber > 0) {
+        expect(['optional', 'critical', 'forced']).toContain(olderBuild.status);
+      }
     });
   });
 
