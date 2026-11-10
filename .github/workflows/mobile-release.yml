@@ -241,12 +241,12 @@ jobs:
           fi
 
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobile/android/release.jks
-          cat > mobile/android/key.properties <<EOF
-storePassword=${ANDROID_KEYSTORE_PASSWORD}
-keyPassword=${ANDROID_KEY_PASSWORD}
-keyAlias=${ANDROID_KEY_ALIAS}
-storeFile=release.jks
-EOF
+          {
+            echo "storePassword=${ANDROID_KEYSTORE_PASSWORD}"
+            echo "keyPassword=${ANDROID_KEY_PASSWORD}"
+            echo "keyAlias=${ANDROID_KEY_ALIAS}"
+            echo "storeFile=release.jks"
+          } > mobile/android/key.properties
 
           if [[ -n "${GOOGLE_SERVICES_JSON:-}" ]]; then
             printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/android/app/google-services.json
@@ -312,6 +312,14 @@ EOF
             mobile/aab.sha256
           if-no-files-found: error
           retention-days: 90
+
+      - name: Clean up sensitive signing material
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f mobile/android/release.jks mobile/android/key.properties
+          echo "Temporary Android release signing materials securely removed."
 
   ios:
     name: iOS build (signed only when Apple secrets exist)
@@ -429,6 +437,16 @@ EOF
             mobile/build/ios/iphoneos/Runner-unsigned.zip
           if-no-files-found: warn
           retention-days: 90
+
+      - name: Clean up iOS signing keychain and certificate
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${{ steps.signing.outputs.keychain }}" && -f "${{ steps.signing.outputs.keychain }}" ]]; then
+            security delete-keychain "${{ steps.signing.outputs.keychain }}" 2>/dev/null || true
+          fi
+          rm -f "$RUNNER_TEMP/finpro.p12" "$RUNNER_TEMP/ExportOptions.plist"
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/finpro.mobileprovision" 2>/dev/null || true
 
   publish:
     name: Publish verified release

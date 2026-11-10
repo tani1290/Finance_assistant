@@ -28,6 +28,31 @@ if [ ! -f node-backend/.env ] && [ -f node-backend/.env.example ]; then
     echo "✅ Created node-backend/.env from node-backend/.env.example"
 fi
 
+# Harden sensitive local credentials permissions
+echo ""
+echo "🔒 Hardening sensitive local file permissions (chmod 600)..."
+for f in .env .env.local node-backend/.env mobile/android/key.properties mobile/android/finpro-release.jks; do
+    if [ -f "$f" ]; then
+        chmod 600 "$f"
+        echo "  - Secured: $f (600)"
+    fi
+done
+
+# Install Git pre-commit security hook
+if [ -d .git/hooks ] && [ -f scripts/git-hooks/pre-commit ]; then
+    echo ""
+    echo "🛡️ Installing Git pre-commit security hook..."
+    TARGET_HOOK=".git/hooks/pre-commit"
+    if [ -f "$TARGET_HOOK" ] && ! cmp -s scripts/git-hooks/pre-commit "$TARGET_HOOK"; then
+        BACKUP_HOOK=".git/hooks/pre-commit.backup.$(date +%s)"
+        cp "$TARGET_HOOK" "$BACKUP_HOOK"
+        echo "  - Existing pre-commit hook backed up to: $BACKUP_HOOK"
+    fi
+    cp scripts/git-hooks/pre-commit "$TARGET_HOOK"
+    chmod +x "$TARGET_HOOK"
+    echo "  - Pre-commit security hook installed & active."
+fi
+
 # Install dependencies
 echo ""
 echo "📦 Installing backend dependencies..."

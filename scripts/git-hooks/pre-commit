@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# FinPro — Git Pre-Commit Security Hook
+# Protects against accidental commits of signing keys, keystores, and credentials.
+# ==============================================================================
+
+set -euo pipefail
+
+# 1. Inspect staged filenames
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [[ -z "$STAGED_FILES" ]]; then
+    exit 0
+fi
+
+FAILED=0
+
+for file in $STAGED_FILES; do
+    base=$(basename "$file")
+
+    # Allow safe example and template files
+    if [[ "$base" =~ \.(example|template|sample)$ ]] || [[ "$base" == *".example."* ]]; then
+        continue
+    fi
+
+    # Check for Android key.properties
+    if [[ "$base" == "key.properties" ]] || [[ "$file" =~ (^|/)key\.properties$ ]]; then
+        echo "❌ [SECURITY ERROR] Staged file prohibited: '$file'"
+        echo "   Android signing credentials must never be committed to version control."
+        echo "   Use key.properties.example as a template and keep key.properties git-ignored."
+        FAILED=1
+    fi
+
+    # Check for Android Keystores (*.jks, *.keystore)
+    if [[ "$file" =~ \.(jks|keystore)$ ]]; then
+        echo "❌ [SECURITY ERROR] Staged file prohibited: '$file'"
+        echo "   Android binary keystores must never be committed to version control."
+        echo "   Keep keystore files local and git-ignored, or pass via CI/CD secrets."
+        FAILED=1
+    fi
+
+    # Check for actual .env files
+    if [[ "$base" =~ ^\.env($|\.) ]]; then
+        echo "❌ [SECURITY ERROR] Staged file prohibited: '$file'"
+        echo "   Environment configuration files containing credentials must not be committed."
+        echo "   Use .env.example for public variable declarations."
+        FAILED=1
+    fi
+done
+
+# 2. Inspect staged diff content for sensitive signing patterns and private keys
+# We only inspect text diffs added in this commit
+SUSPICIOUS_DIFF=$(git diff --cached -U0 | grep -E "^\+[[:space:]]*(storePassword|keyPassword)[[:space:]]*=" || true)
+
+if [[ -n "$SUSPICIOUS_DIFF" ]]; then
+    # Check if lines contain real credentials rather than CHANGE_ME / placeholder
+    NON_PLACEHOLDER=$(echo "$SUSPICIOUS_DIFF" | grep -v -E "(CHANGE_ME|YOUR_|dummy|placeholder|example)" || true)
+    if [[ -n "$NON_PLACEHOLDER" ]]; then
+        echo "❌ [SECURITY ERROR] Staged diff contains unmasked Android keystore password assignment:"
+        echo "   Lines assigning 'storePassword' or 'keyPassword' with real values were detected."
+        echo "   Please remove sensitive passwords before committing."
+        FAILED=1
+    fi
+fi
+
+# Check for private key headers in staged diff
+PRIVATE_KEY_DIFF=$(git diff --cached -U0 | grep -E "^\+[[:space:]]*-----BEGIN (RSA|EC|OPENSSH|DSA|PGP)?\s*PRIVATE KEY-----" || true)
+
+if [[ -n "$PRIVATE_KEY_DIFF" ]]; then
+    echo "❌ [SECURITY ERROR] Staged diff contains private cryptographic key material."
+    echo "   Private keys must never be committed to repository history."
+    FAILED=1
+fi
+
+if [[ "$FAILED" -ne 0 ]]; then
+    echo ""
+    echo "🛑 Commit rejected by FinPro pre-commit security hook."
+    echo "   To unstage sensitive files, run: git reset HEAD <file>"
+    exit 1
+fi
+
+exit 0
