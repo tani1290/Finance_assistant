@@ -94,3 +94,35 @@ replace_port.py
 **/*.keystore
 key.properties
 **/key.properties
+
+# Flutter / Dart (mobile subdirectory)
+.dart_tool/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/GeneratedPluginRegistrant.java
+*.iml
+
+# Flutter build output
+mobile/build/
+mobile/**/.dart_tool/
+
+# Gradle caches (mobile/android)
+mobile/android/.gradle/
+mobile/android/local.properties
+
+# APK/AAB download artifacts (serve via CDN or GitHub Releases instead)
+frontend/public/downloads/*.apk
+frontend/public/downloads/*.aab
+
+# Visual regression test snapshots (re-generate on CI)
+tests/visual/**/*-snapshots/
+
+# Test coverage output
+coverage/
+
+# Cursor IDE index
+.cursor/
+
+# IDE metadata (project-wide)
+**/.idea/
