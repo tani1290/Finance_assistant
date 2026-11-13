@@ -7,6 +7,7 @@ import 'package:finpro_mobile/core/api/api_endpoints.dart';
 import 'package:finpro_mobile/core/auth/auth_notifier.dart';
 import 'package:finpro_mobile/core/auth/auth_state.dart';
 import 'package:finpro_mobile/core/auth/token_storage.dart';
+import 'package:finpro_mobile/core/firebase/firebase_service.dart';
 import 'package:finpro_mobile/features/auth/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -55,6 +56,13 @@ void main() {
   group('Google Auth Contract & Endpoints', () {
     test('ApiEndpoints.googleAuth points to /auth/google', () {
       expect(ApiEndpoints.googleAuth, endsWith('/auth/google'));
+    });
+
+    test('FirebaseService.googleServerClientId configures canonical web client for token exchange', () {
+      expect(
+        FirebaseService.googleServerClientId,
+        '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
+      );
     });
   });
 

@@ -40,6 +40,11 @@ class FirebaseService {
 
   static final FirebaseService instance = FirebaseService._();
 
+  /// Canonical Web OAuth Client ID used as serverClientId to obtain ID tokens
+  /// verified by the backend.
+  static const String googleServerClientId =
+      '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com';
+
   FirebaseAuth get auth => FirebaseAuth.instance;
 
   FirebaseMessaging get messaging => FirebaseMessaging.instance;
@@ -184,8 +189,7 @@ class FirebaseService {
     try {
       final googleSignIn = customGoogleSignIn ??
           GoogleSignIn(
-            serverClientId:
-                '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
+            serverClientId: googleServerClientId,
             scopes: ['email', 'profile'],
           );
 

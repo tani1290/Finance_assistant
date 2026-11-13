@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "1024776311502-up85gnmov5ilgdod0fosee7fv82dtm69.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.finpro.app.finpro_mobile",
+            "certificate_hash": "40e0614063397e66b5476a8e0e167b592205b40e"
+          }
+        },
+        {
           "client_id": "1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -37,6 +45,13 @@
             {
               "client_id": "1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "1024776311502-p48ego8rv07r8oe9d8p5g5n8jirb9kkh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.finpro.app.finproMobile"
+              }
             }
           ]
         }

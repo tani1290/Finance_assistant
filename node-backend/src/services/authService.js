@@ -272,6 +272,21 @@ const sanitizeUser = (user) => ({
  * 1. Firebase ID token via Firebase Admin SDK.
  * 2. Google OAuth ID token via Google OAuth2Client.
  */
+const getGoogleAllowedAudiences = () => {
+  return Array.from(
+    new Set(
+      [
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_ANDROID_RELEASE_CLIENT_ID,
+        '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
+        '1024776311502-02qf5999j49r784gao2nvqjjoi2avvbg.apps.googleusercontent.com',
+        '1024776311502-up85gnmov5ilgdod0fosee7fv82dtm69.apps.googleusercontent.com',
+        '1024776311502-p48ego8rv07r8oe9d8p5g5n8jirb9kkh.apps.googleusercontent.com',
+      ].filter(Boolean)
+    )
+  );
+};
+
 const verifyGoogleToken = async (idToken) => {
   if (!idToken || typeof idToken !== 'string') {
     throw Object.assign(new Error('idToken is required.'), { statusCode: 400, code: 'VALIDATION_ERROR' });
@@ -316,12 +331,7 @@ const verifyGoogleToken = async (idToken) => {
       const client = new OAuth2Client();
       const ticket = await client.verifyIdToken({
         idToken: trimmedToken,
-        audience: [
-          process.env.GOOGLE_CLIENT_ID,
-          '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com',
-          '1024776311502-02qf5999j49r784gao2nvqjjoi2avvbg.apps.googleusercontent.com',
-          '1024776311502-p48ego8rv07r8oe9d8p5g5n8jirb9kkh.apps.googleusercontent.com',
-        ].filter(Boolean),
+        audience: getGoogleAllowedAudiences(),
       });
       const payload = ticket.getPayload();
       if (payload) {
@@ -529,6 +539,7 @@ module.exports = {
   googleLogin,
   linkGoogleAccount,
   verifyGoogleToken,
+  getGoogleAllowedAudiences,
   refreshAccessToken,
   logout,
   deleteAccount,

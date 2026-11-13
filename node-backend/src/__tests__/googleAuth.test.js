@@ -547,4 +547,126 @@ describe('Google Identity Normalization (Flutter vs Web Parity)', () => {
       process.env.GOOGLE_CLIENT_ID = originalEnv;
     });
   });
+
+  describe('AUTH-01: Google Audience Configuration & Multi-Platform Client Support', () => {
+    const WEB_CLIENT_ID = '1024776311502-8jld09q86kqeei2ud56krp4kb2sht67l.apps.googleusercontent.com';
+    const DEBUG_ANDROID_CLIENT_ID = '1024776311502-02qf5999j49r784gao2nvqjjoi2avvbg.apps.googleusercontent.com';
+    const RELEASE_ANDROID_CLIENT_ID = '1024776311502-up85gnmov5ilgdod0fosee7fv82dtm69.apps.googleusercontent.com';
+    const IOS_CLIENT_ID = '1024776311502-p48ego8rv07r8oe9d8p5g5n8jirb9kkh.apps.googleusercontent.com';
+
+    let savedEnvGoogleClientId;
+    let savedEnvReleaseClientId;
+
+    beforeEach(() => {
+      savedEnvGoogleClientId = process.env.GOOGLE_CLIENT_ID;
+      savedEnvReleaseClientId = process.env.GOOGLE_ANDROID_RELEASE_CLIENT_ID;
+      delete process.env.GOOGLE_CLIENT_ID;
+      delete process.env.GOOGLE_ANDROID_RELEASE_CLIENT_ID;
+    });
+
+    afterEach(() => {
+      if (savedEnvGoogleClientId !== undefined) {
+        process.env.GOOGLE_CLIENT_ID = savedEnvGoogleClientId;
+      } else {
+        delete process.env.GOOGLE_CLIENT_ID;
+      }
+      if (savedEnvReleaseClientId !== undefined) {
+        process.env.GOOGLE_ANDROID_RELEASE_CLIENT_ID = savedEnvReleaseClientId;
+      } else {
+        delete process.env.GOOGLE_ANDROID_RELEASE_CLIENT_ID;
+      }
+    });
+
+    it('includes Web, Debug Android, Release Android, and iOS client IDs by default', () => {
+      const audiences = authService.getGoogleAllowedAudiences();
+      expect(audiences).toContain(WEB_CLIENT_ID);
+      expect(audiences).toContain(DEBUG_ANDROID_CLIENT_ID);
+      expect(audiences).toContain(RELEASE_ANDROID_CLIENT_ID);
+      expect(audiences).toContain(IOS_CLIENT_ID);
+      expect(audiences.length).toBe(4);
+    });
+
+    it('passes the complete audience array including release client to OAuth2Client.verifyIdToken', async () => {
+      getAuth.mockReturnValue({
+        verifyIdToken: jest.fn().mockRejectedValue(new Error('Not a Firebase token')),
+      });
+      __verifyIdTokenMock.mockResolvedValue({
+        getPayload: () => ({
+          sub: '102477631150299999999',
+          email: 'release-test@example.com',
+          email_verified: true,
+          name: 'Release Test User',
+          aud: RELEASE_ANDROID_CLIENT_ID,
+        }),
+      });
+
+      await authService.verifyGoogleToken('mock-release-token');
+
+      expect(__verifyIdTokenMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          idToken: 'mock-release-token',
+          audience: expect.arrayContaining([
+            WEB_CLIENT_ID,
+            DEBUG_ANDROID_CLIENT_ID,
+            RELEASE_ANDROID_CLIENT_ID,
+            IOS_CLIENT_ID,
+          ]),
+        })
+      );
+    });
+
+    it('supports GOOGLE_ANDROID_RELEASE_CLIENT_ID environment override', () => {
+      process.env.GOOGLE_ANDROID_RELEASE_CLIENT_ID = 'custom-release-client.apps.googleusercontent.com';
+      const audiences = authService.getGoogleAllowedAudiences();
+      expect(audiences).toContain('custom-release-client.apps.googleusercontent.com');
+      expect(audiences).toContain(RELEASE_ANDROID_CLIENT_ID);
+    });
+
+    it('supports GOOGLE_CLIENT_ID environment override', () => {
+      process.env.GOOGLE_CLIENT_ID = 'custom-web-client.apps.googleusercontent.com';
+      const audiences = authService.getGoogleAllowedAudiences();
+      expect(audiences).toContain('custom-web-client.apps.googleusercontent.com');
+      expect(audiences).toContain(WEB_CLIENT_ID);
+    });
+
+    it('deduplicates client IDs if environment variables match hardcoded defaults', () => {
+      process.env.GOOGLE_CLIENT_ID = WEB_CLIENT_ID;
+      process.env.GOOGLE_ANDROID_RELEASE_CLIENT_ID = RELEASE_ANDROID_CLIENT_ID;
+      const audiences = authService.getGoogleAllowedAudiences();
+      const occurrencesWeb = audiences.filter((id) => id === WEB_CLIENT_ID).length;
+      const occurrencesRelease = audiences.filter((id) => id === RELEASE_ANDROID_CLIENT_ID).length;
+      expect(occurrencesWeb).toBe(1);
+      expect(occurrencesRelease).toBe(1);
+    });
+
+    it('rejects tokens when Google Auth Library throws due to audience mismatch', async () => {
+      getAuth.mockReturnValue({
+        verifyIdToken: jest.fn().mockRejectedValue(new Error('Not a Firebase token')),
+      });
+      __verifyIdTokenMock.mockRejectedValue(
+        new Error('Wrong recipient, payload audience != requiredAudience: invalid-client.apps.googleusercontent.com')
+      );
+
+      await expect(authService.verifyGoogleToken('unrelated-audience-token')).rejects.toMatchObject({
+        statusCode: 401,
+        code: 'INVALID_TOKEN',
+      });
+    });
+
+    it('preserves existing Firebase Admin verification path without invoking OAuth2Client', async () => {
+      getAuth.mockReturnValue({
+        verifyIdToken: jest.fn().mockResolvedValue({
+          uid: 'firebase-user-direct-uid',
+          email: 'firebase-direct@example.com',
+          email_verified: true,
+          name: 'Firebase Direct User',
+        }),
+      });
+
+      const verified = await authService.verifyGoogleToken('valid-firebase-direct-token');
+      expect(verified.provider).toBe('firebase');
+      expect(verified.email).toBe('firebase-direct@example.com');
+      expect(__verifyIdTokenMock).not.toHaveBeenCalled();
+    });
+  });
 });
